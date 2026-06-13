@@ -1,0 +1,192 @@
+// Spark Check-in — schema V1 (seção 3.2 do documento de implementação)
+// Tabelas prefixadas com "checkin_" porque o banco (Sparkleads OS) é
+// compartilhado com outros domínios e já possui tabelas como "tickets".
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Isolamento multi-tenant (D6: isolar desde a V1)
+model Organization {
+  id        String   @id @default(uuid()) @db.Uuid
+  name      String
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  users          User[]
+  events         Event[]
+  ghlConnections GhlConnection[]
+
+  @@map("checkin_organizations")
+}
+
+model User {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  email          String   @unique
+  passwordHash   String   @map("password_hash")
+  role           String   @default("organizer") // organizer|manager
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@map("checkin_users")
+}
+
+model Event {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  name           String
+  slug           String // sufixo das tags de rastreamento GHL (seção 3.5)
+  date           DateTime @db.Date
+  startTime      String?  @map("start_time")
+  endTime        String?  @map("end_time")
+  locationName   String?  @map("location_name")
+  address        String?
+  capacity       Int?
+  status         String   @default("draft") // draft|active|completed|canceled
+  // D4: Checker autentica por link + PIN temporário por evento
+  checkerToken   String   @unique @map("checker_token")
+  checkerPin     String   @map("checker_pin")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  guests       Guest[]
+  tickets      Ticket[]
+  checkInLogs  CheckInLog[]
+  emailLogs    EmailLog[]
+  syncJobs     GhlSyncJob[]
+
+  @@index([organizationId])
+  @@map("checkin_events")
+}
+
+model Guest {
+  id           String   @id @default(uuid()) @db.Uuid
+  eventId      String   @map("event_id") @db.Uuid
+  ghlContactId String?  @map("ghl_contact_id")
+  name         String
+  email        String?
+  phone        String?
+  source       String   @default("csv") // csv|ghl|manual
+  status       String   @default("pending_qr") // pending_qr|qr_generated|email_sent|checked_in|no_show|canceled
+  createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt    DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  ticket      Ticket?
+  checkInLogs CheckInLog[]
+  emailLogs   EmailLog[]
+  syncJobs    GhlSyncJob[]
+
+  @@index([eventId])
+  @@map("checkin_guests")
+}
+
+model Ticket {
+  id                 String    @id @default(uuid()) @db.Uuid
+  eventId            String    @map("event_id") @db.Uuid
+  guestId            String    @unique @map("guest_id") @db.Uuid
+  token              String    @unique // base64url(uuid v4) — seção 2.4
+  signature          String // HMAC_SHA256(event_id + guest_id + token, TICKET_TOKEN_SECRET)
+  status             String    @default("active") // active|checked_in|canceled
+  checkedInAt        DateTime? @map("checked_in_at") @db.Timestamptz()
+  checkedInBy        String?   @map("checked_in_by") @db.Uuid
+  checkinCount       Int       @default(0) @map("checkin_count")
+  duplicateScanCount Int       @default(0) @map("duplicate_scan_count")
+  lastScanAt         DateTime? @map("last_scan_at") @db.Timestamptz()
+  createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  event       Event        @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest       Guest        @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  checkInLogs CheckInLog[]
+  emailLogs   EmailLog[]
+
+  @@index([eventId])
+  @@map("checkin_tickets")
+}
+
+model CheckInLog {
+  id            String   @id @default(uuid()) @db.Uuid
+  eventId       String   @map("event_id") @db.Uuid
+  guestId       String?  @map("guest_id") @db.Uuid
+  ticketId      String?  @map("ticket_id") @db.Uuid
+  checkerUserId String?  @map("checker_user_id")
+  status        String // checked_in|duplicate|invalid|wrong_event
+  message       String?
+  scannedAt     DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
+  deviceInfo    String?  @map("device_info")
+  ipAddress     String?  @map("ip_address")
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest  Guest?  @relation(fields: [guestId], references: [id], onDelete: SetNull)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([eventId, scannedAt])
+  @@map("checkin_check_in_logs")
+}
+
+model EmailLog {
+  id           String    @id @default(uuid()) @db.Uuid
+  eventId      String    @map("event_id") @db.Uuid
+  guestId      String    @map("guest_id") @db.Uuid
+  ticketId     String?   @map("ticket_id") @db.Uuid
+  provider     String // ghl|resend|sendgrid|...
+  status       String // sent|error
+  sentAt       DateTime? @map("sent_at") @db.Timestamptz()
+  errorMessage String?   @map("error_message")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+
+  event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  guest  Guest   @relation(fields: [guestId], references: [id], onDelete: Cascade)
+  ticket Ticket? @relation(fields: [ticketId], references: [id], onDelete: SetNull)
+
+  @@index([eventId])
+  @@map("checkin_email_logs")
+}
+
+// Tokens GHL criptografados em repouso (seção 3.4) — cifrar antes de gravar.
+model GhlConnection {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  accessToken    String   @map("access_token")
+  refreshToken   String   @map("refresh_token")
+  expiresAt      DateTime @map("expires_at") @db.Timestamptz()
+  locationId     String   @map("location_id")
+  scopes         String?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+
+  @@index([organizationId])
+  @@map("checkin_ghl_connections")
+}
+
+// Fila assíncrona de sincronização com o GHL (seção 3.5 / D7: tabela no
+// Postgres processada por cron). O worker é implementado na Etapa 4.
+model GhlSyncJob {
+  id           String    @id @default(uuid()) @db.Uuid
+  eventId      String?   @map("event_id") @db.Uuid
+  guestId      String?   @map("guest_id") @db.Uuid
+  ghlContactId String?   @map("ghl_contact_id")
+  action       String // add_tag|update_fields|add_note
+  payload      Json
+  status       String    @default("pending") // pending|processing|done|failed
+  attempts     Int       @default(0)
+  nextRetryAt  DateTime? @map("next_retry_at") @db.Timestamptz()
+  lastError    String?   @map("last_error")
+  createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  processedAt  DateTime? @map("processed_at") @db.Timestamptz()
+
+  event Event? @relation(fields: [eventId], references: [id], onDelete: SetNull)
+  guest Guest? @relation(fields: [guestId], references: [id], onDelete: SetNull)
+
+  @@index([status, nextRetryAt])
+  @@map("checkin_ghl_sync_jobs")
+}

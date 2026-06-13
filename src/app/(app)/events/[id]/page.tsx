@@ -1,0 +1,90 @@
+import { notFound } from "next/navigation";
+import { getOrganizerSession } from "@/lib/auth";
+import { prisma } from "@/lib/prisma";
+import { EventDetail } from "@/components/events/event-detail";
+
+export const dynamic = "force-dynamic";
+
+export default async function EventDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}) {
+  const session = (await getOrganizerSession())!;
+  const { id } = await params;
+
+  const event = await prisma.event.findFirst({
+    where: { id, organizationId: session.organizationId },
+  });
+  if (!event) notFound();
+
+  const [guests, logs, checkedIn, dupAgg, invalidAttempts] = await Promise.all([
+    prisma.guest.findMany({
+      where: { eventId: id },
+      orderBy: { createdAt: "asc" },
+      include: { ticket: { select: { token: true, checkedInAt: true } } },
+    }),
+    prisma.checkInLog.findMany({
+      where: { eventId: id },
+      orderBy: { scannedAt: "desc" },
+      take: 100,
+      include: { guest: { select: { name: true } } },
+    }),
+    prisma.ticket.count({ where: { eventId: id, status: "checked_in" } }),
+    prisma.ticket.aggregate({
+      where: { eventId: id },
+      _sum: { duplicateScanCount: true },
+    }),
+    prisma.checkInLog.count({
+      where: { eventId: id, status: { in: ["invalid", "wrong_event"] } },
+    }),
+  ]);
+
+  const activeGuests = guests.filter((g) => g.status !== "canceled");
+
+  return (
+    <EventDetail
+      event={{
+        id: event.id,
+        name: event.name,
+        slug: event.slug,
+        date: event.date.toISOString().slice(0, 10),
+        startTime: event.startTime,
+        endTime: event.endTime,
+        locationName: event.locationName,
+        address: event.address,
+        capacity: event.capacity,
+        status: event.status,
+        checkerToken: event.checkerToken,
+        checkerPin: event.checkerPin,
+      }}
+      guests={guests.map((g) => ({
+        id: g.id,
+        name: g.name,
+        email: g.email,
+        phone: g.phone,
+        source: g.source,
+        status: g.status,
+        ticketToken: g.ticket?.token ?? null,
+        checkedInAt: g.ticket?.checkedInAt?.toISOString() ?? null,
+      }))}
+      logs={logs.map((l) => ({
+        id: l.id,
+        status: l.status,
+        message: l.message,
+        guestName: l.guest?.name ?? null,
+        scannedAt: l.scannedAt.toISOString(),
+        deviceInfo: l.deviceInfo,
+      }))}
+      report={{
+        guests: activeGuests.length,
+        qrGenerated: activeGuests.filter((g) => g.ticket).length,
+        checkedIn,
+        noShow: guests.filter((g) => g.status === "no_show").length,
+        duplicateAttempts: dupAgg._sum.duplicateScanCount ?? 0,
+        invalidAttempts,
+      }}
+      appBaseUrl={process.env.APP_BASE_URL ?? "http://localhost:3000"}
+    />
+  );
+}

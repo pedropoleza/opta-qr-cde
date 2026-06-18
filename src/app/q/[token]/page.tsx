@@ -19,7 +19,14 @@ export default async function GuestQrPage({
     include: {
       guest: { select: { name: true, status: true } },
       event: {
-        select: { name: true, date: true, startTime: true, locationName: true, address: true },
+        select: {
+          name: true,
+          date: true,
+          startTime: true,
+          endTime: true,
+          locationName: true,
+          address: true,
+        },
       },
     },
   });
@@ -27,43 +34,72 @@ export default async function GuestQrPage({
 
   const dataUrl = await QRCode.toDataURL(
     ticketValidationUrl(ticket.token, ticket.signature),
-    { width: 512, margin: 2, errorCorrectionLevel: "M" }
+    { width: 512, margin: 1, errorCorrectionLevel: "M" }
   );
 
+  const checkedIn = ticket.status === "checked_in";
+  const dateLabel = ticket.event.date.toISOString().slice(0, 10);
+  const timeLabel = [ticket.event.startTime, ticket.event.endTime]
+    .filter(Boolean)
+    .join(" – ");
+
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-neutral-50 p-6">
-      <div className="w-full max-w-sm rounded-xl border bg-white p-6 text-center shadow-sm">
-        <p className="text-sm uppercase tracking-wide text-neutral-500">
-          Seu ingresso
-        </p>
-        <h1 className="mt-1 text-xl font-bold">{ticket.event.name}</h1>
-        <p className="text-sm text-neutral-500">
-          {ticket.event.date.toISOString().slice(0, 10)}
-          {ticket.event.startTime ? ` · ${ticket.event.startTime}` : ""}
-        </p>
-        {ticket.event.locationName && (
-          <p className="text-sm text-neutral-500">{ticket.event.locationName}</p>
-        )}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={dataUrl} alt="QR Code de check-in" className="mx-auto my-4 w-64" />
-        <p className="font-semibold">{ticket.guest.name}</p>
-        {ticket.status === "checked_in" ? (
-          <p className="mt-2 rounded-md bg-green-50 px-3 py-2 text-sm text-green-700">
-            Check-in já realizado
-            {ticket.checkedInAt
-              ? ` às ${ticket.checkedInAt.toLocaleTimeString("pt-BR")}`
-              : ""}
+    <div className="flex min-h-screen items-center justify-center bg-neutral-900 p-4">
+      <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
+        {/* Cabeçalho do ingresso */}
+        <div className="bg-neutral-900 px-6 py-5 text-center text-white">
+          <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
+            Spark Check-in · Ingresso
           </p>
-        ) : (
-          <p className="mt-2 text-sm text-neutral-500">
-            Apresente este QR Code na entrada do evento.
+          <h1 className="mt-1 text-xl font-bold">{ticket.event.name}</h1>
+          <p className="mt-1 text-sm text-neutral-300">
+            {dateLabel}
+            {timeLabel ? ` · ${timeLabel}` : ""}
           </p>
-        )}
-        <Button asChild variant="outline" className="mt-4 w-full">
-          <a href={`/api/qr/${ticket.token}`} download="meu-qr-code.png">
-            Baixar QR Code (PNG)
-          </a>
-        </Button>
+          {ticket.event.locationName && (
+            <p className="text-sm text-neutral-300">{ticket.event.locationName}</p>
+          )}
+          {ticket.event.address && (
+            <p className="text-xs text-neutral-400">{ticket.event.address}</p>
+          )}
+        </div>
+
+        {/* Recorte perfurado */}
+        <div className="relative h-4 bg-neutral-900">
+          <div className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-neutral-900" />
+          <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 border-t border-dashed border-neutral-700" />
+          <div className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-neutral-900" />
+        </div>
+
+        {/* Corpo com o QR */}
+        <div className="px-6 py-6 text-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={dataUrl}
+            alt="QR Code de check-in"
+            className="mx-auto w-60 rounded-lg"
+          />
+          <p className="mt-4 text-lg font-semibold">{ticket.guest.name}</p>
+
+          {checkedIn ? (
+            <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+              ✓ Check-in realizado
+              {ticket.checkedInAt
+                ? ` às ${ticket.checkedInAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                : ""}
+            </p>
+          ) : (
+            <p className="mt-3 text-sm text-neutral-500">
+              Apresente este QR Code na entrada do evento.
+            </p>
+          )}
+
+          <Button asChild variant="outline" className="mt-5 w-full">
+            <a href={`/api/qr/${ticket.token}`} download="meu-qr-code.png">
+              Baixar QR Code (PNG)
+            </a>
+          </Button>
+        </div>
       </div>
     </div>
   );

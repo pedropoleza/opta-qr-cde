@@ -7,13 +7,19 @@ revistas antes da Etapa 3/4.
 
 | # | Decisão | Status |
 |---|---------|--------|
-| D1 | **Híbrida (C)** — app envia (provedor próprio) e grava status no contato GHL. Implementação na Etapa 3. | Recomendação do documento — confirmar antes da Etapa 3 |
-| D2 | **Link clicável** que abre página hospedada com o QR (`/q/{token}`), em vez de imagem embedada no e-mail. | Recomendação do documento |
-| D3 | Custom fields no contato GHL: `event_name`, `event_date`, `event_qr_link`, `event_checkin_status`, `event_checked_in_at`, `event_ticket_id`. | Sugestão do documento — Time cria no GHL na Etapa 4 |
+| D1 | **Híbrida (C) com disparo pela automação do GHL** — o app prepara o contato (grava link/imagem do QR + dados do evento) e aplica a tag-gatilho; o **workflow nativo do HighLevel envia o e-mail**. O app não usa provedor próprio. | ✅ Confirmada pelo Time |
+| D2 | **Imagem do QR + botão** no e-mail: imagem embedada (`event_qr_image`) E botão para a página do ingresso `/q/{token}` (`event_qr_link`). | ✅ Confirmada pelo Time |
+| D3 | Custom fields no contato GHL: `event_name`, `event_date`, `event_location`, `event_qr_link`, `event_qr_image`, `event_checkin_status`, `event_checked_in_at`. | Sugestão do documento — Time cria no GHL na Etapa 4 |
 | D4 | **Link + PIN temporário por evento** para o Checker (`/checker/{token}` + PIN de 6 dígitos). Sem login do organizador e sem acesso a dados sensíveis. | ✅ Confirmada pelo Time |
 | D5 | Capacity atingida: **alerta e libera** — o check-in é efetuado e o Checker vê aviso de capacidade excedida. | ✅ Confirmada pelo Time |
 | D6 | **Multi-tenant desde a V1** — `organization_id` em todo o schema, escopo no JWT e em toda query. | Recomendação do documento |
 | D7 | Fila de sincronização GHL: **tabela `checkin_ghl_sync_jobs` no próprio Postgres**, processada por cron (Vercel Cron na Etapa 4). Retry sugerido: 5 tentativas com backoff exponencial (1min, 5min, 15min, 1h, 6h). | Padrão adotado — confirmar provider/retry antes da Etapa 4 |
+
+## HighLevel (Etapa 4)
+
+- **Subaccount / Location ID**: `qz19EgcgJfyjdVg8krSz` (fornecida pelo Time em 13/06/2026).
+  É a location onde serão criados os custom fields (D3), o workflow de envio do QR
+  (ver `GHL_EMAIL_WORKFLOW.md`) e contra a qual o OAuth/worker irão operar.
 
 ## Infraestrutura
 

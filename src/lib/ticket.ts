@@ -43,3 +43,9 @@ export function ticketPublicQrUrl(token: string): string {
   const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
   return `${base}/q/${encodeURIComponent(token)}`;
 }
+
+// PNG público do QR — usado como <img src> dentro do e-mail enviado pelo GHL.
+export function ticketQrImageUrl(token: string): string {
+  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  return `${base}/api/qr/${encodeURIComponent(token)}`;
+}

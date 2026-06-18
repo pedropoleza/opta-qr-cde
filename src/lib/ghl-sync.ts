@@ -68,6 +68,56 @@ export async function enqueueCheckInSync(
   });
 }
 
+// Envio do QR (Etapa 3, D1 = híbrida C com disparo pela automação do GHL).
+// O app não dispara o e-mail: ele grava no contato os dados que o template do
+// workflow GHL usa (link da página do ingresso + URL da imagem do QR + dados do
+// evento) e aplica a tag-gatilho qrcode-enviado-{evento}, que faz o workflow
+// nativo do GHL enviar o e-mail. Tudo enfileirado — efetivado pelo worker
+// quando o GHL estiver conectado (Etapa 4).
+type SendQrFields = {
+  eventName: string;
+  eventDate: string;
+  eventLocation: string;
+  qrLink: string; // página do ingresso /q/{token}
+  qrImageUrl: string; // PNG público /api/qr/{token}
+};
+
+export async function enqueueSendQr(
+  tx: Tx,
+  guest: GuestRef,
+  eventSlug: string,
+  fields: SendQrFields
+) {
+  if (!guest.ghlContactId) return;
+  const base = {
+    eventId: guest.eventId,
+    guestId: guest.id,
+    ghlContactId: guest.ghlContactId,
+  };
+  await tx.ghlSyncJob.createMany({
+    data: [
+      {
+        ...base,
+        action: "update_fields",
+        payload: {
+          event_name: fields.eventName,
+          event_date: fields.eventDate,
+          event_location: fields.eventLocation,
+          event_qr_link: fields.qrLink,
+          event_qr_image: fields.qrImageUrl,
+          event_checkin_status: "qrcode_enviado",
+        },
+      },
+      {
+        // Tag-gatilho: o workflow do GHL escuta "tag adicionada" e envia o e-mail.
+        ...base,
+        action: "add_tag",
+        payload: { tag: `qrcode-enviado-${eventSlug}` },
+      },
+    ],
+  });
+}
+
 export async function enqueueNoShowBatch(
   tx: Tx,
   eventSlug: string,

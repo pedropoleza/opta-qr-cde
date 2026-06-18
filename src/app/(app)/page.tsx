@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getOrganizerSession } from "@/lib/auth";
+import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import {
   Card,
@@ -12,13 +12,13 @@ import { Button } from "@/components/ui/button";
 export const dynamic = "force-dynamic";
 
 export default async function DashboardPage() {
-  const session = (await getOrganizerSession())!;
-  const orgFilter = { event: { organizationId: session.organizationId } };
+  const organizationId = await getCurrentOrgId();
+  const orgFilter = { event: { organizationId } };
 
   const [events, activeEvents, guests, checkedIn, qrGenerated] = await Promise.all([
-    prisma.event.count({ where: { organizationId: session.organizationId } }),
+    prisma.event.count({ where: { organizationId } }),
     prisma.event.count({
-      where: { organizationId: session.organizationId, status: "active" },
+      where: { organizationId, status: "active" },
     }),
     prisma.guest.count({ where: { ...orgFilter, status: { not: "canceled" } } }),
     prisma.ticket.count({ where: { ...orgFilter, status: "checked_in" } }),

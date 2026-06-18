@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { getOrganizerSession } from "@/lib/auth";
+import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,9 +16,9 @@ import { EVENT_STATUS_LABEL, EVENT_STATUS_VARIANT } from "@/components/events/st
 export const dynamic = "force-dynamic";
 
 export default async function EventsPage() {
-  const session = (await getOrganizerSession())!;
+  const organizationId = await getCurrentOrgId();
   const events = await prisma.event.findMany({
-    where: { organizationId: session.organizationId },
+    where: { organizationId },
     orderBy: { date: "desc" },
     include: {
       _count: { select: { guests: true } },

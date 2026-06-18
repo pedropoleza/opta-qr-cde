@@ -1,15 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
-import { requireOrganizer, jsonError } from "@/lib/api";
+import { getCurrentOrgId, jsonError } from "@/lib/api";
 import { slugify } from "@/lib/slug";
 
 export async function GET() {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
 
   const events = await prisma.event.findMany({
-    where: { organizationId: session.organizationId },
+    where: { organizationId },
     orderBy: { date: "desc" },
     include: {
       _count: { select: { guests: true } },
@@ -19,8 +18,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
 
   const body = await req.json();
   const { name, date, startTime, endTime, locationName, address, capacity } = body;
@@ -28,7 +26,7 @@ export async function POST(req: NextRequest) {
 
   const event = await prisma.event.create({
     data: {
-      organizationId: session.organizationId,
+      organizationId,
       name,
       slug: slugify(name),
       date: new Date(date),

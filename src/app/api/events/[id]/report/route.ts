@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireOrganizer, jsonError, findOrgEvent } from "@/lib/api";
+import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 
 // Métricas do evento (Etapa 2): convidados, QR gerados, check-ins,
 // ausentes, tentativas duplicadas e inválidas.
@@ -8,11 +8,10 @@ export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
-  const event = await findOrgEvent(id, session.organizationId);
+  const event = await findOrgEvent(id, organizationId);
   if (!event) return jsonError(404, "Evento não encontrado");
 
   const [guests, qrGenerated, checkedIn, noShow, emailsSent, dupAgg, invalidAttempts] =

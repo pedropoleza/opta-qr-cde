@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireOrganizer, jsonError, findOrgEvent } from "@/lib/api";
+import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { ticketPublicQrUrl, ticketQrImageUrl } from "@/lib/ticket";
 import { enqueueSendQr } from "@/lib/ghl-sync";
 
-// Disparo do QR por e-mail (Etapa 3, D1 = híbrida C via automação do GHL).
+// Disparo do QR por e-mail (Etapa 3, D1 = híbrida C via automação Spark/GHL).
 // O app não envia o e-mail diretamente: grava os dados do QR no contato e
 // aplica a tag-gatilho qrcode-enviado-{evento}; o workflow nativo do GHL
 // envia o e-mail (imagem do QR + botão para a página do ingresso). O envio é
@@ -15,11 +15,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
-  const event = await findOrgEvent(id, session.organizationId);
+  const event = await findOrgEvent(id, organizationId);
   if (!event) return jsonError(404, "Evento não encontrado");
 
   const body = await req.json().catch(() => ({}));

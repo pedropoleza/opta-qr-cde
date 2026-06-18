@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireOrganizer, jsonError, findOrgEvent } from "@/lib/api";
+import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { enqueueAddTag } from "@/lib/ghl-sync";
 
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
-  const event = await findOrgEvent(id, session.organizationId);
+  const event = await findOrgEvent(id, organizationId);
   if (!event) return jsonError(404, "Evento não encontrado");
 
   const guests = await prisma.guest.findMany({
@@ -28,11 +27,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
-  const event = await findOrgEvent(id, session.organizationId);
+  const event = await findOrgEvent(id, organizationId);
   if (!event) return jsonError(404, "Evento não encontrado");
   if (["completed", "canceled"].includes(event.status)) {
     return jsonError(400, "Evento encerrado não aceita novos convidados");

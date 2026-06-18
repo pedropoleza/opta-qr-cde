@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { getOrganizerSession } from "@/lib/auth";
+import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { EventDetail } from "@/components/events/event-detail";
 
@@ -10,11 +10,11 @@ export default async function EventDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = (await getOrganizerSession())!;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
   const event = await prisma.event.findFirst({
-    where: { id, organizationId: session.organizationId },
+    where: { id, organizationId },
   });
   if (!event) notFound();
 

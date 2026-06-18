@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { requireOrganizer, jsonError, findOrgEvent } from "@/lib/api";
+import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { generateTicketToken, signTicket } from "@/lib/ticket";
 
 // Geração de ticket (seção 2.4): token único base64url(uuid) + assinatura
@@ -10,11 +10,10 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const session = await requireOrganizer();
-  if (session instanceof NextResponse) return session;
+  const organizationId = await getCurrentOrgId();
   const { id } = await params;
 
-  const event = await findOrgEvent(id, session.organizationId);
+  const event = await findOrgEvent(id, organizationId);
   if (!event) return jsonError(404, "Evento não encontrado");
 
   const body = await req.json().catch(() => ({}));

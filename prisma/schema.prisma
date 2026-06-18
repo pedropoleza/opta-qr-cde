@@ -8,7 +8,11 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Vercel (serverless): DATABASE_URL aponta para o pooler do Supabase
+  // (porta 6543, pgbouncer=true). DIRECT_URL usa a conexão direta (5432)
+  // para migrations. Em desenvolvimento local, ambos podem ser a mesma URL.
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // Isolamento multi-tenant (D6: isolar desde a V1)

@@ -214,8 +214,10 @@ export function GuestsTab({
                 <TableCell className="font-medium">{guest.name}</TableCell>
                 <TableCell>{guest.email ?? "—"}</TableCell>
                 <TableCell>{guest.phone ?? "—"}</TableCell>
-                <TableCell className="uppercase text-xs text-neutral-500">
-                  {guest.source}
+                <TableCell className="text-xs text-neutral-500">
+                  {guest.source === "ghl"
+                    ? "Spark"
+                    : guest.source.toUpperCase()}
                 </TableCell>
                 <TableCell>
                   <Badge variant={GUEST_STATUS_VARIANT[guest.status] ?? "secondary"}>

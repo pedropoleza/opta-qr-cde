@@ -28,13 +28,12 @@ export function QrDeliveryTab({
 }) {
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
-  const pending = guests.filter(
-    (g) => g.status !== "canceled" && !g.ticketToken
-  ).length;
-  const withTicket = guests.filter(
-    (g) => g.ticketToken && g.status !== "canceled"
-  );
+
+  const active = guests.filter((g) => g.status !== "canceled");
+  const pending = active.filter((g) => !g.ticketToken).length;
+  const withTicket = active.filter((g) => g.ticketToken);
   const notSent = withTicket.filter((g) => g.status === "qr_generated").length;
+  const sentCount = active.filter((g) => g.status === "email_sent").length;
 
   async function generate() {
     setGenerating(true);
@@ -66,10 +65,10 @@ export function QrDeliveryTab({
       toast.error(data.error ?? "Erro ao enviar");
       return;
     }
-    toast.success(`${data.sent} convidado(s) marcados para envio via GHL`);
+    toast.success(`${data.sent} convidado(s) disparados pela automação Spark`);
     if (data.withoutGhlContact > 0) {
       toast.warning(
-        `${data.withoutGhlContact} sem contato no GHL — serão enviados após vincular o contato (Etapa 4)`
+        `${data.withoutGhlContact} ainda sem contato Spark vinculado — entram na fila e saem assim que o contato for conectado`
       );
     }
     onChange();
@@ -80,108 +79,239 @@ export function QrDeliveryTab({
     toast.success("Link copiado");
   }
 
+  // Painel demonstrativo: mostra ao organizador como o disparo funciona e em
+  // qual passo o evento está, deixando a próxima ação óbvia.
+  const steps = [
+    {
+      n: 1,
+      title: "Convidados na lista",
+      done: active.length > 0,
+      detail: `${active.length} convidado(s) adicionado(s).`,
+    },
+    {
+      n: 2,
+      title: "QR Codes gerados",
+      done: pending === 0 && withTicket.length > 0,
+      detail:
+        pending > 0
+          ? `${pending} ainda sem QR. Clique em "Gerar QR Codes".`
+          : `${withTicket.length} QR Code(s) único(s) e assinado(s).`,
+    },
+    {
+      n: 3,
+      title: "Disparo do convite",
+      done: notSent === 0 && sentCount > 0,
+      detail:
+        notSent > 0
+          ? `${notSent} pronto(s) para enviar. Clique em "Enviar convite".`
+          : sentCount > 0
+            ? `${sentCount} convite(s) disparado(s).`
+            : "Aguardando geração dos QR Codes.",
+    },
+  ];
+
   return (
-    <div className="space-y-4 pt-4">
-      <div className="flex flex-wrap items-center gap-3">
-        <Button onClick={generate} disabled={generating || pending === 0}>
-          {generating
-            ? "Gerando..."
-            : pending > 0
-              ? `Gerar QR Codes (${pending} pendente${pending > 1 ? "s" : ""})`
-              : "Todos os QR Codes gerados"}
-        </Button>
-        <Button
-          variant="secondary"
-          onClick={sendAll}
-          disabled={sending || notSent === 0}
-        >
-          {sending
-            ? "Enviando..."
-            : notSent > 0
-              ? `Enviar QR por e-mail (${notSent})`
-              : "Tudo enviado"}
-        </Button>
-        <EmailTemplatePreview event={event} appBaseUrl={appBaseUrl} />
-      </div>
-
-      <p className="text-sm text-neutral-500">
-        O e-mail é disparado pela <strong>automação do HighLevel</strong> (D1):
-        o app grava o link e a imagem do QR no contato e aplica a tag-gatilho
-        <code className="mx-1">qrcode-enviado-{event.slug}</code>, que faz o
-        workflow do GHL enviar o e-mail. Efetivado quando o GHL estiver
-        conectado (Etapa 4).
-      </p>
-
-      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        {withTicket.map((guest) => (
-          <Card key={guest.id}>
-            <CardContent className="flex flex-col items-center gap-2 p-4">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={`/api/qr/${guest.ticketToken}`}
-                alt={`QR de ${guest.name}`}
-                className="h-36 w-36"
-              />
-              <p className="w-full truncate text-center text-sm font-medium">
-                {guest.name}
+    <div className="space-y-5 pt-4">
+      {/* Passo a passo do disparo */}
+      <Card>
+        <CardContent className="p-5">
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <h3 className="font-semibold">Disparo do convite</h3>
+              <p className="text-sm text-neutral-500">
+                Em 3 passos o convidado recebe o ingresso por e-mail, com o QR
+                Code de entrada.
               </p>
-              {guest.status === "email_sent" && (
-                <Badge variant="outline" className="text-xs">
-                  Enviado
-                </Badge>
-              )}
-              <div className="flex gap-2">
-                <Button size="sm" variant="outline" asChild>
-                  <a
-                    href={`/api/qr/${guest.ticketToken}`}
-                    download={`qr-${guest.name.replace(/\s+/g, "-").toLowerCase()}.png`}
+            </div>
+            <HowItWorksDialog />
+          </div>
+
+          <ol className="grid gap-3 sm:grid-cols-3">
+            {steps.map((s) => (
+              <li
+                key={s.n}
+                className={`rounded-lg border p-3 ${
+                  s.done ? "border-green-200 bg-green-50" : "border-neutral-200 bg-white"
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
+                      s.done
+                        ? "bg-green-600 text-white"
+                        : "bg-neutral-200 text-neutral-600"
+                    }`}
                   >
-                    PNG
-                  </a>
-                </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => copyLink(guest.ticketToken!)}
-                >
-                  Copiar link
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+                    {s.done ? "✓" : s.n}
+                  </span>
+                  <span className="text-sm font-medium">{s.title}</span>
+                </div>
+                <p className="mt-1 text-xs text-neutral-500">{s.detail}</p>
+              </li>
+            ))}
+          </ol>
+
+          <div className="mt-4 flex flex-wrap items-center gap-3">
+            <Button onClick={generate} disabled={generating || pending === 0}>
+              {generating
+                ? "Gerando..."
+                : pending > 0
+                  ? `Gerar QR Codes (${pending})`
+                  : "QR Codes gerados ✓"}
+            </Button>
+            <Button
+              variant={notSent > 0 ? "default" : "secondary"}
+              onClick={sendAll}
+              disabled={sending || notSent === 0}
+            >
+              {sending
+                ? "Disparando..."
+                : notSent > 0
+                  ? `Enviar convite (${notSent})`
+                  : "Convites enviados ✓"}
+            </Button>
+            <PreviewDialog event={event} appBaseUrl={appBaseUrl} />
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Visualização dos QR Codes gerados */}
+      {withTicket.length > 0 && (
+        <div>
+          <h3 className="mb-3 text-sm font-medium text-neutral-500">
+            QR Codes do evento ({withTicket.length})
+          </h3>
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+            {withTicket.map((guest) => (
+              <Card key={guest.id}>
+                <CardContent className="flex flex-col items-center gap-2 p-4">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/qr/${guest.ticketToken}`}
+                    alt={`QR de ${guest.name}`}
+                    className="h-36 w-36"
+                  />
+                  <p className="w-full truncate text-center text-sm font-medium">
+                    {guest.name}
+                  </p>
+                  {guest.status === "email_sent" ? (
+                    <Badge className="bg-green-600 text-xs hover:bg-green-600">
+                      Convite enviado
+                    </Badge>
+                  ) : (
+                    <Badge variant="outline" className="text-xs">
+                      Aguardando envio
+                    </Badge>
+                  )}
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="outline" asChild>
+                      <a
+                        href={`/api/qr/${guest.ticketToken}`}
+                        download={`qr-${guest.name.replace(/\s+/g, "-").toLowerCase()}.png`}
+                      >
+                        PNG
+                      </a>
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => copyLink(guest.ticketToken!)}
+                    >
+                      Link
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
       {withTicket.length === 0 && (
         <p className="py-8 text-center text-sm text-neutral-500">
-          Nenhum QR gerado ainda. Adicione convidados e clique em Gerar QR Codes.
+          Nenhum QR gerado ainda. Adicione convidados na aba Convidados e clique
+          em Gerar QR Codes.
         </p>
       )}
     </div>
   );
 }
 
-// Preview do e-mail que o workflow do GHL deve enviar (imagem + botão, D2).
-// Serve de referência para o Time montar o template no HighLevel usando as
-// variáveis do contato ({{contact.event_qr_image}} etc.).
-function EmailTemplatePreview({
+// Explica, em linguagem do usuário, como o disparo é executado por baixo.
+function HowItWorksDialog() {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button variant="ghost" size="sm">
+          Como funciona?
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Como o disparo do convite funciona</DialogTitle>
+          <DialogDescription>
+            O Spark cuida de todo o caminho até o convidado.
+          </DialogDescription>
+        </DialogHeader>
+        <ol className="space-y-3 text-sm">
+          <li className="flex gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+              1
+            </span>
+            <p>
+              Você <strong>gera os QR Codes</strong>: cada convidado recebe um
+              código único e assinado, que só pode ser usado uma vez na entrada.
+            </p>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+              2
+            </span>
+            <p>
+              Você clica em <strong>Enviar convite</strong>. O Spark grava o
+              ingresso no contato e aciona a <strong>automação Spark</strong>,
+              que envia o e-mail com a imagem do QR e o botão do ingresso.
+            </p>
+          </li>
+          <li className="flex gap-3">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+              3
+            </span>
+            <p>
+              O convidado recebe o e-mail e, na entrada, a equipe escaneia o QR
+              pelo <strong>modo Checker</strong> — verde libera, amarelo já
+              entrou, vermelho inválido.
+            </p>
+          </li>
+        </ol>
+        <p className="rounded-md bg-neutral-50 p-3 text-xs text-neutral-500">
+          Cada etapa do convidado também marca o contato no Spark
+          (convidado → convite enviado → presente / não compareceu), permitindo
+          disparar follow-ups automáticos por evento.
+        </p>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// Pré-visualização do e-mail que a automação Spark envia (imagem + botão, D2).
+function PreviewDialog({
   event,
   appBaseUrl,
 }: {
   event: EventData;
   appBaseUrl: string;
 }) {
-  const sampleLink = `${appBaseUrl}/q/exemplo-token`;
+  const sampleLink = `${appBaseUrl}/q/exemplo`;
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="ghost">Ver template do e-mail</Button>
+        <Button variant="ghost">Ver e-mail do convidado</Button>
       </DialogTrigger>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Template do e-mail (GHL)</DialogTitle>
+          <DialogTitle>Prévia do e-mail</DialogTitle>
           <DialogDescription>
-            Modelo para o workflow do HighLevel. As variáveis entre chaves são
-            preenchidas pelos custom fields do contato.
+            É isto que o convidado recebe quando você dispara o convite.
           </DialogDescription>
         </DialogHeader>
         <div className="rounded-lg border bg-white p-5 text-center text-sm">
@@ -191,27 +321,22 @@ function EmailTemplatePreview({
             {event.locationName ? ` · ${event.locationName}` : ""}
           </p>
           <p className="mt-3">
-            Olá <span className="rounded bg-neutral-100 px-1">{"{{contact.name}}"}</span>,
-            aqui está o seu ingresso:
+            Olá <span className="rounded bg-neutral-100 px-1">[nome]</span>, aqui
+            está o seu ingresso:
           </p>
           <div className="my-4 flex justify-center">
             <div className="flex h-36 w-36 items-center justify-center rounded border-2 border-dashed text-xs text-neutral-400">
-              {"{{contact.event_qr_image}}"}
+              imagem do QR
             </div>
           </div>
           <span className="inline-block rounded-md bg-neutral-900 px-4 py-2 text-white">
             Ver meu ingresso
           </span>
-          <p className="mt-2 break-all text-xs text-neutral-400">
-            {"{{contact.event_qr_link}}"} → {sampleLink}
-          </p>
+          <p className="mt-2 break-all text-xs text-neutral-400">{sampleLink}</p>
         </div>
         <p className="text-xs text-neutral-500">
-          Custom fields usados: <code>event_qr_image</code> (imagem do QR),
-          <code className="mx-1">event_qr_link</code> (página do ingresso),
-          <code>event_name</code>, <code>event_date</code>,
-          <code className="ml-1">event_location</code>. Gatilho do workflow: tag
-          <code className="mx-1">qrcode-enviado-{event.slug}</code>.
+          O modelo e o disparo são executados pela automação Spark do evento
+          (gatilho: convite enviado · <code>{event.slug}</code>).
         </p>
       </DialogContent>
     </Dialog>

@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "Spark Check-in",
-  description: "Credenciamento digital por QR Code integrado ao HighLevel",
+  description: "Credenciamento digital por QR Code — Spark Check-in",
 };
 
 export default function RootLayout({

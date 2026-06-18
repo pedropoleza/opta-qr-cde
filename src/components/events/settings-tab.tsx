@@ -156,9 +156,9 @@ export function SettingsTab({
             </div>
           </div>
           <p className="text-xs text-neutral-500">
-            Slug das tags GHL: <code>{event.slug}</code> (convidado-{event.slug},
-            qrcode-enviado-{event.slug}, presente-evento-{event.slug},
-            no-show-{event.slug})
+            Identificador do evento nas automações Spark:{" "}
+            <code>{event.slug}</code> (convidado-{event.slug}, convite-enviado-
+            {event.slug}, presente-evento-{event.slug}, faltou-{event.slug})
           </p>
           <Button type="submit" disabled={saving}>
             {saving ? "Salvando..." : "Salvar"}

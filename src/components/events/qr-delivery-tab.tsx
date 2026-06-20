@@ -338,6 +338,17 @@ export function QrDeliveryTab({
             {detail?.ticketToken && (
               <Button variant="outline" asChild>
                 <a
+                  href={`/api/ticket/${detail.ticketToken}/pdf`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Ver PDF
+                </a>
+              </Button>
+            )}
+            {detail?.ticketToken && (
+              <Button variant="outline" asChild>
+                <a
                   href={`/api/qr/${detail.ticketToken}`}
                   download={`qr-${detail.name.replace(/\s+/g, "-").toLowerCase()}.png`}
                 >

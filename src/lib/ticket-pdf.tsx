@@ -1,0 +1,168 @@
+import {
+  Document,
+  Image,
+  Page,
+  StyleSheet,
+  Text,
+  View,
+  renderToBuffer,
+} from "@react-pdf/renderer";
+import {
+  type TicketConfig,
+  type TicketMergeData,
+  mergeFields,
+} from "@/lib/ticket-template";
+
+export type TicketPdfData = TicketMergeData & {
+  qrDataUrl: string;
+  ticketUrl: string;
+};
+
+function resolveTexts(data: TicketPdfData, config: TicketConfig) {
+  const title = config.headerTitle
+    ? mergeFields(config.headerTitle, data)
+    : data.event.name;
+
+  const subtitleParts: string[] = [];
+  if (config.showTime) {
+    subtitleParts.push(
+      [data.event.date, data.event.time].filter(Boolean).join(" · "),
+    );
+  } else {
+    subtitleParts.push(data.event.date);
+  }
+  if (config.showLocation && data.event.location) {
+    subtitleParts.push(data.event.location);
+  }
+  const subtitle = config.subtitle
+    ? mergeFields(config.subtitle, data)
+    : subtitleParts.filter(Boolean).join("  ·  ");
+
+  const instructions = mergeFields(config.instructions, data);
+  return { title, subtitle, instructions };
+}
+
+function buildStyles(config: TicketConfig) {
+  const brand = config.brandColor || "#2563EB";
+  const modern = config.preset !== "classic";
+  return StyleSheet.create({
+    page: {
+      fontFamily: "Helvetica",
+      color: "#101828",
+      backgroundColor: "#ffffff",
+    },
+    header: {
+      backgroundColor: modern ? brand : "#ffffff",
+      color: modern ? "#ffffff" : "#101828",
+      paddingHorizontal: 28,
+      paddingVertical: config.preset === "compact" ? 18 : 26,
+      borderBottomWidth: modern ? 0 : 3,
+      borderBottomColor: brand,
+    },
+    logo: { height: 28, marginBottom: 10, objectFit: "contain" },
+    title: { fontFamily: "Helvetica-Bold", fontSize: 20, lineHeight: 1.2 },
+    subtitle: {
+      fontSize: 11,
+      marginTop: 6,
+      color: modern ? "#eaf0ff" : "#667085",
+    },
+    body: {
+      paddingHorizontal: 28,
+      paddingTop: 24,
+      paddingBottom: 16,
+      alignItems: "center",
+    },
+    guestLabel: { fontSize: 10, color: "#667085", letterSpacing: 1 },
+    guestName: {
+      fontFamily: "Helvetica-Bold",
+      fontSize: 16,
+      marginTop: 2,
+      marginBottom: 16,
+      textAlign: "center",
+    },
+    qrWrap: {
+      borderWidth: 1,
+      borderColor: "#eaecf0",
+      borderRadius: 12,
+      padding: 12,
+      backgroundColor: "#ffffff",
+    },
+    qr: {
+      width: config.preset === "compact" ? 150 : 200,
+      height: config.preset === "compact" ? 150 : 200,
+    },
+    details: { marginTop: 16, alignItems: "center", gap: 2 },
+    detailLine: { fontSize: 10, color: "#667085" },
+    footer: {
+      marginTop: "auto",
+      paddingHorizontal: 28,
+      paddingVertical: 16,
+      borderTopWidth: 1,
+      borderTopColor: "#eaecf0",
+    },
+    instructions: { fontSize: 10, color: "#475467", textAlign: "center" },
+    link: {
+      fontSize: 8,
+      color: "#98a2b3",
+      textAlign: "center",
+      marginTop: 6,
+    },
+  });
+}
+
+function TicketDocument({
+  data,
+  config,
+}: {
+  data: TicketPdfData;
+  config: TicketConfig;
+}) {
+  const s = buildStyles(config);
+  const { title, subtitle, instructions } = resolveTexts(data, config);
+
+  return (
+    <Document title={`Ingresso — ${data.event.name}`}>
+      <Page size="A5" style={s.page}>
+        <View style={s.header}>
+          {config.logoUrl ? (
+            // eslint-disable-next-line jsx-a11y/alt-text
+            <Image src={config.logoUrl} style={s.logo} />
+          ) : null}
+          <Text style={s.title}>{title}</Text>
+          {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
+        </View>
+
+        <View style={s.body}>
+          <Text style={s.guestLabel}>INGRESSO DE</Text>
+          <Text style={s.guestName}>{data.contact.name}</Text>
+          <View style={s.qrWrap}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={data.qrDataUrl} style={s.qr} />
+          </View>
+          <View style={s.details}>
+            {config.showEmail && data.contact.email ? (
+              <Text style={s.detailLine}>{data.contact.email}</Text>
+            ) : null}
+            {config.showPhone && data.contact.phone ? (
+              <Text style={s.detailLine}>{data.contact.phone}</Text>
+            ) : null}
+          </View>
+        </View>
+
+        <View style={s.footer}>
+          {instructions ? (
+            <Text style={s.instructions}>{instructions}</Text>
+          ) : null}
+          <Text style={s.link}>{data.ticketUrl}</Text>
+        </View>
+      </Page>
+    </Document>
+  );
+}
+
+export async function renderTicketPdf(
+  data: TicketPdfData,
+  config: TicketConfig,
+): Promise<Buffer> {
+  return renderToBuffer(<TicketDocument data={data} config={config} />);
+}

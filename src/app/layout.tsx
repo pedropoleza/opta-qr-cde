@@ -3,6 +3,7 @@ import { Inter, Geist_Mono } from "next/font/google";
 import { Toaster } from "@/components/ui/sonner";
 import { ThemeProvider } from "@/components/theme-provider";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { PwaRegister } from "@/components/pwa-register";
 import "./globals.css";
 
 // Inter como fonte base do CRM (guia visual). Mono mantida para tokens/código.
@@ -21,6 +22,7 @@ const fontMono = Geist_Mono({
 export const metadata: Metadata = {
   title: "Spark Check-in",
   description: "Credenciamento digital por QR Code — Spark Check-in",
+  manifest: "/manifest.webmanifest",
 };
 
 export default function RootLayout({
@@ -44,6 +46,7 @@ export default function RootLayout({
           <TooltipProvider>
             {children}
             <Toaster richColors position="top-center" />
+            <PwaRegister />
           </TooltipProvider>
         </ThemeProvider>
       </body>

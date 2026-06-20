@@ -77,8 +77,69 @@ export function CheckerClient({
   // Walk-in
   const [walkin, setWalkin] = useState({ name: "", email: "", tier: "" });
   const [walkinBusy, setWalkinBusy] = useState(false);
+  // #9 Fila offline: scans são gravados localmente quando a rede cai e
+  // sincronizados ao reconectar.
+  const [pendingCount, setPendingCount] = useState(0);
+  const [offline, setOffline] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const busyRef = useRef(false);
+
+  const QKEY = `spark_checker_queue_${checkerToken}`;
+  const loadQueue = useCallback((): { token: string; sig: string }[] => {
+    try {
+      return JSON.parse(localStorage.getItem(QKEY) || "[]");
+    } catch {
+      return [];
+    }
+  }, [QKEY]);
+  const saveQueue = useCallback(
+    (q: { token: string; sig: string }[]) => {
+      localStorage.setItem(QKEY, JSON.stringify(q));
+      setPendingCount(q.length);
+    },
+    [QKEY],
+  );
+
+  const flush = useCallback(async () => {
+    const remaining = loadQueue();
+    if (remaining.length === 0) return;
+    let ok = 0;
+    let dup = 0;
+    let bad = 0;
+    while (remaining.length) {
+      const s = remaining[0];
+      try {
+        const res = await fetch("/api/checkin/validate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ token: s.token, sig: s.sig, deviceInfo: "offline-sync" }),
+        });
+        if (!res.ok && res.status >= 500) break;
+        const d = await res.json().catch(() => ({}));
+        if (d.result === "checked_in") ok++;
+        else if (d.result === "duplicate") dup++;
+        else bad++;
+        remaining.shift();
+        saveQueue(remaining);
+      } catch {
+        break; // ainda offline
+      }
+    }
+    if (ok || dup || bad) {
+      toast.success(
+        `Sincronizado: ${ok} entrada(s), ${dup} repetido(s), ${bad} inválido(s)`,
+      );
+    }
+  }, [loadQueue, saveQueue]);
+
+  useEffect(() => {
+    if (!authorized) return;
+    setPendingCount(loadQueue().length);
+    flush();
+    const on = () => flush();
+    window.addEventListener("online", on);
+    return () => window.removeEventListener("online", on);
+  }, [authorized, loadQueue, flush]);
 
   async function submitPin(e: React.FormEvent) {
     e.preventDefault();
@@ -122,11 +183,15 @@ export function CheckerClient({
         setResult(data as ScanResult);
       }
     } catch {
-      setResult({ result: "invalid", message: "Falha de rede — tente novamente" });
+      // Rede indisponível → enfileira para sincronizar depois.
+      const q = loadQueue();
+      q.push({ token: parsed.token, sig: parsed.sig });
+      saveQueue(q);
+      setOffline(true);
     } finally {
       busyRef.current = false;
     }
-  }, []);
+  }, [loadQueue, saveQueue]);
 
   const search = useCallback(async (q: string) => {
     setSearching(true);
@@ -211,7 +276,7 @@ export function CheckerClient({
 
   // Scanner html5-qrcode em tela cheia (apenas no modo scan).
   useEffect(() => {
-    if (!authorized || result || mode !== "scan") return;
+    if (!authorized || result || offline || mode !== "scan") return;
     let cancelled = false;
     let instance: Html5Qrcode | null = null;
 
@@ -253,7 +318,7 @@ export function CheckerClient({
       }
       scannerRef.current = null;
     };
-  }, [authorized, result, mode, validate]);
+  }, [authorized, result, offline, mode, validate]);
 
   if (!authorized) {
     return (
@@ -276,6 +341,26 @@ export function CheckerClient({
             Entrar no modo Checker
           </Button>
         </form>
+      </div>
+    );
+  }
+
+  if (offline) {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-blue-700 p-6 text-center text-white">
+        <p className="text-5xl font-black">OFFLINE</p>
+        <p className="mt-4 text-xl font-semibold">Registrado para sincronizar</p>
+        <p className="mt-2 opacity-90">
+          {pendingCount} scan(s) pendente(s). Sincroniza sozinho ao reconectar.
+        </p>
+        <Button
+          size="lg"
+          variant="secondary"
+          className="mt-10 w-full max-w-xs text-lg"
+          onClick={() => setOffline(false)}
+        >
+          Escanear próximo
+        </Button>
       </div>
     );
   }
@@ -338,11 +423,18 @@ export function CheckerClient({
           <p className="text-sm text-neutral-400">Checker</p>
           <p className="font-semibold">{eventName}</p>
         </div>
-        {eventStatus !== "active" && (
-          <span className="rounded bg-amber-500 px-2 py-1 text-xs font-bold text-black">
-            EVENTO NÃO ATIVO
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {pendingCount > 0 && (
+            <span className="rounded bg-blue-600 px-2 py-1 text-xs font-bold">
+              {pendingCount} offline
+            </span>
+          )}
+          {eventStatus !== "active" && (
+            <span className="rounded bg-amber-500 px-2 py-1 text-xs font-bold text-black">
+              EVENTO NÃO ATIVO
+            </span>
+          )}
+        </div>
       </header>
 
       {/* Seletor de modo */}

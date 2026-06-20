@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { Copy, Eye, Loader2, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -12,6 +13,19 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Drawer,
+  DrawerBody,
+  DrawerContent,
+  DrawerDescription,
+  DrawerFooter,
+  DrawerHeader,
+  DrawerTitle,
+} from "@/components/ui/drawer";
+import {
+  GUEST_STATUS_LABEL,
+  GUEST_STATUS_VARIANT,
+} from "@/components/events/status";
 import { toast } from "sonner";
 import type { EventData, GuestRow } from "@/components/events/event-detail";
 
@@ -28,6 +42,8 @@ export function QrDeliveryTab({
 }) {
   const [generating, setGenerating] = useState(false);
   const [sending, setSending] = useState(false);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<GuestRow | null>(null);
 
   const active = guests.filter((g) => g.status !== "canceled");
   const pending = active.filter((g) => !g.ticketToken).length;
@@ -71,6 +87,31 @@ export function QrDeliveryTab({
         `${data.withoutGhlContact} ainda sem contato Spark vinculado — entram na fila e saem assim que o contato for conectado`
       );
     }
+    onChange();
+  }
+
+  // Envio individual: dispara o convite só para um convidado (ou reenvia).
+  async function sendOne(guest: GuestRow) {
+    setSendingId(guest.id);
+    const res = await fetch(`/api/events/${event.id}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestIds: [guest.id] }),
+    });
+    setSendingId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao enviar");
+      return;
+    }
+    toast.success(`Convite de ${guest.name} disparado`);
+    if (data.withoutGhlContact > 0) {
+      toast.warning(
+        `${guest.name} ainda sem contato Spark vinculado — entra na fila e sai quando o contato for conectado`,
+      );
+    }
+    // Mantém o drawer coerente sem esperar o refresh.
+    setDetail((d) => (d && d.id === guest.id ? { ...d, status: "email_sent" } : d));
     onChange();
   }
 
@@ -191,36 +232,37 @@ export function QrDeliveryTab({
                   <img
                     src={`/api/qr/${guest.ticketToken}`}
                     alt={`QR de ${guest.name}`}
-                    className="h-36 w-36"
+                    className="h-32 w-32 rounded-md border bg-white p-1.5"
                   />
                   <p className="w-full truncate text-center text-sm font-medium">
                     {guest.name}
                   </p>
-                  {guest.status === "email_sent" ? (
-                    <Badge className="bg-green-600 text-xs hover:bg-green-600">
-                      Convite enviado
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs">
-                      Aguardando envio
-                    </Badge>
-                  )}
-                  <div className="flex gap-2">
-                    <Button size="sm" variant="outline" asChild>
-                      <a
-                        href={`/api/qr/${guest.ticketToken}`}
-                        download={`qr-${guest.name.replace(/\s+/g, "-").toLowerCase()}.png`}
-                      >
-                        PNG
-                      </a>
-                    </Button>
+                  <QrStatusBadge status={guest.status} />
+                  <div className="flex w-full gap-2 pt-1">
                     <Button
                       size="sm"
                       variant="outline"
-                      onClick={() => copyLink(guest.ticketToken!)}
+                      className="flex-1"
+                      onClick={() => setDetail(guest)}
                     >
-                      Link
+                      <Eye /> Ver
                     </Button>
+                    {guest.status !== "checked_in" && (
+                      <Button
+                        size="sm"
+                        variant={guest.status === "email_sent" ? "secondary" : "default"}
+                        className="flex-1"
+                        disabled={sendingId === guest.id}
+                        onClick={() => sendOne(guest)}
+                      >
+                        {sendingId === guest.id ? (
+                          <Loader2 className="animate-spin" />
+                        ) : (
+                          <Send />
+                        )}
+                        {guest.status === "email_sent" ? "Reenviar" : "Enviar"}
+                      </Button>
+                    )}
                   </div>
                 </CardContent>
               </Card>
@@ -234,7 +276,105 @@ export function QrDeliveryTab({
           em Gerar QR Codes.
         </p>
       )}
+
+      {/* Detalhe do QR por convidado: visualizar, copiar link, baixar e enviar */}
+      <Drawer
+        open={detail !== null}
+        onOpenChange={(open) => {
+          if (!open) setDetail(null);
+        }}
+      >
+        <DrawerContent>
+          <DrawerHeader>
+            <DrawerTitle>Ingresso de {detail?.name}</DrawerTitle>
+            <DrawerDescription>
+              {detail?.email ?? "Sem e-mail cadastrado"}
+            </DrawerDescription>
+          </DrawerHeader>
+          <DrawerBody className="space-y-4">
+            {detail?.ticketToken && (
+              <>
+                <div className="flex justify-center">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src={`/api/qr/${detail.ticketToken}`}
+                    alt={`QR de ${detail.name}`}
+                    className="h-52 w-52 rounded-lg border bg-white p-2"
+                  />
+                </div>
+                <div className="flex justify-center">
+                  <QrStatusBadge status={detail.status} />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Link do ingresso
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <code className="flex-1 truncate rounded-md bg-muted px-2 py-1.5 text-xs">
+                      {appBaseUrl}/q/{detail.ticketToken}
+                    </code>
+                    <Button
+                      size="icon-sm"
+                      variant="outline"
+                      aria-label="Copiar link"
+                      onClick={() => copyLink(detail.ticketToken!)}
+                    >
+                      <Copy />
+                    </Button>
+                  </div>
+                </div>
+              </>
+            )}
+          </DrawerBody>
+          <DrawerFooter>
+            {detail?.ticketToken && (
+              <Button variant="outline" asChild>
+                <a
+                  href={`/api/qr/${detail.ticketToken}`}
+                  download={`qr-${detail.name.replace(/\s+/g, "-").toLowerCase()}.png`}
+                >
+                  Baixar PNG
+                </a>
+              </Button>
+            )}
+            {detail && detail.status !== "checked_in" && (
+              <Button
+                disabled={sendingId === detail.id}
+                onClick={() => sendOne(detail)}
+              >
+                {sendingId === detail.id ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <Send />
+                )}
+                {detail.status === "email_sent"
+                  ? "Reenviar convite"
+                  : "Enviar convite"}
+              </Button>
+            )}
+          </DrawerFooter>
+        </DrawerContent>
+      </Drawer>
     </div>
+  );
+}
+
+// Badge de status do QR por convidado, com destaque para "enviado".
+function QrStatusBadge({ status }: { status: string }) {
+  if (status === "email_sent") {
+    return (
+      <Badge className="border-transparent bg-success text-xs text-success-foreground">
+        Convite enviado
+      </Badge>
+    );
+  }
+  if (status === "checked_in") {
+    return <Badge className="text-xs">Check-in feito</Badge>;
+  }
+  return (
+    <Badge variant={GUEST_STATUS_VARIANT[status] ?? "outline"} className="text-xs">
+      {GUEST_STATUS_LABEL[status] ?? "Aguardando envio"}
+    </Badge>
   );
 }
 

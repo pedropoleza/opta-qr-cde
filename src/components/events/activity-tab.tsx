@@ -18,6 +18,7 @@ const LOG_LABEL: Record<string, string> = {
   duplicate: "Duplicado",
   invalid: "Inválido",
   wrong_event: "Outro evento",
+  undo: "Desfeito",
 };
 
 const LOG_VARIANT: Record<string, "default" | "secondary" | "destructive" | "outline"> = {

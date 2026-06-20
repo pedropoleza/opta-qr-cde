@@ -1,14 +1,14 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { CheckerSuccess } from "@/components/checker/success-screen";
 import type { Html5Qrcode } from "html5-qrcode";
 
-// Checker Mode (Etapa 2): mobile-first, tela cheia, resposta em menos de 2s.
-// Cores (seção 2.3): verde = check-in ok; amarelo = já usado; vermelho =
-// inválido; cinza = ticket de outro evento.
+// Checker Mode (Etapa 2 + melhorias): scan por câmera, busca por nome (#1),
+// walk-in na porta (#2) e desfazer check-in (#6). Mobile-first, tela cheia.
 
 type ScanResult = {
   result: "checked_in" | "duplicate" | "invalid" | "wrong_event";
@@ -18,6 +18,16 @@ type ScanResult = {
   capacityWarning?: boolean;
 };
 
+type GuestHit = {
+  id: string;
+  name: string;
+  email: string | null;
+  checkedIn: boolean;
+  checkedInAt: string | null;
+};
+
+type Mode = "scan" | "manual" | "search" | "walkin";
+
 const RESULT_STYLE: Record<ScanResult["result"], { bg: string; title: string }> = {
   checked_in: { bg: "bg-green-600", title: "ENTRADA LIBERADA" },
   duplicate: { bg: "bg-yellow-500", title: "JÁ FEZ CHECK-IN" },
@@ -26,14 +36,12 @@ const RESULT_STYLE: Record<ScanResult["result"], { bg: string; title: string }> 
 };
 
 function parseQr(text: string): { token: string; sig: string } | null {
-  // O QR contém a URL {APP_BASE_URL}/checkin/validate?token=...&sig=... (seção 2.4)
   try {
     const url = new URL(text);
     const token = url.searchParams.get("token");
     const sig = url.searchParams.get("sig");
     if (token && sig) return { token, sig };
   } catch {
-    // Campo manual alternativo: aceitar "token.sig" colado direto
     const parts = text.trim().split(".");
     if (parts.length === 2 && parts[0] && parts[1]) {
       return { token: parts[0], sig: parts[1] };
@@ -55,9 +63,17 @@ export function CheckerClient({
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [mode, setMode] = useState<Mode>("scan");
   const [manualValue, setManualValue] = useState("");
-  const [showManual, setShowManual] = useState(false);
   const [cameraError, setCameraError] = useState("");
+  // Busca por nome
+  const [query, setQuery] = useState("");
+  const [hits, setHits] = useState<GuestHit[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  // Walk-in
+  const [walkin, setWalkin] = useState({ name: "", email: "" });
+  const [walkinBusy, setWalkinBusy] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const busyRef = useRef(false);
 
@@ -109,9 +125,86 @@ export function CheckerClient({
     }
   }, []);
 
-  // Scanner html5-qrcode em tela cheia após autorização.
+  const search = useCallback(async (q: string) => {
+    setSearching(true);
+    try {
+      const res = await fetch(`/api/checker/guests?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      if (res.ok) setHits(data.guests ?? []);
+    } catch {
+      /* ignora */
+    } finally {
+      setSearching(false);
+    }
+  }, []);
+
+  // Busca (debounce) no modo busca.
   useEffect(() => {
-    if (!authorized || result || showManual) return;
+    if (!authorized || mode !== "search") return;
+    const t = setTimeout(() => search(query.trim()), 350);
+    return () => clearTimeout(t);
+  }, [authorized, mode, query, search]);
+
+  async function checkInGuest(g: GuestHit) {
+    setBusyId(g.id);
+    const res = await fetch("/api/checker/checkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestId: g.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusyId(null);
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro no check-in");
+      return;
+    }
+    setResult(data as ScanResult);
+  }
+
+  async function undoGuest(g: GuestHit) {
+    setBusyId(g.id);
+    const res = await fetch("/api/checker/undo", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestId: g.id }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBusyId(null);
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao desfazer");
+      return;
+    }
+    toast.success(`Check-in de ${g.name} desfeito`);
+    search(query.trim());
+  }
+
+  async function submitWalkin(e: React.FormEvent) {
+    e.preventDefault();
+    if (!walkin.name.trim()) return;
+    setWalkinBusy(true);
+    const res = await fetch("/api/checker/walkin", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(walkin),
+    });
+    const data = await res.json().catch(() => ({}));
+    setWalkinBusy(false);
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao cadastrar");
+      return;
+    }
+    setWalkin({ name: "", email: "" });
+    setResult(data as ScanResult);
+  }
+
+  function closeResult() {
+    setResult(null);
+    if (mode === "search") search(query.trim());
+  }
+
+  // Scanner html5-qrcode em tela cheia (apenas no modo scan).
+  useEffect(() => {
+    if (!authorized || result || mode !== "scan") return;
     let cancelled = false;
     let instance: Html5Qrcode | null = null;
 
@@ -128,12 +221,12 @@ export function CheckerClient({
             instance?.pause(true);
             validate(decodedText);
           },
-          () => {}
+          () => {},
         );
       } catch {
         if (!cancelled) {
           setCameraError(
-            "Não foi possível acessar a câmera. Use o campo manual abaixo."
+            "Não foi possível acessar a câmera. Use a busca por nome ou o código manual.",
           );
         }
       }
@@ -143,15 +236,17 @@ export function CheckerClient({
       cancelled = true;
       const s = instance;
       if (s) {
-        s.stop().catch(() => {}).finally(() => {
-          try {
-            s.clear();
-          } catch {}
-        });
+        s.stop()
+          .catch(() => {})
+          .finally(() => {
+            try {
+              s.clear();
+            } catch {}
+          });
       }
       scannerRef.current = null;
     };
-  }, [authorized, result, showManual, validate]);
+  }, [authorized, result, mode, validate]);
 
   if (!authorized) {
     return (
@@ -178,19 +273,17 @@ export function CheckerClient({
     );
   }
 
-  // Sucesso: UI profissional animada de confirmação + agradecimento.
   if (result && result.result === "checked_in") {
     return (
       <CheckerSuccess
         guestName={result.guestName}
         checkedInAt={result.checkedInAt}
         capacityWarning={result.capacityWarning}
-        onNext={() => setResult(null)}
+        onNext={closeResult}
       />
     );
   }
 
-  // Demais resultados (amarelo/vermelho/cinza) — decisão em menos de 2 segundos.
   if (result) {
     const style = RESULT_STYLE[result.result];
     return (
@@ -217,9 +310,9 @@ export function CheckerClient({
           size="lg"
           variant="secondary"
           className="mt-10 w-full max-w-xs text-lg"
-          onClick={() => setResult(null)}
+          onClick={closeResult}
         >
-          Escanear próximo
+          Continuar
         </Button>
       </div>
     );
@@ -239,7 +332,38 @@ export function CheckerClient({
         )}
       </header>
 
-      {showManual ? (
+      {/* Seletor de modo */}
+      <div className="flex gap-1 px-4 pb-2">
+        {([
+          ["scan", "Câmera"],
+          ["search", "Buscar nome"],
+          ["walkin", "Walk-in"],
+          ["manual", "Código"],
+        ] as [Mode, string][]).map(([m, label]) => (
+          <button
+            key={m}
+            onClick={() => setMode(m)}
+            className={`flex-1 rounded-md px-2 py-1.5 text-sm font-medium transition-colors ${
+              mode === m
+                ? "bg-white text-neutral-900"
+                : "bg-neutral-800 text-neutral-300"
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {mode === "scan" && (
+        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
+          <div id="qr-reader" className="w-full max-w-sm overflow-hidden rounded-lg" />
+          {cameraError && (
+            <p className="text-center text-sm text-amber-400">{cameraError}</p>
+          )}
+        </div>
+      )}
+
+      {mode === "manual" && (
         <div className="flex flex-1 flex-col items-center justify-center gap-4 p-6">
           <p className="text-center text-neutral-300">
             Cole o link do QR Code ou digite token.assinatura
@@ -259,28 +383,96 @@ export function CheckerClient({
           >
             Validar
           </Button>
-          <Button
-            variant="ghost"
-            className="text-neutral-300"
-            onClick={() => setShowManual(false)}
-          >
-            Voltar para a câmera
-          </Button>
         </div>
-      ) : (
-        <div className="flex flex-1 flex-col items-center justify-center gap-4 p-4">
-          <div id="qr-reader" className="w-full max-w-sm overflow-hidden rounded-lg" />
-          {cameraError && (
-            <p className="text-center text-sm text-amber-400">{cameraError}</p>
-          )}
-          <Button
-            variant="outline"
-            className="border-neutral-600 bg-transparent text-white"
-            onClick={() => setShowManual(true)}
-          >
-            Digitar código manualmente
-          </Button>
+      )}
+
+      {mode === "search" && (
+        <div className="flex flex-1 flex-col gap-3 p-4">
+          <Input
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Buscar por nome ou e-mail"
+            className="bg-white text-black"
+            autoFocus
+          />
+          <div className="flex-1 space-y-2 overflow-y-auto">
+            {searching && (
+              <p className="py-4 text-center text-sm text-neutral-400">Buscando…</p>
+            )}
+            {!searching && query.trim() && hits.length === 0 && (
+              <p className="py-4 text-center text-sm text-neutral-400">
+                Nenhum convidado encontrado.
+              </p>
+            )}
+            {hits.map((g) => (
+              <div
+                key={g.id}
+                className="flex items-center justify-between gap-3 rounded-lg bg-neutral-800 p-3"
+              >
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{g.name}</p>
+                  {g.email && (
+                    <p className="truncate text-xs text-neutral-400">{g.email}</p>
+                  )}
+                </div>
+                {g.checkedIn ? (
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded bg-green-600 px-2 py-1 text-xs font-bold">
+                      PRESENTE
+                    </span>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="text-neutral-300"
+                      disabled={busyId === g.id}
+                      onClick={() => undoGuest(g)}
+                    >
+                      Desfazer
+                    </Button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    className="shrink-0"
+                    disabled={busyId === g.id}
+                    onClick={() => checkInGuest(g)}
+                  >
+                    Check-in
+                  </Button>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
+      )}
+
+      {mode === "walkin" && (
+        <form
+          onSubmit={submitWalkin}
+          className="flex flex-1 flex-col items-center justify-center gap-3 p-6"
+        >
+          <p className="text-center text-neutral-300">
+            Cadastrar convidado na porta e dar entrada
+          </p>
+          <Input
+            value={walkin.name}
+            onChange={(e) => setWalkin((w) => ({ ...w, name: e.target.value }))}
+            placeholder="Nome"
+            className="bg-white text-black"
+            autoFocus
+            required
+          />
+          <Input
+            type="email"
+            value={walkin.email}
+            onChange={(e) => setWalkin((w) => ({ ...w, email: e.target.value }))}
+            placeholder="E-mail (opcional)"
+            className="bg-white text-black"
+          />
+          <Button type="submit" size="lg" className="w-full max-w-xs" disabled={walkinBusy}>
+            {walkinBusy ? "Cadastrando..." : "Cadastrar e dar entrada"}
+          </Button>
+        </form>
       )}
     </div>
   );

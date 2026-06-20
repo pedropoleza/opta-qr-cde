@@ -1,5 +1,9 @@
 import { prisma } from "@/lib/prisma";
-import { verifyTicketSignature } from "@/lib/ticket";
+import {
+  verifyTicketSignature,
+  generateTicketToken,
+  signTicket,
+} from "@/lib/ticket";
 import { enqueueCheckInSync } from "@/lib/ghl-sync";
 
 // Validação de ticket e check-in atômico (seções 2.2, 2.3 e 3.4).
@@ -27,7 +31,7 @@ type ScanContext = {
 
 async function log(
   eventId: string,
-  status: CheckInResult["result"],
+  status: string,
   message: string,
   ctx: ScanContext,
   refs: { guestId?: string; ticketId?: string } = {}
@@ -215,4 +219,72 @@ export async function performCheckIn(
   }
 
   return result;
+}
+
+// Garante que o convidado tem ticket (cria se faltar) — usado no check-in por
+// nome (#1) e no walk-in (#2).
+export async function ensureTicket(eventId: string, guestId: string) {
+  const existing = await prisma.ticket.findUnique({ where: { guestId } });
+  if (existing) return existing;
+  const token = generateTicketToken();
+  const signature = signTicket(eventId, guestId, token);
+  return prisma.ticket.create({
+    data: { eventId, guestId, token, signature, status: "active" },
+  });
+}
+
+// Desfaz um check-in (#6): reverte ticket + convidado e registra no log.
+export async function undoCheckIn(
+  ticketId: string,
+  ctx: ScanContext,
+): Promise<{ ok: boolean; message: string; guestName?: string }> {
+  const outcome = await prisma.$transaction(async (tx) => {
+    const ticket = await tx.ticket.findUnique({
+      where: { id: ticketId },
+      include: { guest: true },
+    });
+    if (!ticket) return { ok: false, message: "Ticket não encontrado" };
+    if (ticket.status !== "checked_in") {
+      return { ok: false, message: "Convidado não está com check-in" };
+    }
+
+    const hadEmail = await tx.emailLog.count({
+      where: { guestId: ticket.guestId },
+    });
+
+    await tx.ticket.update({
+      where: { id: ticketId },
+      data: {
+        status: "active",
+        checkedInAt: null,
+        checkedInBy: null,
+        checkinCount: 0,
+      },
+    });
+    await tx.guest.update({
+      where: { id: ticket.guestId },
+      data: { status: hadEmail > 0 ? "email_sent" : "qr_generated" },
+    });
+
+    return {
+      ok: true,
+      message: "Check-in desfeito",
+      guestName: ticket.guest.name,
+      eventId: ticket.eventId,
+      guestId: ticket.guestId,
+    };
+  });
+
+  if (outcome.ok && "eventId" in outcome && outcome.eventId) {
+    await log(outcome.eventId, "undo", "Check-in desfeito", ctx, {
+      guestId: outcome.guestId,
+      ticketId,
+    });
+  }
+
+  return {
+    ok: outcome.ok,
+    message: outcome.message,
+    guestName: "guestName" in outcome ? outcome.guestName : undefined,
+  };
 }

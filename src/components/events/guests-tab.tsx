@@ -8,6 +8,7 @@ import {
   FileText,
   Loader2,
   MoreHorizontal,
+  RotateCcw,
   Send,
   Trash2,
   UserCheck,
@@ -61,6 +62,7 @@ const LOG_LABEL: Record<string, string> = {
   duplicate: "Duplicado",
   invalid: "Inválido",
   wrong_event: "Outro evento",
+  undo: "Desfeito",
 };
 
 // Filtros rápidos por status.
@@ -188,6 +190,23 @@ export function GuestsTab({
     if (data.result === "checked_in") toast.success(`Check-in de ${guest.name} efetuado`);
     else if (data.result === "duplicate") toast.warning(`${guest.name} já fez check-in`);
     else toast.error(data.message ?? "Não foi possível efetuar o check-in");
+    onChange();
+  }
+
+  async function undoCheckIn(guest: GuestRow) {
+    setBusyId(guest.id);
+    const res = await fetch(
+      `/api/events/${event.id}/guests/${guest.id}/uncheckin`,
+      { method: "POST" },
+    );
+    setBusyId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao desfazer check-in");
+      return;
+    }
+    toast.success(`Check-in de ${guest.name} desfeito`);
+    setDetail((d) => (d && d.id === guest.id ? { ...d, status: "email_sent" } : d));
     onChange();
   }
 
@@ -526,6 +545,15 @@ export function GuestsTab({
                   <UserCheck /> Marcar presença
                 </Button>
               )}
+            {detail && detail.status === "checked_in" && (
+              <Button
+                variant="outline"
+                disabled={busyId === detail.id}
+                onClick={() => undoCheckIn(detail)}
+              >
+                <RotateCcw /> Desfazer check-in
+              </Button>
+            )}
             {detail && detail.ticketToken && detail.status !== "checked_in" && (
               <Button
                 disabled={busyId === detail.id}

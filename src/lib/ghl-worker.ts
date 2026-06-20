@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   GhlError,
-  getGhlConfig,
+  ghlConfigured,
   ghlAddNote,
   ghlAddTags,
   ghlUpdateContactFields,
@@ -27,7 +27,7 @@ export type ProcessResult = {
 export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   const empty: ProcessResult = { claimed: 0, done: 0, failed: 0, retried: 0 };
 
-  if (!getGhlConfig().configured && !stevoConfigured()) {
+  if (!(await ghlConfigured()) && !stevoConfigured()) {
     return { ...empty, skipped: true, reason: "GHL/Stevo não configurados" };
   }
 

@@ -1,7 +1,8 @@
-// Conexão com o HighLevel (Spark). Na V1 a integração usa um Private
-// Integration Token por location, fornecido via env (GHL_LOCATION_ID +
-// GHL_LOCATION_TOKEN). O OAuth completo + GHLConnection criptografada entram
-// na Etapa 4; este módulo isola o acesso para essa migração ser localizada.
+// Conexão com o HighLevel (Spark). A credencial vem do banco
+// (checkin_ghl_connections) quando existir — fix definitivo que não depende do
+// env var do Vercel — com fallback para GHL_LOCATION_ID/GHL_LOCATION_TOKEN.
+
+import { prisma } from "@/lib/prisma";
 
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
 const GHL_API_VERSION = "2021-07-28";
@@ -16,6 +17,35 @@ function ghlToken(): string {
   return cleanEnv(process.env.GHL_LOCATION_TOKEN);
 }
 
+// Resolve a credencial ativa: prioriza a conexão salva no banco (token válido),
+// com fallback para as env vars. Cacheado por alguns segundos por invocação.
+let authCache: { at: number; locationId: string | null; token: string | null } | null = null;
+const AUTH_TTL_MS = 30_000;
+
+export async function resolveGhlAuth(): Promise<{
+  locationId: string | null;
+  token: string | null;
+}> {
+  if (authCache && Date.now() - authCache.at < AUTH_TTL_MS) {
+    return { locationId: authCache.locationId, token: authCache.token };
+  }
+  let locationId = cleanEnv(process.env.GHL_LOCATION_ID) || null;
+  let token = ghlToken() || null;
+  try {
+    const conn = await prisma.ghlConnection.findFirst({
+      orderBy: { createdAt: "desc" },
+    });
+    if (conn?.accessToken && conn?.locationId) {
+      locationId = conn.locationId;
+      token = conn.accessToken;
+    }
+  } catch {
+    /* sem banco/registro — usa env */
+  }
+  authCache = { at: Date.now(), locationId, token };
+  return { locationId, token };
+}
+
 export type GhlConfig = {
   locationId: string | null;
   hasToken: boolean;
@@ -26,6 +56,12 @@ export function getGhlConfig(): GhlConfig {
   const locationId = cleanEnv(process.env.GHL_LOCATION_ID) || null;
   const hasToken = Boolean(ghlToken());
   return { locationId, hasToken, configured: Boolean(locationId && hasToken) };
+}
+
+// Versão definitiva (assíncrona) que considera a conexão do banco.
+export async function ghlConfigured(): Promise<boolean> {
+  const { locationId, token } = await resolveGhlAuth();
+  return Boolean(locationId && token);
 }
 
 export type GhlLocation = {
@@ -45,12 +81,11 @@ export type GhlConnectionStatus =
 export async function checkGhlConnection(
   timeoutMs = 6000,
 ): Promise<GhlConnectionStatus> {
-  const { locationId, configured } = getGhlConfig();
-  if (!configured || !locationId) {
+  const { locationId, token } = await resolveGhlAuth();
+  if (!locationId || !token) {
     return { state: "disconnected", locationId };
   }
 
-  const token = ghlToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -127,7 +162,7 @@ async function ghlRequest<T = unknown>(
   path: string,
   init: RequestInit & { method: string },
 ): Promise<T> {
-  const token = ghlToken();
+  const { token } = await resolveGhlAuth();
   if (!token) throw new GhlError("GHL token não configurado");
 
   const res = await fetch(`${GHL_API_BASE}${path}`, {
@@ -201,7 +236,7 @@ export async function ghlSearchContactsByTag(
   tag: string,
   pageLimit = 100,
 ): Promise<GhlContact[]> {
-  const { locationId } = getGhlConfig();
+  const { locationId } = await resolveGhlAuth();
   if (!locationId) throw new GhlError("Location não configurada");
 
   const data = await ghlRequest<{ contacts?: RawContact[] }>(
@@ -232,7 +267,7 @@ export async function ghlListContacts(opts: {
   startAfter?: string;
   startAfterId?: string;
 }> {
-  const { locationId } = getGhlConfig();
+  const { locationId } = await resolveGhlAuth();
   if (!locationId) throw new GhlError("Location não configurada");
 
   const params = new URLSearchParams({
@@ -265,7 +300,7 @@ async function getCustomFieldIdMap(): Promise<Record<string, string>> {
   if (customFieldCache && Date.now() - customFieldCache.at < CUSTOM_FIELD_TTL_MS) {
     return customFieldCache.map;
   }
-  const { locationId } = getGhlConfig();
+  const { locationId } = await resolveGhlAuth();
   if (!locationId) throw new GhlError("Location não configurada");
 
   const data = await ghlRequest<{

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId } from "@/lib/api";
-import { GhlError, getGhlConfig, ghlListContacts } from "@/lib/ghl";
+import { GhlError, ghlConfigured, ghlListContacts } from "@/lib/ghl";
 
 export const dynamic = "force-dynamic";
 
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // em quais eventos cada contato já está.
 export async function GET(req: NextRequest) {
   const organizationId = await getCurrentOrgId();
-  if (!getGhlConfig().configured) {
+  if (!(await ghlConfigured())) {
     return NextResponse.json(
       { error: "Spark não conectado. Configure o token na aba Conexão." },
       { status: 400 },

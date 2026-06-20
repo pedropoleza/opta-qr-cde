@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { GhlError, getGhlConfig, ghlSearchContactsByTag } from "@/lib/ghl";
+import { GhlError, ghlConfigured, ghlSearchContactsByTag } from "@/lib/ghl";
 
 export const dynamic = "force-dynamic";
 
@@ -10,7 +10,7 @@ export async function GET(req: NextRequest) {
   if (!tag) {
     return NextResponse.json({ error: "Informe uma tag" }, { status: 400 });
   }
-  if (!getGhlConfig().configured) {
+  if (!(await ghlConfigured())) {
     return NextResponse.json(
       { error: "Spark não conectado. Configure o token na aba Conexão." },
       { status: 400 },

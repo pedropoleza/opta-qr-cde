@@ -181,6 +181,20 @@ type RawContact = {
   tags?: string[];
 };
 
+function mapContact(c: RawContact): GhlContact {
+  return {
+    id: c.id,
+    name:
+      c.contactName ||
+      [c.firstName, c.lastName].filter(Boolean).join(" ").trim() ||
+      c.email ||
+      "Sem nome",
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+    tags: Array.isArray(c.tags) ? c.tags : [],
+  };
+}
+
 // Busca contatos da location filtrando por tag (#9). Usa o endpoint de busca
 // avançada do GHL (validado: filters[].field=tags, operator=contains).
 export async function ghlSearchContactsByTag(
@@ -203,17 +217,43 @@ export async function ghlSearchContactsByTag(
     },
   );
 
-  return (data.contacts ?? []).map((c) => ({
-    id: c.id,
-    name:
-      c.contactName ||
-      [c.firstName, c.lastName].filter(Boolean).join(" ").trim() ||
-      c.email ||
-      "Sem nome",
-    email: c.email ?? null,
-    phone: c.phone ?? null,
-    tags: Array.isArray(c.tags) ? c.tags : [],
-  }));
+  return (data.contacts ?? []).map(mapContact);
+}
+
+// Lista/busca contatos da location (aba Contatos). Suporta busca textual e
+// paginação por startAfter/startAfterId (cursor do GHL).
+export async function ghlListContacts(opts: {
+  query?: string;
+  limit?: number;
+  startAfter?: string;
+  startAfterId?: string;
+}): Promise<{
+  contacts: GhlContact[];
+  startAfter?: string;
+  startAfterId?: string;
+}> {
+  const { locationId } = getGhlConfig();
+  if (!locationId) throw new GhlError("Location não configurada");
+
+  const params = new URLSearchParams({
+    locationId,
+    limit: String(opts.limit ?? 25),
+  });
+  if (opts.query) params.set("query", opts.query);
+  if (opts.startAfter) params.set("startAfter", opts.startAfter);
+  if (opts.startAfterId) params.set("startAfterId", opts.startAfterId);
+
+  const data = await ghlRequest<{
+    contacts?: RawContact[];
+    meta?: { startAfter?: number | string; startAfterId?: string };
+  }>(`/contacts/?${params.toString()}`, { method: "GET" });
+
+  return {
+    contacts: (data.contacts ?? []).map(mapContact),
+    startAfter:
+      data.meta?.startAfter != null ? String(data.meta.startAfter) : undefined,
+    startAfterId: data.meta?.startAfterId,
+  };
 }
 
 // Mapa nome-do-campo → id, cacheado por alguns minutos. Os custom fields D3

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Calendar, LayoutDashboard, PlugZap } from "lucide-react";
+import { Calendar, Contact, LayoutDashboard, PlugZap } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 // Abas superiores do painel do organizador (sem sidebar — app embutido como
@@ -19,6 +19,12 @@ const items = [
     label: "Eventos",
     icon: Calendar,
     isActive: (p: string) => p === "/events" || p.startsWith("/events/"),
+  },
+  {
+    href: "/contacts",
+    label: "Contatos",
+    icon: Contact,
+    isActive: (p: string) => p.startsWith("/contacts"),
   },
   {
     href: "/connection",

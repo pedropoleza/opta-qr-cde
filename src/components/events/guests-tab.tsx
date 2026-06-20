@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import Papa from "papaparse";
+import { MoreHorizontal, Users } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,8 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { EmptyState } from "@/components/ui/empty-state";
 import { toast } from "sonner";
 import type { EventData, GuestRow } from "@/components/events/event-detail";
 import { GUEST_STATUS_LABEL, GUEST_STATUS_VARIANT } from "@/components/events/status";
@@ -44,6 +47,8 @@ export function GuestsTab({
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
   const [manual, setManual] = useState({ name: "", email: "", phone: "" });
+  const [pendingRemove, setPendingRemove] = useState<GuestRow | null>(null);
+  const [removing, setRemoving] = useState(false);
   const closed = ["completed", "canceled"].includes(event.status);
 
   async function postGuests(
@@ -117,17 +122,21 @@ export function GuestsTab({
     onChange();
   }
 
-  async function removeGuest(guest: GuestRow) {
-    if (!confirm(`Remover ${guest.name} do evento? O QR dele deixa de valer.`)) return;
+  async function confirmRemove() {
+    const guest = pendingRemove;
+    if (!guest) return;
+    setRemoving(true);
     const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
       method: "DELETE",
     });
+    setRemoving(false);
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
       toast.error(data.error ?? "Erro ao remover convidado");
       return;
     }
     toast.success("Convidado removido");
+    setPendingRemove(null);
     onChange();
   }
 
@@ -188,7 +197,7 @@ export function GuestsTab({
         </div>
       )}
 
-      <div className="rounded-lg border bg-white">
+      <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -203,9 +212,12 @@ export function GuestsTab({
           <TableBody>
             {guests.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-neutral-500">
-                  Nenhum convidado. Importe um CSV (colunas: nome, email, telefone)
-                  ou adicione manualmente.
+                <TableCell colSpan={6} className="p-0">
+                  <EmptyState
+                    icon={Users}
+                    title="Nenhum convidado ainda"
+                    description="Importe um CSV (colunas: nome, email, telefone) ou adicione manualmente."
+                  />
                 </TableCell>
               </TableRow>
             )}
@@ -214,7 +226,7 @@ export function GuestsTab({
                 <TableCell className="font-medium">{guest.name}</TableCell>
                 <TableCell>{guest.email ?? "—"}</TableCell>
                 <TableCell>{guest.phone ?? "—"}</TableCell>
-                <TableCell className="text-xs text-neutral-500">
+                <TableCell className="text-xs text-muted-foreground">
                   {guest.source === "ghl"
                     ? "Spark"
                     : guest.source.toUpperCase()}
@@ -227,8 +239,8 @@ export function GuestsTab({
                 <TableCell>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
-                      <Button variant="ghost" size="sm">
-                        ⋯
+                      <Button variant="ghost" size="icon-sm" aria-label="Ações">
+                        <MoreHorizontal />
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
@@ -257,8 +269,8 @@ export function GuestsTab({
                         )}
                       {guest.status !== "canceled" && (
                         <DropdownMenuItem
-                          className="text-red-600"
-                          onClick={() => removeGuest(guest)}
+                          className="text-destructive"
+                          onClick={() => setPendingRemove(guest)}
                         >
                           Remover
                         </DropdownMenuItem>
@@ -271,6 +283,21 @@ export function GuestsTab({
           </TableBody>
         </Table>
       </div>
+
+      <ConfirmDialog
+        open={pendingRemove !== null}
+        onOpenChange={(open) => !open && setPendingRemove(null)}
+        title="Remover convidado"
+        description={
+          pendingRemove
+            ? `Remover ${pendingRemove.name} do evento? O QR Code dele deixa de valer.`
+            : undefined
+        }
+        confirmLabel="Remover"
+        destructive
+        loading={removing}
+        onConfirm={confirmRemove}
+      />
     </div>
   );
 }

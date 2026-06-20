@@ -118,7 +118,7 @@ export function QrDeliveryTab({
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <h3 className="font-semibold">Disparo do convite</h3>
-              <p className="text-sm text-neutral-500">
+              <p className="text-sm text-muted-foreground">
                 Em 3 passos o convidado recebe o ingresso por e-mail, com o QR
                 Code de entrada.
               </p>
@@ -131,7 +131,9 @@ export function QrDeliveryTab({
               <li
                 key={s.n}
                 className={`rounded-lg border p-3 ${
-                  s.done ? "border-green-200 bg-green-50" : "border-neutral-200 bg-white"
+                  s.done
+                    ? "border-green-500/30 bg-green-500/10"
+                    : "bg-card"
                 }`}
               >
                 <div className="flex items-center gap-2">
@@ -139,14 +141,14 @@ export function QrDeliveryTab({
                     className={`flex h-6 w-6 items-center justify-center rounded-full text-xs font-bold ${
                       s.done
                         ? "bg-green-600 text-white"
-                        : "bg-neutral-200 text-neutral-600"
+                        : "bg-muted text-muted-foreground"
                     }`}
                   >
                     {s.done ? "✓" : s.n}
                   </span>
                   <span className="text-sm font-medium">{s.title}</span>
                 </div>
-                <p className="mt-1 text-xs text-neutral-500">{s.detail}</p>
+                <p className="mt-1 text-xs text-muted-foreground">{s.detail}</p>
               </li>
             ))}
           </ol>
@@ -178,7 +180,7 @@ export function QrDeliveryTab({
       {/* Visualização dos QR Codes gerados */}
       {withTicket.length > 0 && (
         <div>
-          <h3 className="mb-3 text-sm font-medium text-neutral-500">
+          <h3 className="mb-3 text-sm font-medium text-muted-foreground">
             QR Codes do evento ({withTicket.length})
           </h3>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
@@ -227,7 +229,7 @@ export function QrDeliveryTab({
         </div>
       )}
       {withTicket.length === 0 && (
-        <p className="py-8 text-center text-sm text-neutral-500">
+        <p className="py-8 text-center text-sm text-muted-foreground">
           Nenhum QR gerado ainda. Adicione convidados na aba Convidados e clique
           em Gerar QR Codes.
         </p>
@@ -254,7 +256,7 @@ function HowItWorksDialog() {
         </DialogHeader>
         <ol className="space-y-3 text-sm">
           <li className="flex gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
               1
             </span>
             <p>
@@ -263,7 +265,7 @@ function HowItWorksDialog() {
             </p>
           </li>
           <li className="flex gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
               2
             </span>
             <p>
@@ -273,7 +275,7 @@ function HowItWorksDialog() {
             </p>
           </li>
           <li className="flex gap-3">
-            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+            <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-bold text-primary-foreground">
               3
             </span>
             <p>
@@ -283,7 +285,7 @@ function HowItWorksDialog() {
             </p>
           </li>
         </ol>
-        <p className="rounded-md bg-neutral-50 p-3 text-xs text-neutral-500">
+        <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
           Cada etapa do convidado também marca o contato no Spark
           (convidado → convite enviado → presente / não compareceu), permitindo
           disparar follow-ups automáticos por evento.
@@ -334,7 +336,7 @@ function PreviewDialog({
           </span>
           <p className="mt-2 break-all text-xs text-neutral-400">{sampleLink}</p>
         </div>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-muted-foreground">
           O modelo e o disparo são executados pela automação Spark do evento
           (gatilho: convite enviado · <code>{event.slug}</code>).
         </p>

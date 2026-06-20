@@ -1,9 +1,18 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import {
+  CalendarClock,
+  CheckCircle2,
+  QrCode,
+  UserMinus,
+  Users,
+  XCircle,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { MetricCard } from "@/components/ui/metric-card";
+import { HelpModal } from "@/components/ui/help-modal";
 import { GuestsTab } from "@/components/events/guests-tab";
 import { QrDeliveryTab } from "@/components/events/qr-delivery-tab";
 import { CheckerTab } from "@/components/events/checker-tab";
@@ -72,49 +81,71 @@ export function EventDetail({
   const refresh = () => router.refresh();
 
   const metrics = [
-    { label: "Convidados", value: report.guests },
-    {
-      label: "QR gerados",
-      value: report.qrGenerated,
-    },
+    { label: "Convidados", value: report.guests, icon: Users },
+    { label: "QR gerados", value: report.qrGenerated, icon: QrCode },
     {
       label: "Check-ins",
       value:
         event.capacity != null
           ? `${report.checkedIn}/${event.capacity}`
           : report.checkedIn,
+      icon: CheckCircle2,
     },
-    { label: "Ausentes", value: report.noShow },
-    { label: "Duplicados", value: report.duplicateAttempts },
-    { label: "Inválidos", value: report.invalidAttempts },
+    { label: "Ausentes", value: report.noShow, icon: UserMinus },
+    { label: "Duplicados", value: report.duplicateAttempts, icon: CalendarClock },
+    { label: "Inválidos", value: report.invalidAttempts, icon: XCircle },
   ];
 
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold">{event.name}</h1>
+        <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
         <Badge variant={EVENT_STATUS_VARIANT[event.status] ?? "secondary"}>
           {EVENT_STATUS_LABEL[event.status] ?? event.status}
         </Badge>
-        <span className="text-sm text-neutral-500">
+        <span className="text-sm text-muted-foreground">
           {event.date}
           {event.startTime ? ` · ${event.startTime}` : ""}
           {event.locationName ? ` · ${event.locationName}` : ""}
         </span>
+        <div className="ml-auto">
+          <HelpModal
+            title="Como funciona o Spark Check-in"
+            description="Do convite ao check-in na porta, em 4 passos."
+          >
+            <ol className="list-decimal space-y-2 pl-4">
+              <li>
+                <strong className="text-foreground">Convidados</strong>: importe
+                por CSV ou Spark (tag) e gere um QR Code único e assinado por
+                pessoa.
+              </li>
+              <li>
+                <strong className="text-foreground">QR Delivery</strong>: envie o
+                ingresso por e-mail — o Spark prepara o contato e o workflow do
+                CRM dispara a mensagem.
+              </li>
+              <li>
+                <strong className="text-foreground">Checker</strong>: na entrada,
+                abra o link do Checker com o PIN e escaneie os QRs. Cada código
+                faz check-in uma única vez.
+              </li>
+              <li>
+                <strong className="text-foreground">Atividade</strong>: acompanhe
+                check-ins, duplicados e inválidos em tempo real.
+              </li>
+            </ol>
+          </HelpModal>
+        </div>
       </div>
 
       <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
         {metrics.map((m) => (
-          <Card key={m.label}>
-            <CardHeader className="pb-1">
-              <CardTitle className="text-xs font-medium text-neutral-500">
-                {m.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-2xl font-bold">{m.value}</p>
-            </CardContent>
-          </Card>
+          <MetricCard
+            key={m.label}
+            label={m.label}
+            value={m.value}
+            icon={m.icon}
+          />
         ))}
       </div>
 

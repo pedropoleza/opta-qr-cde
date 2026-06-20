@@ -1,5 +1,6 @@
 "use client";
 
+import { ScanLine } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import {
   Table,
@@ -9,6 +10,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { LogRow } from "@/components/events/event-detail";
 
 const LOG_LABEL: Record<string, string> = {
@@ -27,7 +29,7 @@ const LOG_VARIANT: Record<string, "default" | "secondary" | "destructive" | "out
 
 export function ActivityTab({ logs }: { logs: LogRow[] }) {
   return (
-    <div className="rounded-lg border bg-white">
+    <div className="rounded-lg border bg-card">
       <Table>
         <TableHeader>
           <TableRow>
@@ -41,8 +43,12 @@ export function ActivityTab({ logs }: { logs: LogRow[] }) {
         <TableBody>
           {logs.length === 0 && (
             <TableRow>
-              <TableCell colSpan={5} className="py-8 text-center text-neutral-500">
-                Nenhum scan registrado ainda.
+              <TableCell colSpan={5} className="p-0">
+                <EmptyState
+                  icon={ScanLine}
+                  title="Nenhum scan registrado"
+                  description="Os check-ins e tentativas aparecem aqui assim que o Checker começar a escanear."
+                />
               </TableCell>
             </TableRow>
           )}
@@ -58,7 +64,7 @@ export function ActivityTab({ logs }: { logs: LogRow[] }) {
               </TableCell>
               <TableCell>{log.guestName ?? "—"}</TableCell>
               <TableCell>{log.message ?? "—"}</TableCell>
-              <TableCell className="max-w-48 truncate text-xs text-neutral-500">
+              <TableCell className="max-w-48 truncate text-xs text-muted-foreground">
                 {log.deviceInfo ?? "—"}
               </TableCell>
             </TableRow>

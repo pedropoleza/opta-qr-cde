@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -8,6 +9,7 @@ import {
   CopyPlus,
   Download,
   Loader2,
+  MonitorPlay,
   MoreHorizontal,
   QrCode,
   UserMinus,
@@ -198,6 +200,11 @@ export function EventDetail({
               }
             />
             Ao vivo
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/events/${event.id}/live`}>
+              <MonitorPlay /> Painel ao vivo
+            </Link>
           </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download /> Exportar CSV

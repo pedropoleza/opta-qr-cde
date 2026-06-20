@@ -17,18 +17,23 @@ export async function PATCH(
   if (!guest) return jsonError(404, "Convidado não encontrado");
 
   const body = await req.json().catch(() => ({}));
-  const tier =
-    body.tier === null || body.tier === ""
-      ? null
-      : body.tier
-        ? String(body.tier).trim()
-        : guest.tier;
+  const data: { tier?: string | null; sessionId?: string | null } = {};
+  if ("tier" in body) {
+    data.tier = body.tier ? String(body.tier).trim() : null;
+  }
+  if ("sessionId" in body) {
+    data.sessionId = body.sessionId ? String(body.sessionId) : null;
+  }
 
   const updated = await prisma.guest.update({
     where: { id: guestId },
-    data: { tier },
+    data,
   });
-  return NextResponse.json({ ok: true, tier: updated.tier });
+  return NextResponse.json({
+    ok: true,
+    tier: updated.tier,
+    sessionId: updated.sessionId,
+  });
 }
 
 // Remoção de convidado (ação manual do organizador — seção 2.1: canceled).

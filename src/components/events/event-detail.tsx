@@ -29,6 +29,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricCard } from "@/components/ui/metric-card";
 import { HelpModal } from "@/components/ui/help-modal";
 import { GuestsTab } from "@/components/events/guests-tab";
+import { SessionsTab } from "@/components/events/sessions-tab";
 import { QrDeliveryTab } from "@/components/events/qr-delivery-tab";
 import { CheckerTab } from "@/components/events/checker-tab";
 import { SettingsTab } from "@/components/events/settings-tab";
@@ -67,6 +68,7 @@ export type GuestRow = {
   tier: string | null;
   rsvp: string | null;
   groupSize: number;
+  sessionId: string | null;
   source: string;
   status: string;
   ticketToken: string | null;
@@ -94,17 +96,28 @@ export type ReportData = {
   invalidAttempts: number;
 };
 
+export type SessionInfo = {
+  id: string;
+  name: string;
+  capacity: number | null;
+  startsAt: string | null;
+  assigned: number;
+  checkedIn: number;
+};
+
 export function EventDetail({
   event,
   guests,
   logs,
   report,
+  sessions,
   appBaseUrl,
 }: {
   event: EventData;
   guests: GuestRow[];
   logs: LogRow[];
   report: ReportData;
+  sessions: SessionInfo[];
   appBaseUrl: string;
 }) {
   const router = useRouter();
@@ -272,6 +285,7 @@ export function EventDetail({
         <TabsList>
           <TabsTrigger value="guests">Convidados</TabsTrigger>
           <TabsTrigger value="qr">QR Delivery</TabsTrigger>
+          <TabsTrigger value="sessions">Sessões</TabsTrigger>
           <TabsTrigger value="checker">Checker</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
           <TabsTrigger value="activity">Atividade</TabsTrigger>
@@ -281,7 +295,15 @@ export function EventDetail({
             event={event}
             guests={guests}
             logs={logs}
+            sessions={sessions}
             appBaseUrl={appBaseUrl}
+            onChange={refresh}
+          />
+        </TabsContent>
+        <TabsContent value="sessions">
+          <SessionsTab
+            eventId={event.id}
+            sessions={sessions}
             onChange={refresh}
           />
         </TabsContent>

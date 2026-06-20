@@ -18,7 +18,7 @@ export default async function EventDetailPage({
   });
   if (!event) notFound();
 
-  const [guests, logs, emailLogs, checkedIn, dupAgg, invalidAttempts] =
+  const [guests, logs, emailLogs, sessions, checkedIn, dupAgg, invalidAttempts] =
     await Promise.all([
       prisma.guest.findMany({
         where: { eventId: id },
@@ -35,6 +35,10 @@ export default async function EventDetailPage({
         where: { eventId: id, provider: "ghl" },
         orderBy: { createdAt: "desc" },
         select: { guestId: true, status: true, sentAt: true },
+      }),
+      prisma.eventSession.findMany({
+        where: { eventId: id },
+        orderBy: { createdAt: "asc" },
       }),
       prisma.ticket.count({ where: { eventId: id, status: "checked_in" } }),
       prisma.ticket.aggregate({
@@ -63,6 +67,19 @@ export default async function EventDetailPage({
     groupCount.set(g.groupId, (groupCount.get(g.groupId) ?? 0) + 1);
   }
 
+  // #8 Ocupação por sessão.
+  const sessionData = sessions.map((s) => {
+    const members = activeGuests.filter((g) => g.sessionId === s.id);
+    return {
+      id: s.id,
+      name: s.name,
+      capacity: s.capacity,
+      startsAt: s.startsAt,
+      assigned: members.length,
+      checkedIn: members.filter((g) => g.status === "checked_in").length,
+    };
+  });
+
   return (
     <EventDetail
       event={{
@@ -87,6 +104,7 @@ export default async function EventDetailPage({
         tier: g.tier,
         rsvp: g.rsvp,
         groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
+        sessionId: g.sessionId,
         source: g.source,
         status: g.status,
         ticketToken: g.ticket?.token ?? null,
@@ -111,6 +129,7 @@ export default async function EventDetailPage({
         duplicateAttempts: dupAgg._sum.duplicateScanCount ?? 0,
         invalidAttempts,
       }}
+      sessions={sessionData}
       appBaseUrl={process.env.APP_BASE_URL ?? "http://localhost:3000"}
     />
   );

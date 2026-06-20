@@ -43,10 +43,22 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { ImportGhlDialog } from "@/components/events/import-ghl-dialog";
 import { TierBadge } from "@/components/events/tier-badge";
 import { toast } from "sonner";
-import type { EventData, GuestRow, LogRow } from "@/components/events/event-detail";
+import type {
+  EventData,
+  GuestRow,
+  LogRow,
+  SessionInfo,
+} from "@/components/events/event-detail";
 import { GUEST_STATUS_LABEL, GUEST_STATUS_VARIANT } from "@/components/events/status";
 
 type CsvRow = Record<string, string>;
@@ -85,12 +97,14 @@ export function GuestsTab({
   event,
   guests,
   logs,
+  sessions,
   appBaseUrl,
   onChange,
 }: {
   event: EventData;
   guests: GuestRow[];
   logs: LogRow[];
+  sessions: SessionInfo[];
   appBaseUrl: string;
   onChange: () => void;
 }) {
@@ -195,6 +209,22 @@ export function GuestsTab({
     if (await postGuests([payload], "manual")) {
       setManual({ name: "", email: "", phone: "", tier: "", companions: "" });
     }
+  }
+
+  async function saveSession(guest: GuestRow, sessionId: string) {
+    const value = sessionId === "none" ? null : sessionId;
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ sessionId: value }),
+    });
+    if (!res.ok) {
+      toast.error("Erro ao definir sessão");
+      return;
+    }
+    toast.success("Sessão atualizada");
+    setDetail((d) => (d && d.id === guest.id ? { ...d, sessionId: value } : d));
+    onChange();
   }
 
   async function checkInGroup(guest: GuestRow) {
@@ -587,6 +617,29 @@ export function GuestsTab({
                     </Button>
                   </div>
                 </div>
+
+                {sessions.length > 0 && (
+                  <div className="space-y-1.5">
+                    <label className="text-xs text-muted-foreground">Sessão</label>
+                    <Select
+                      value={detail.sessionId ?? "none"}
+                      onValueChange={(v) => saveSession(detail, v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Sem sessão</SelectItem>
+                        {sessions.map((s) => (
+                          <SelectItem key={s.id} value={s.id}>
+                            {s.name}
+                            {s.startsAt ? ` · ${s.startsAt}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
 
                 {detail.ticketToken ? (
                   <div className="space-y-2">

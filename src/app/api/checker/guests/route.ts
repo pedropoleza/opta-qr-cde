@@ -34,6 +34,7 @@ export async function GET(req: NextRequest) {
       id: g.id,
       name: g.name,
       email: g.email,
+      tier: g.tier,
       checkedIn: g.ticket?.status === "checked_in",
       checkedInAt: g.ticket?.checkedInAt?.toISOString() ?? null,
     })),

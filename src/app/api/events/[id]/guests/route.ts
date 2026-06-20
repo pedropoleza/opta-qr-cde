@@ -38,8 +38,13 @@ export async function POST(
 
   const body = await req.json();
   const source = ["csv", "manual", "ghl"].includes(body.source) ? body.source : "csv";
-  const input: { name?: string; email?: string; phone?: string; ghlContactId?: string }[] =
-    Array.isArray(body.guests) ? body.guests : [];
+  const input: {
+    name?: string;
+    email?: string;
+    phone?: string;
+    ghlContactId?: string;
+    tier?: string;
+  }[] = Array.isArray(body.guests) ? body.guests : [];
   const valid = input.filter((g) => g.name && String(g.name).trim());
   if (valid.length === 0) return jsonError(400, "Nenhum convidado válido (nome é obrigatório)");
 
@@ -52,6 +57,7 @@ export async function POST(
           name: String(g.name).trim(),
           email: g.email ? String(g.email).trim().toLowerCase() : null,
           phone: g.phone ? String(g.phone).trim() : null,
+          tier: g.tier ? String(g.tier).trim() : null,
           ghlContactId: g.ghlContactId || null,
           source,
           status: "pending_qr",

@@ -64,6 +64,7 @@ export type GuestRow = {
   name: string;
   email: string | null;
   phone: string | null;
+  tier: string | null;
   source: string;
   status: string;
   ticketToken: string | null;

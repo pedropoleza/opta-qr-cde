@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
       name,
       email: body.email ? String(body.email).trim() : null,
       phone: body.phone ? String(body.phone).trim() : null,
+      tier: body.tier ? String(body.tier).trim() : null,
       source: "manual",
       status: "qr_generated",
     },

@@ -2,6 +2,35 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 
+// Atualiza dados do convidado (hoje: categoria/tier — #5).
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string; guestId: string }> },
+) {
+  const organizationId = await getCurrentOrgId();
+  const { id, guestId } = await params;
+
+  const event = await findOrgEvent(id, organizationId);
+  if (!event) return jsonError(404, "Evento não encontrado");
+
+  const guest = await prisma.guest.findFirst({ where: { id: guestId, eventId: id } });
+  if (!guest) return jsonError(404, "Convidado não encontrado");
+
+  const body = await req.json().catch(() => ({}));
+  const tier =
+    body.tier === null || body.tier === ""
+      ? null
+      : body.tier
+        ? String(body.tier).trim()
+        : guest.tier;
+
+  const updated = await prisma.guest.update({
+    where: { id: guestId },
+    data: { tier },
+  });
+  return NextResponse.json({ ok: true, tier: updated.tier });
+}
+
 // Remoção de convidado (ação manual do organizador — seção 2.1: canceled).
 // O ticket correspondente também é cancelado: o QR passa a responder Vermelho.
 export async function DELETE(

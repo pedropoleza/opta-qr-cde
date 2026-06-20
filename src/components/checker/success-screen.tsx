@@ -22,11 +22,13 @@ const CONFETTI = [
 // confetes e agradecimento ao convidado. Tela cheia, mobile-first.
 export function CheckerSuccess({
   guestName,
+  guestTier,
   checkedInAt,
   capacityWarning,
   onNext,
 }: {
   guestName?: string;
+  guestTier?: string | null;
   checkedInAt?: string;
   capacityWarning?: boolean;
   onNext: () => void;
@@ -103,6 +105,14 @@ export function CheckerSuccess({
         >
           {guestName}
         </h1>
+      )}
+      {guestTier && (
+        <span
+          className="spark-fade-up mt-3 rounded-full bg-white/95 px-4 py-1 text-sm font-bold tracking-wide text-emerald-700 uppercase shadow"
+          style={{ animationDelay: "0.68s" }}
+        >
+          {guestTier}
+        </span>
       )}
       <p
         className="spark-fade-up mt-3 text-lg text-emerald-50"

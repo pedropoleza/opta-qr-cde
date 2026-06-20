@@ -14,6 +14,7 @@ type ScanResult = {
   result: "checked_in" | "duplicate" | "invalid" | "wrong_event";
   message: string;
   guestName?: string;
+  guestTier?: string | null;
   checkedInAt?: string;
   capacityWarning?: boolean;
 };
@@ -22,6 +23,7 @@ type GuestHit = {
   id: string;
   name: string;
   email: string | null;
+  tier: string | null;
   checkedIn: boolean;
   checkedInAt: string | null;
 };
@@ -72,7 +74,7 @@ export function CheckerClient({
   const [searching, setSearching] = useState(false);
   const [busyId, setBusyId] = useState<string | null>(null);
   // Walk-in
-  const [walkin, setWalkin] = useState({ name: "", email: "" });
+  const [walkin, setWalkin] = useState({ name: "", email: "", tier: "" });
   const [walkinBusy, setWalkinBusy] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const busyRef = useRef(false);
@@ -193,7 +195,7 @@ export function CheckerClient({
       toast.error(data.error ?? "Erro ao cadastrar");
       return;
     }
-    setWalkin({ name: "", email: "" });
+    setWalkin({ name: "", email: "", tier: "" });
     setResult(data as ScanResult);
   }
 
@@ -277,6 +279,7 @@ export function CheckerClient({
     return (
       <CheckerSuccess
         guestName={result.guestName}
+        guestTier={result.guestTier}
         checkedInAt={result.checkedInAt}
         capacityWarning={result.capacityWarning}
         onNext={closeResult}
@@ -293,6 +296,11 @@ export function CheckerClient({
         <p className="text-5xl font-black">{style.title}</p>
         {result.guestName && (
           <p className="mt-4 text-2xl font-semibold">{result.guestName}</p>
+        )}
+        {result.guestTier && (
+          <span className="mt-2 rounded-full bg-white/90 px-3 py-1 text-sm font-bold tracking-wide text-neutral-900 uppercase">
+            {result.guestTier}
+          </span>
         )}
         {result.checkedInAt && (
           <p className="mt-1 text-lg opacity-90">
@@ -410,7 +418,14 @@ export function CheckerClient({
                 className="flex items-center justify-between gap-3 rounded-lg bg-neutral-800 p-3"
               >
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{g.name}</p>
+                  <p className="flex items-center gap-2 truncate font-medium">
+                    {g.name}
+                    {g.tier && (
+                      <span className="rounded bg-amber-400/20 px-1.5 py-0.5 text-[10px] font-bold tracking-wide text-amber-300 uppercase">
+                        {g.tier}
+                      </span>
+                    )}
+                  </p>
                   {g.email && (
                     <p className="truncate text-xs text-neutral-400">{g.email}</p>
                   )}
@@ -467,6 +482,12 @@ export function CheckerClient({
             value={walkin.email}
             onChange={(e) => setWalkin((w) => ({ ...w, email: e.target.value }))}
             placeholder="E-mail (opcional)"
+            className="bg-white text-black"
+          />
+          <Input
+            value={walkin.tier}
+            onChange={(e) => setWalkin((w) => ({ ...w, tier: e.target.value }))}
+            placeholder="Categoria (opcional: VIP…)"
             className="bg-white text-black"
           />
           <Button type="submit" size="lg" className="w-full max-w-xs" disabled={walkinBusy}>

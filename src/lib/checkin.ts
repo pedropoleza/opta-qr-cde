@@ -17,6 +17,7 @@ export type CheckInResult = {
   result: "checked_in" | "duplicate" | "invalid" | "wrong_event";
   message: string;
   guestName?: string;
+  guestTier?: string | null;
   checkedInAt?: string;
   // D5: capacity atingida NÃO bloqueia — apenas alerta o Checker.
   capacityWarning?: boolean;
@@ -143,6 +144,7 @@ export async function performCheckIn(
         result: "duplicate" as const,
         message: "Ticket já utilizado",
         guestName: ticket.guest.name,
+        guestTier: ticket.guest.tier,
         checkedInAt: locked.checked_in_at?.toISOString(),
       };
     }
@@ -191,6 +193,7 @@ export async function performCheckIn(
       result: "checked_in" as const,
       message: "Check-in efetuado",
       guestName: ticket.guest.name,
+      guestTier: ticket.guest.tier,
       checkedInAt: now.toISOString(),
       capacityWarning,
       _eventId: ticket.eventId,

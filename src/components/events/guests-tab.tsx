@@ -44,6 +44,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
 import { ImportGhlDialog } from "@/components/events/import-ghl-dialog";
+import { TierBadge } from "@/components/events/tier-badge";
 import { toast } from "sonner";
 import type { EventData, GuestRow, LogRow } from "@/components/events/event-detail";
 import { GUEST_STATUS_LABEL, GUEST_STATUS_VARIANT } from "@/components/events/status";
@@ -95,7 +96,8 @@ export function GuestsTab({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [manual, setManual] = useState({ name: "", email: "", phone: "" });
+  const [manual, setManual] = useState({ name: "", email: "", phone: "", tier: "" });
+  const [savingTier, setSavingTier] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<GuestRow | null>(null);
   const [removing, setRemoving] = useState(false);
   const [detail, setDetail] = useState<GuestRow | null>(null);
@@ -122,7 +124,7 @@ export function GuestsTab({
   );
 
   async function postGuests(
-    list: { name: string; email?: string; phone?: string }[],
+    list: { name: string; email?: string; phone?: string; tier?: string }[],
     source: "csv" | "manual",
   ) {
     const res = await fetch(`/api/events/${event.id}/guests`, {
@@ -172,8 +174,26 @@ export function GuestsTab({
     e.preventDefault();
     if (!manual.name.trim()) return;
     if (await postGuests([manual], "manual")) {
-      setManual({ name: "", email: "", phone: "" });
+      setManual({ name: "", email: "", phone: "", tier: "" });
     }
+  }
+
+  async function saveTier(guest: GuestRow, tier: string) {
+    setSavingTier(true);
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier: tier.trim() || null }),
+    });
+    setSavingTier(false);
+    if (!res.ok) {
+      toast.error("Erro ao salvar categoria");
+      return;
+    }
+    toast.success("Categoria salva");
+    const value = tier.trim() || null;
+    setDetail((d) => (d && d.id === guest.id ? { ...d, tier: value } : d));
+    onChange();
   }
 
   async function manualCheckIn(guest: GuestRow) {
@@ -300,6 +320,19 @@ export function GuestsTab({
               onChange={(e) => setManual((m) => ({ ...m, phone: e.target.value }))}
               className="w-36"
             />
+            <Input
+              placeholder="Categoria (VIP…)"
+              list="tier-suggestions"
+              value={manual.tier}
+              onChange={(e) => setManual((m) => ({ ...m, tier: e.target.value }))}
+              className="w-36"
+            />
+            <datalist id="tier-suggestions">
+              <option value="VIP" />
+              <option value="Geral" />
+              <option value="Imprensa" />
+              <option value="Staff" />
+            </datalist>
             <Button type="submit" variant="secondary">
               Adicionar
             </Button>
@@ -376,7 +409,12 @@ export function GuestsTab({
                 }}
                 className="cursor-pointer"
               >
-                <TableCell className="font-medium">{guest.name}</TableCell>
+                <TableCell className="font-medium">
+                  <span className="flex items-center gap-2">
+                    {guest.name}
+                    <TierBadge tier={guest.tier} />
+                  </span>
+                </TableCell>
                 <TableCell>{guest.email ?? "—"}</TableCell>
                 <TableCell>{guest.phone ?? "—"}</TableCell>
                 <TableCell className="text-xs text-muted-foreground">
@@ -456,6 +494,34 @@ export function GuestsTab({
                     status={detail.emailStatus}
                     sentAt={detail.emailSentAt}
                   />
+                  <TierBadge tier={detail.tier} />
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    Categoria
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      list="tier-suggestions"
+                      value={detail.tier ?? ""}
+                      onChange={(e) =>
+                        setDetail((d) =>
+                          d ? { ...d, tier: e.target.value } : d,
+                        )
+                      }
+                      placeholder="VIP, Geral, Imprensa…"
+                      className="flex-1"
+                    />
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={savingTier}
+                      onClick={() => saveTier(detail, detail.tier ?? "")}
+                    >
+                      Salvar
+                    </Button>
+                  </div>
                 </div>
 
                 {detail.ticketToken ? (

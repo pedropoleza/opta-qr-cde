@@ -77,6 +77,7 @@ export default async function EventDetailPage({
         name: g.name,
         email: g.email,
         phone: g.phone,
+        tier: g.tier,
         source: g.source,
         status: g.status,
         ticketToken: g.ticket?.token ?? null,

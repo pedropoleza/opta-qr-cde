@@ -80,6 +80,7 @@ model Guest {
   name         String
   email        String?
   phone        String?
+  tier         String? // categoria do ingresso: VIP|Geral|Imprensa|... (livre)
   source       String   @default("csv") // csv|ghl|manual
   status       String   @default("pending_qr") // pending_qr|qr_generated|email_sent|checked_in|no_show|canceled
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()

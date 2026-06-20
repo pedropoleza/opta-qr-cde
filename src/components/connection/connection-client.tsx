@@ -5,6 +5,7 @@ import {
   AlertTriangle,
   Building2,
   CheckCircle2,
+  CircleHelp,
   KeyRound,
   Loader2,
   PlugZap,
@@ -17,6 +18,11 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { HelpModal } from "@/components/ui/help-modal";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import type { GhlConnectionStatus } from "@/lib/ghl";
 
 const STATE_META: Record<
@@ -126,6 +132,27 @@ export function ConnectionClient({
             <div className="rounded-lg border p-3">
               <dt className="flex items-center gap-1.5 text-xs text-muted-foreground">
                 <KeyRound className="size-3.5" /> Credencial
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="O que é a credencial?"
+                      className="ml-0.5 text-muted-foreground transition-colors hover:text-foreground"
+                    >
+                      <CircleHelp className="size-3.5" />
+                    </button>
+                  </PopoverTrigger>
+                  <PopoverContent align="start">
+                    <p className="font-medium text-foreground">
+                      Private Integration Token
+                    </p>
+                    <p className="mt-1 text-muted-foreground">
+                      Uma chave da location do HighLevel que autoriza o Spark a
+                      aplicar tags, notas e campos nos contatos. Fica nas
+                      variáveis de ambiente do servidor — nunca aparece aqui.
+                    </p>
+                  </PopoverContent>
+                </Popover>
               </dt>
               <dd className="mt-1 text-sm">
                 {status.state === "disconnected"

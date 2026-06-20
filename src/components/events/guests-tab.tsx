@@ -41,6 +41,7 @@ import {
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { EmptyState } from "@/components/ui/empty-state";
 import { SearchInput } from "@/components/ui/search-input";
+import { ImportGhlDialog } from "@/components/events/import-ghl-dialog";
 import { toast } from "sonner";
 import type { EventData, GuestRow, LogRow } from "@/components/events/event-detail";
 import { GUEST_STATUS_LABEL, GUEST_STATUS_VARIANT } from "@/components/events/status";
@@ -257,6 +258,7 @@ export function GuestsTab({
               {importing ? "Importando..." : "Importar CSV"}
             </Button>
           </div>
+          <ImportGhlDialog eventId={event.id} onChange={onChange} />
           <form onSubmit={addManual} className="flex flex-wrap items-end gap-2">
             <Input
               placeholder="Nome"

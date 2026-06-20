@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
@@ -106,6 +106,14 @@ export function EventDetail({
   const refresh = () => router.refresh();
   const [duplicating, setDuplicating] = useState(false);
 
+  // #8 Check-in ao vivo: revalida os dados a cada 10s enquanto ligado.
+  const [live, setLive] = useState(false);
+  useEffect(() => {
+    if (!live) return;
+    const t = setInterval(() => router.refresh(), 10_000);
+    return () => clearInterval(t);
+  }, [live, router]);
+
   // #5 Exportar relatório: CSV dos convidados (nome, contato, status, check-in).
   function exportCsv() {
     const header = ["Nome", "E-mail", "Telefone", "Status", "Check-in"];
@@ -176,6 +184,21 @@ export function EventDetail({
           {event.locationName ? ` · ${event.locationName}` : ""}
         </span>
         <div className="ml-auto flex items-center gap-2">
+          <Button
+            variant={live ? "default" : "outline"}
+            size="sm"
+            aria-pressed={live}
+            onClick={() => setLive((v) => !v)}
+          >
+            <span
+              className={
+                live
+                  ? "size-2 rounded-full bg-current animate-pulse"
+                  : "size-2 rounded-full bg-muted-foreground/50"
+              }
+            />
+            Ao vivo
+          </Button>
           <Button variant="outline" size="sm" onClick={exportCsv}>
             <Download /> Exportar CSV
           </Button>

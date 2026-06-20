@@ -153,6 +153,59 @@ export async function ghlAddNote(contactId: string, note: string) {
   });
 }
 
+export type GhlContact = {
+  id: string;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  tags: string[];
+};
+
+type RawContact = {
+  id: string;
+  contactName?: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string | null;
+  phone?: string | null;
+  tags?: string[];
+};
+
+// Busca contatos da location filtrando por tag (#9). Usa o endpoint de busca
+// avançada do GHL (validado: filters[].field=tags, operator=contains).
+export async function ghlSearchContactsByTag(
+  tag: string,
+  pageLimit = 100,
+): Promise<GhlContact[]> {
+  const { locationId } = getGhlConfig();
+  if (!locationId) throw new GhlError("Location não configurada");
+
+  const data = await ghlRequest<{ contacts?: RawContact[] }>(
+    `/contacts/search`,
+    {
+      method: "POST",
+      body: JSON.stringify({
+        locationId,
+        page: 1,
+        pageLimit,
+        filters: [{ field: "tags", operator: "contains", value: tag }],
+      }),
+    },
+  );
+
+  return (data.contacts ?? []).map((c) => ({
+    id: c.id,
+    name:
+      c.contactName ||
+      [c.firstName, c.lastName].filter(Boolean).join(" ").trim() ||
+      c.email ||
+      "Sem nome",
+    email: c.email ?? null,
+    phone: c.phone ?? null,
+    tags: Array.isArray(c.tags) ? c.tags : [],
+  }));
+}
+
 // Mapa nome-do-campo → id, cacheado por alguns minutos. Os custom fields D3
 // (event_name, event_date, …) são criados pelo Time na location do GHL.
 let customFieldCache: { at: number; map: Record<string, string> } | null = null;

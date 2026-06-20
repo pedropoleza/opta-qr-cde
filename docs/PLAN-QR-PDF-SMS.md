@@ -105,15 +105,17 @@ Decisões já tomadas:
 - **Fase 3 — WhatsApp (Stevo):** `lib/stevo.ts` + ação `send_whatsapp` no worker
   + `channel` no `/send` + UI. **Depende das credenciais/doc do Stevo.**
 
-## 7. Decisões em aberto / o que preciso de você
+## 7. Decisões
+
+Decididas:
+- ✅ **Editor de PDF:** painel de configuração com **presets** (moderno/clássico/
+  compacto) + cor, logo, textos e toggles. Sem editor visual avançado.
+- ✅ **Escopo do modelo:** **padrão por organização + override por evento**.
+
+Pendentes (bloqueiam só a Fase 3 — WhatsApp):
 1. **Credenciais e doc da API do Stevo** (endpoint de envio de documento via
-   WhatsApp, autenticação, formato do payload, remetente/instância). Sem isso a
-   Fase 3 não sai do papel.
+   WhatsApp, autenticação, formato do payload, remetente/instância).
 2. **Stevo aceita `mediaUrl` (link público do PDF) ou exige upload do arquivo?**
-3. **Profundidade do editor de PDF:** painel de configuração com presets
-   (recomendado, rápido e manutenível) vs. editor mais visual (mais esforço).
-4. **Escopo do modelo:** padrão por organização com override por evento
-   (recomendado) vs. um modelo por evento sempre.
 
 ## 8. Riscos / observações
 - **Compliance WhatsApp** (opt-in, janela de 24h, templates aprovados) pode se

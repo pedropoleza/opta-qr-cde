@@ -90,3 +90,126 @@ export async function checkGhlConnection(
     clearTimeout(timer);
   }
 }
+
+// --------------------------------------------------------------------------
+// Cliente da API do GHL usado pelo worker da fila (Etapa 4).
+// --------------------------------------------------------------------------
+
+export class GhlError extends Error {
+  status?: number;
+  constructor(message: string, status?: number) {
+    super(message);
+    this.name = "GhlError";
+    this.status = status;
+  }
+}
+
+function ghlHeaders(token: string) {
+  return {
+    Authorization: `Bearer ${token}`,
+    Version: GHL_API_VERSION,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  };
+}
+
+async function ghlRequest<T = unknown>(
+  path: string,
+  init: RequestInit & { method: string },
+): Promise<T> {
+  const token = process.env.GHL_LOCATION_TOKEN?.trim();
+  if (!token) throw new GhlError("GHL token não configurado");
+
+  const res = await fetch(`${GHL_API_BASE}${path}`, {
+    ...init,
+    headers: { ...ghlHeaders(token), ...(init.headers ?? {}) },
+    cache: "no-store",
+  });
+
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new GhlError(
+      `GHL ${init.method} ${path} → ${res.status} ${body.slice(0, 200)}`.trim(),
+      res.status,
+    );
+  }
+  return (await res.json().catch(() => ({}))) as T;
+}
+
+// Aplica tags no contato. A tag-gatilho (ex.: qrcode-enviado-{slug}) é o que
+// dispara o workflow de e-mail no GHL.
+export async function ghlAddTags(contactId: string, tags: string[]) {
+  await ghlRequest(`/contacts/${contactId}/tags`, {
+    method: "POST",
+    body: JSON.stringify({ tags }),
+  });
+}
+
+// Adiciona uma nota ao contato (ex.: confirmação de check-in).
+export async function ghlAddNote(contactId: string, note: string) {
+  await ghlRequest(`/contacts/${contactId}/notes`, {
+    method: "POST",
+    body: JSON.stringify({ body: note }),
+  });
+}
+
+// Mapa nome-do-campo → id, cacheado por alguns minutos. Os custom fields D3
+// (event_name, event_date, …) são criados pelo Time na location do GHL.
+let customFieldCache: { at: number; map: Record<string, string> } | null = null;
+const CUSTOM_FIELD_TTL_MS = 5 * 60 * 1000;
+
+async function getCustomFieldIdMap(): Promise<Record<string, string>> {
+  if (customFieldCache && Date.now() - customFieldCache.at < CUSTOM_FIELD_TTL_MS) {
+    return customFieldCache.map;
+  }
+  const { locationId } = getGhlConfig();
+  if (!locationId) throw new GhlError("Location não configurada");
+
+  const data = await ghlRequest<{
+    customFields?: Array<{ id: string; name?: string; fieldKey?: string }>;
+  }>(`/locations/${locationId}/customFields`, { method: "GET" });
+
+  const map: Record<string, string> = {};
+  for (const field of data.customFields ?? []) {
+    if (!field.id) continue;
+    // fieldKey costuma ser "contact.event_name" → indexa por "event_name".
+    if (field.fieldKey) {
+      const key = field.fieldKey.split(".").pop();
+      if (key) map[key.toLowerCase()] = field.id;
+    }
+    if (field.name) {
+      map[field.name.trim().toLowerCase().replace(/\s+/g, "_")] = field.id;
+    }
+  }
+  customFieldCache = { at: Date.now(), map };
+  return map;
+}
+
+// Atualiza custom fields do contato resolvendo nomes → ids. Falha (com erro
+// claro) se nenhum campo existir ainda na location — sinal para o Time criar
+// os custom fields D3.
+export async function ghlUpdateContactFields(
+  contactId: string,
+  fields: Record<string, unknown>,
+) {
+  const map = await getCustomFieldIdMap();
+  const customFields: Array<{ id: string; field_value: unknown }> = [];
+  const missing: string[] = [];
+
+  for (const [key, value] of Object.entries(fields)) {
+    const id = map[key.toLowerCase()];
+    if (id) customFields.push({ id, field_value: value });
+    else missing.push(key);
+  }
+
+  if (customFields.length === 0) {
+    throw new GhlError(
+      `Nenhum custom field encontrado na location (faltando: ${missing.join(", ")}). Crie os campos D3 no GHL.`,
+    );
+  }
+
+  await ghlRequest(`/contacts/${contactId}`, {
+    method: "PUT",
+    body: JSON.stringify({ customFields }),
+  });
+}

@@ -23,11 +23,20 @@ import {
   DrawerTitle,
 } from "@/components/ui/drawer";
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
   GUEST_STATUS_LABEL,
   GUEST_STATUS_VARIANT,
 } from "@/components/events/status";
 import { TicketTemplateEditor } from "@/components/events/ticket-template-editor";
 import { toast } from "sonner";
+
+type Channel = "email" | "whatsapp" | "both";
 import type { EventData, GuestRow } from "@/components/events/event-detail";
 
 export function QrDeliveryTab({
@@ -45,6 +54,7 @@ export function QrDeliveryTab({
   const [sending, setSending] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<GuestRow | null>(null);
+  const [channel, setChannel] = useState<Channel>("email");
 
   const active = guests.filter((g) => g.status !== "canceled");
   const pending = active.filter((g) => !g.ticketToken).length;
@@ -82,7 +92,7 @@ export function QrDeliveryTab({
     const res = await fetch(`/api/events/${event.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guestIds: ids }),
+      body: JSON.stringify({ guestIds: ids, channel }),
     });
     setSending(false);
     const data = await res.json().catch(() => ({}));
@@ -90,11 +100,14 @@ export function QrDeliveryTab({
       toast.error(data.error ?? "Erro ao enviar");
       return;
     }
-    toast.success(`${data.sent} convite(s) disparado(s) pela automação Spark`);
+    toast.success(`${data.sent} convite(s) disparado(s)`);
     if (data.withoutGhlContact > 0) {
       toast.warning(
-        `${data.withoutGhlContact} ainda sem contato Spark vinculado — entram na fila e saem assim que o contato for conectado`
+        `${data.withoutGhlContact} sem contato Spark vinculado — entram na fila e saem quando o contato for conectado`
       );
+    }
+    if (data.withoutPhone > 0) {
+      toast.warning(`${data.withoutPhone} sem telefone — WhatsApp não enviado`);
     }
     onChange();
   }
@@ -105,7 +118,7 @@ export function QrDeliveryTab({
     const res = await fetch(`/api/events/${event.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guestIds: [guest.id] }),
+      body: JSON.stringify({ guestIds: [guest.id], channel }),
     });
     setSendingId(null);
     const data = await res.json().catch(() => ({}));
@@ -208,6 +221,19 @@ export function QrDeliveryTab({
           </ol>
 
           <div className="mt-4 flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Enviar por</span>
+              <Select value={channel} onValueChange={(v) => setChannel(v as Channel)}>
+                <SelectTrigger className="w-36">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="email">E-mail</SelectItem>
+                  <SelectItem value="whatsapp">WhatsApp (PDF)</SelectItem>
+                  <SelectItem value="both">E-mail + WhatsApp</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
             <Button onClick={generate} disabled={generating || pending === 0}>
               {generating
                 ? "Gerando..."

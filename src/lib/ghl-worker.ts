@@ -6,6 +6,7 @@ import {
   ghlAddTags,
   ghlUpdateContactFields,
 } from "@/lib/ghl";
+import { stevoConfigured, stevoSendDocument } from "@/lib/stevo";
 
 // Worker da fila de sincronização GHL (Etapa 4 / D7). Consome
 // checkin_ghl_sync_jobs e aplica tags, notas e custom fields no contato, com
@@ -26,9 +27,8 @@ export type ProcessResult = {
 export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   const empty: ProcessResult = { claimed: 0, done: 0, failed: 0, retried: 0 };
 
-  const { configured } = getGhlConfig();
-  if (!configured) {
-    return { ...empty, skipped: true, reason: "GHL não configurado" };
+  if (!getGhlConfig().configured && !stevoConfigured()) {
+    return { ...empty, skipped: true, reason: "GHL/Stevo não configurados" };
   }
 
   // Claim atômico com FOR UPDATE SKIP LOCKED: seguro para execuções
@@ -59,7 +59,8 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
 
   for (const job of jobs) {
     try {
-      await runJob(job);
+      if (job.action === "send_whatsapp") await runWhatsappJob(job);
+      else await runJob(job);
       await prisma.ghlSyncJob.update({
         where: { id: job.id },
         data: { status: "done", processedAt: new Date(), lastError: null },
@@ -138,5 +139,32 @@ async function runJob(job: SyncJob) {
     }
     default:
       throw new GhlError(`Ação desconhecida: ${job.action}`);
+  }
+}
+
+// Envio do ingresso (PDF) por WhatsApp via Stevo. Não usa ghlContactId — o
+// destino é o telefone gravado no payload.
+async function runWhatsappJob(job: SyncJob) {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const to = String(payload.to ?? "");
+  const url = String(payload.url ?? "");
+  if (!to || !url) throw new GhlError("WhatsApp sem número ou URL no payload");
+
+  await stevoSendDocument({
+    to,
+    url,
+    filename: String(payload.filename ?? "ingresso.pdf"),
+    caption: payload.caption ? String(payload.caption) : undefined,
+  });
+
+  if (job.guestId) {
+    await prisma.emailLog.updateMany({
+      where: {
+        guestId: job.guestId,
+        provider: "stevo-whatsapp",
+        status: "queued",
+      },
+      data: { status: "sent", sentAt: new Date() },
+    });
   }
 }

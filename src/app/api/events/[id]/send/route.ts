@@ -1,19 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
-import { ticketPublicQrUrl, ticketQrImageUrl } from "@/lib/ticket";
+import { ticketPublicQrUrl, ticketQrImageUrl, ticketPdfUrl } from "@/lib/ticket";
 import { enqueueSendQr } from "@/lib/ghl-sync";
+import { stevoConfigured, normalizePhone } from "@/lib/stevo";
 
-// Disparo do QR por e-mail (Etapa 3, D1 = híbrida C via automação Spark/GHL).
-// O app não envia o e-mail diretamente: grava os dados do QR no contato e
-// aplica a tag-gatilho qrcode-enviado-{evento}; o workflow nativo do GHL
-// envia o e-mail (imagem do QR + botão para a página do ingresso). O envio é
-// enfileirado em checkin_ghl_sync_jobs e efetivado pelo worker (Etapa 4).
-//
-// Body: { guestIds?: string[] }  — omitido = todos os convidados com QR gerado.
+// Disparo do ingresso por canal:
+//  - email (D1): grava dados do QR no contato + tag-gatilho; workflow do GHL
+//    envia o e-mail.
+//  - whatsapp (Stevo): enfileira o envio do PDF do ingresso pelo worker.
+//  - both: os dois.
+// Body: { guestIds?: string[], channel?: "email" | "whatsapp" | "both" }
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const organizationId = await getCurrentOrgId();
   const { id } = await params;
@@ -25,8 +25,21 @@ export async function POST(
   const guestIds: string[] | undefined = Array.isArray(body.guestIds)
     ? body.guestIds
     : undefined;
+  const channel: "email" | "whatsapp" | "both" =
+    body.channel === "whatsapp" || body.channel === "both"
+      ? body.channel
+      : "email";
 
-  // Só envia para quem já tem ticket/QR gerado e não foi removido.
+  const wantsWhatsapp = channel === "whatsapp" || channel === "both";
+  const wantsEmail = channel === "email" || channel === "both";
+
+  if (wantsWhatsapp && !stevoConfigured()) {
+    return jsonError(
+      400,
+      "WhatsApp (Stevo) não configurado. Defina STEVO_API_URL e STEVO_API_KEY.",
+    );
+  }
+
   const guests = await prisma.guest.findMany({
     where: {
       eventId: id,
@@ -45,46 +58,76 @@ export async function POST(
 
   let sent = 0;
   let withoutContact = 0;
+  let withoutPhone = 0;
+
   for (const guest of guests) {
     const token = guest.ticket!.token;
     await prisma.$transaction(async (tx) => {
-      // Grava os dados do QR no contato + tag-gatilho do workflow GHL.
-      await enqueueSendQr(
-        tx,
-        { id: guest.id, eventId: id, ghlContactId: guest.ghlContactId },
-        event.slug,
-        {
-          eventName: event.name,
-          eventDate,
-          eventLocation,
-          qrLink: ticketPublicQrUrl(token),
-          qrImageUrl: ticketQrImageUrl(token),
-        }
-      );
-      // EmailLog: provider=ghl, status=queued (envio efetivo é do workflow GHL).
-      await tx.emailLog.create({
-        data: {
-          eventId: id,
-          guestId: guest.id,
-          ticketId: guest.ticket!.id,
-          provider: "ghl",
-          status: "queued",
-        },
-      });
+      if (wantsEmail) {
+        await enqueueSendQr(
+          tx,
+          { id: guest.id, eventId: id, ghlContactId: guest.ghlContactId },
+          event.slug,
+          {
+            eventName: event.name,
+            eventDate,
+            eventLocation,
+            qrLink: ticketPublicQrUrl(token),
+            qrImageUrl: ticketQrImageUrl(token),
+          },
+        );
+        await tx.emailLog.create({
+          data: {
+            eventId: id,
+            guestId: guest.id,
+            ticketId: guest.ticket!.id,
+            provider: "ghl",
+            status: "queued",
+          },
+        });
+        if (!guest.ghlContactId) withoutContact++;
+      }
+
+      if (wantsWhatsapp && guest.phone) {
+        await tx.ghlSyncJob.create({
+          data: {
+            eventId: id,
+            guestId: guest.id,
+            ghlContactId: guest.ghlContactId,
+            action: "send_whatsapp",
+            payload: {
+              to: normalizePhone(guest.phone),
+              url: ticketPdfUrl(token),
+              filename: `ingresso-${event.slug}.pdf`,
+              caption: `Olá! Aqui está o seu ingresso para ${event.name} (${eventDate}). Apresente o QR Code na entrada.`,
+            },
+          },
+        });
+        await tx.emailLog.create({
+          data: {
+            eventId: id,
+            guestId: guest.id,
+            ticketId: guest.ticket!.id,
+            provider: "stevo-whatsapp",
+            status: "queued",
+          },
+        });
+      } else if (wantsWhatsapp && !guest.phone) {
+        withoutPhone++;
+      }
+
       await tx.guest.update({
         where: { id: guest.id },
         data: { status: "email_sent" },
       });
     });
     sent++;
-    if (!guest.ghlContactId) withoutContact++;
   }
 
   return NextResponse.json({
     sent,
-    // Convidados sem ghl_contact_id (origem CSV) não têm contato no GHL para o
-    // workflow disparar — viram email_sent mas o job de sync é ignorado até
-    // que o contato seja vinculado na Etapa 4.
+    channel,
     withoutGhlContact: withoutContact,
+    withoutPhone,
   });
 }

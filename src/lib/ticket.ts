@@ -49,3 +49,9 @@ export function ticketQrImageUrl(token: string): string {
   const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
   return `${base}/api/qr/${encodeURIComponent(token)}`;
 }
+
+// PDF público do ingresso — usado como mídia no envio por WhatsApp (Stevo).
+export function ticketPdfUrl(token: string): string {
+  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  return `${base}/api/ticket/${encodeURIComponent(token)}/pdf`;
+}

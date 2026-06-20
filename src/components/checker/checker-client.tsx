@@ -24,6 +24,7 @@ type GuestHit = {
   name: string;
   email: string | null;
   tier: string | null;
+  groupSize: number;
   checkedIn: boolean;
   checkedInAt: string | null;
 };
@@ -149,11 +150,15 @@ export function CheckerClient({
 
   async function checkInGuest(g: GuestHit) {
     setBusyId(g.id);
-    const res = await fetch("/api/checker/checkin", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ guestId: g.id }),
-    });
+    const group = g.groupSize > 1;
+    const res = await fetch(
+      group ? "/api/checker/checkin-group" : "/api/checker/checkin",
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ guestId: g.id }),
+      },
+    );
     const data = await res.json().catch(() => ({}));
     setBusyId(null);
     if (!res.ok) {
@@ -425,6 +430,11 @@ export function CheckerClient({
                         {g.tier}
                       </span>
                     )}
+                    {g.groupSize > 1 && (
+                      <span className="rounded bg-neutral-700 px-1.5 py-0.5 text-[10px] font-bold text-neutral-200">
+                        GRUPO {g.groupSize}
+                      </span>
+                    )}
                   </p>
                   {g.email && (
                     <p className="truncate text-xs text-neutral-400">{g.email}</p>
@@ -452,7 +462,7 @@ export function CheckerClient({
                     disabled={busyId === g.id}
                     onClick={() => checkInGuest(g)}
                   >
-                    Check-in
+                    {g.groupSize > 1 ? `Check-in grupo (${g.groupSize})` : "Check-in"}
                   </Button>
                 )}
               </div>

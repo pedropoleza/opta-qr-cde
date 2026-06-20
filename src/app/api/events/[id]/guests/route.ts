@@ -44,6 +44,7 @@ export async function POST(
     phone?: string;
     ghlContactId?: string;
     tier?: string;
+    companions?: number;
   }[] = Array.isArray(body.guests) ? body.guests : [];
   const valid = input.filter((g) => g.name && String(g.name).trim());
   if (valid.length === 0) return jsonError(400, "Nenhum convidado válido (nome é obrigatório)");
@@ -70,6 +71,28 @@ export async function POST(
         `convidado-${event.slug}`
       );
       result.push(guest);
+
+      // #4 Acompanhantes: cria N convidados no mesmo grupo do titular.
+      const companions = Math.max(0, Math.min(20, Number(g.companions) || 0));
+      if (companions > 0) {
+        await tx.guest.update({
+          where: { id: guest.id },
+          data: { groupId: guest.id },
+        });
+        for (let k = 1; k <= companions; k++) {
+          const comp = await tx.guest.create({
+            data: {
+              eventId: id,
+              name: `${String(g.name).trim()} (acompanhante ${k})`,
+              tier: g.tier ? String(g.tier).trim() : null,
+              source,
+              status: "pending_qr",
+              groupId: guest.id,
+            },
+          });
+          result.push(comp);
+        }
+      }
     }
     return result;
   });

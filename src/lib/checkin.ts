@@ -236,6 +236,35 @@ export async function ensureTicket(eventId: string, guestId: string) {
   });
 }
 
+// #4 Check-in do grupo inteiro a partir de um membro. Resolve os membros do
+// grupo (titular + acompanhantes) e dá entrada em cada um (idempotente).
+export async function checkInGroup(
+  guestId: string,
+  ctx: ScanContext,
+): Promise<{ checkedIn: number; alreadyIn: number; total: number }> {
+  const guest = await prisma.guest.findUnique({ where: { id: guestId } });
+  if (!guest) return { checkedIn: 0, alreadyIn: 0, total: 0 };
+
+  const groupKey = guest.groupId ?? guest.id;
+  const members = await prisma.guest.findMany({
+    where: {
+      eventId: guest.eventId,
+      status: { not: "canceled" },
+      OR: [{ groupId: groupKey }, { id: groupKey }],
+    },
+  });
+
+  let checkedIn = 0;
+  let alreadyIn = 0;
+  for (const m of members) {
+    const ticket = await ensureTicket(m.eventId, m.id);
+    const r = await performCheckIn(ticket.id, ctx);
+    if (r.result === "checked_in") checkedIn++;
+    else if (r.result === "duplicate") alreadyIn++;
+  }
+  return { checkedIn, alreadyIn, total: members.length };
+}
+
 // Desfaz um check-in (#6): reverte ticket + convidado e registra no log.
 export async function undoCheckIn(
   ticketId: string,

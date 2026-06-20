@@ -56,6 +56,13 @@ export default async function EventDetailPage({
 
   const activeGuests = guests.filter((g) => g.status !== "canceled");
 
+  // #4 Tamanho do grupo por convidado (titular + acompanhantes).
+  const groupCount = new Map<string, number>();
+  for (const g of activeGuests) {
+    if (!g.groupId) continue;
+    groupCount.set(g.groupId, (groupCount.get(g.groupId) ?? 0) + 1);
+  }
+
   return (
     <EventDetail
       event={{
@@ -79,6 +86,7 @@ export default async function EventDetailPage({
         phone: g.phone,
         tier: g.tier,
         rsvp: g.rsvp,
+        groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
         source: g.source,
         status: g.status,
         ticketToken: g.ticket?.token ?? null,

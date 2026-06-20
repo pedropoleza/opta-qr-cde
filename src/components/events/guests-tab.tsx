@@ -96,7 +96,13 @@ export function GuestsTab({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [importing, setImporting] = useState(false);
-  const [manual, setManual] = useState({ name: "", email: "", phone: "", tier: "" });
+  const [manual, setManual] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    tier: "",
+    companions: "",
+  });
   const [savingTier, setSavingTier] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<GuestRow | null>(null);
   const [removing, setRemoving] = useState(false);
@@ -124,7 +130,13 @@ export function GuestsTab({
   );
 
   async function postGuests(
-    list: { name: string; email?: string; phone?: string; tier?: string }[],
+    list: {
+      name: string;
+      email?: string;
+      phone?: string;
+      tier?: string;
+      companions?: number;
+    }[],
     source: "csv" | "manual",
   ) {
     const res = await fetch(`/api/events/${event.id}/guests`, {
@@ -173,9 +185,34 @@ export function GuestsTab({
   async function addManual(e: React.FormEvent) {
     e.preventDefault();
     if (!manual.name.trim()) return;
-    if (await postGuests([manual], "manual")) {
-      setManual({ name: "", email: "", phone: "", tier: "" });
+    const payload = {
+      name: manual.name,
+      email: manual.email,
+      phone: manual.phone,
+      tier: manual.tier,
+      companions: Number(manual.companions) || 0,
+    };
+    if (await postGuests([payload], "manual")) {
+      setManual({ name: "", email: "", phone: "", tier: "", companions: "" });
     }
+  }
+
+  async function checkInGroup(guest: GuestRow) {
+    setBusyId(guest.id);
+    const res = await fetch(
+      `/api/events/${event.id}/guests/${guest.id}/checkin-group`,
+      { method: "POST" },
+    );
+    setBusyId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro no check-in do grupo");
+      return;
+    }
+    toast.success(
+      `Grupo: ${data.checkedIn} entrada(s)${data.alreadyIn ? `, ${data.alreadyIn} já presente(s)` : ""}`,
+    );
+    onChange();
   }
 
   async function saveTier(guest: GuestRow, tier: string) {
@@ -333,6 +370,18 @@ export function GuestsTab({
               <option value="Imprensa" />
               <option value="Staff" />
             </datalist>
+            <Input
+              type="number"
+              min={0}
+              max={20}
+              placeholder="+Acomp."
+              value={manual.companions}
+              onChange={(e) =>
+                setManual((m) => ({ ...m, companions: e.target.value }))
+              }
+              className="w-24"
+              title="Acompanhantes (cria o grupo)"
+            />
             <Button type="submit" variant="secondary">
               Adicionar
             </Button>
@@ -413,6 +462,11 @@ export function GuestsTab({
                   <span className="flex items-center gap-2">
                     {guest.name}
                     <TierBadge tier={guest.tier} />
+                    {guest.groupSize > 1 && (
+                      <Badge variant="outline" className="text-xs">
+                        Grupo {guest.groupSize}
+                      </Badge>
+                    )}
                   </span>
                 </TableCell>
                 <TableCell>{guest.email ?? "—"}</TableCell>
@@ -621,6 +675,15 @@ export function GuestsTab({
                   <UserCheck /> Marcar presença
                 </Button>
               )}
+            {detail && detail.groupSize > 1 && (
+              <Button
+                variant="outline"
+                disabled={busyId === detail.id}
+                onClick={() => checkInGroup(detail)}
+              >
+                <Users /> Entrada do grupo ({detail.groupSize})
+              </Button>
+            )}
             {detail && detail.status === "checked_in" && (
               <Button
                 variant="outline"

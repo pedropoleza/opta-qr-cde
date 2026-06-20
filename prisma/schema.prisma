@@ -21,9 +21,10 @@ model Organization {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
-  users          User[]
-  events         Event[]
-  ghlConnections GhlConnection[]
+  users           User[]
+  events          Event[]
+  ghlConnections  GhlConnection[]
+  ticketTemplates TicketTemplate[]
 
   @@map("checkin_organizations")
 }
@@ -60,12 +61,13 @@ model Event {
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 
-  organization Organization @relation(fields: [organizationId], references: [id])
-  guests       Guest[]
-  tickets      Ticket[]
-  checkInLogs  CheckInLog[]
-  emailLogs    EmailLog[]
-  syncJobs     GhlSyncJob[]
+  organization   Organization    @relation(fields: [organizationId], references: [id])
+  guests         Guest[]
+  tickets        Ticket[]
+  checkInLogs    CheckInLog[]
+  emailLogs      EmailLog[]
+  syncJobs       GhlSyncJob[]
+  ticketTemplate TicketTemplate?
 
   @@index([organizationId])
   @@map("checkin_events")
@@ -170,6 +172,23 @@ model GhlConnection {
 
   @@index([organizationId])
   @@map("checkin_ghl_connections")
+}
+
+// Modelo (template) do ingresso em PDF. Escopo: padrão por organização
+// (event_id null) + override por evento (event_id preenchido, único).
+model TicketTemplate {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  eventId        String?  @unique @map("event_id") @db.Uuid
+  config         Json
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id])
+  event        Event?       @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId])
+  @@map("checkin_ticket_templates")
 }
 
 // Fila assíncrona de sincronização com o GHL (seção 3.5 / D7: tabela no

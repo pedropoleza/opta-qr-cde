@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { ticketValidationUrl, ticketPublicQrUrl } from "@/lib/ticket";
 import { renderTicketPdf } from "@/lib/ticket-pdf";
-import { DEFAULT_TICKET_CONFIG } from "@/lib/ticket-template";
+import { getEventTicketConfig } from "@/lib/ticket-config";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -22,6 +22,7 @@ export async function GET(
     select: {
       token: true,
       signature: true,
+      eventId: true,
       event: {
         select: {
           name: true,
@@ -41,6 +42,8 @@ export async function GET(
     { width: 512, margin: 1, errorCorrectionLevel: "M" },
   );
 
+  const { config } = await getEventTicketConfig(ticket.eventId);
+
   const pdf = await renderTicketPdf(
     {
       event: {
@@ -57,7 +60,7 @@ export async function GET(
       qrDataUrl,
       ticketUrl: ticketPublicQrUrl(ticket.token),
     },
-    DEFAULT_TICKET_CONFIG,
+    config,
   );
 
   return new NextResponse(new Uint8Array(pdf), {

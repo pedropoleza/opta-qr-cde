@@ -26,6 +26,7 @@ import {
   GUEST_STATUS_LABEL,
   GUEST_STATUS_VARIANT,
 } from "@/components/events/status";
+import { TicketTemplateEditor } from "@/components/events/ticket-template-editor";
 import { toast } from "sonner";
 import type { EventData, GuestRow } from "@/components/events/event-detail";
 
@@ -161,6 +162,10 @@ export function QrDeliveryTab({
 
   return (
     <div className="space-y-5 pt-4">
+      <div className="flex justify-end">
+        <TicketTemplateEditor eventId={event.id} />
+      </div>
+
       {/* Passo a passo do disparo */}
       <Card>
         <CardContent className="p-5">

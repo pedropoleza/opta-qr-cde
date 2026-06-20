@@ -66,12 +66,15 @@ export type GuestRow = {
   status: string;
   ticketToken: string | null;
   checkedInAt: string | null;
+  emailStatus: string | null;
+  emailSentAt: string | null;
 };
 
 export type LogRow = {
   id: string;
   status: string;
   message: string | null;
+  guestId: string | null;
   guestName: string | null;
   scannedAt: string;
   deviceInfo: string | null;
@@ -241,7 +244,13 @@ export function EventDetail({
           <TabsTrigger value="activity">Atividade</TabsTrigger>
         </TabsList>
         <TabsContent value="guests">
-          <GuestsTab event={event} guests={guests} onChange={refresh} />
+          <GuestsTab
+            event={event}
+            guests={guests}
+            logs={logs}
+            appBaseUrl={appBaseUrl}
+            onChange={refresh}
+          />
         </TabsContent>
         <TabsContent value="qr">
           <QrDeliveryTab

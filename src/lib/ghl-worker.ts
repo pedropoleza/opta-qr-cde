@@ -103,6 +103,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
 type SyncJob = {
   action: string;
   ghlContactId: string | null;
+  guestId: string | null;
   payload: unknown;
 };
 
@@ -115,6 +116,14 @@ async function runJob(job: SyncJob) {
       const tag = String(payload.tag ?? "");
       if (!tag) throw new GhlError("Tag vazia no payload");
       await ghlAddTags(job.ghlContactId, [tag]);
+      // #3: ao aplicar a tag-gatilho do convite, marca o e-mail como entregue
+      // ao Spark (o disparo em si é do workflow do GHL).
+      if (tag.startsWith("qrcode-enviado-") && job.guestId) {
+        await prisma.emailLog.updateMany({
+          where: { guestId: job.guestId, provider: "ghl", status: "queued" },
+          data: { status: "sent", sentAt: new Date() },
+        });
+      }
       return;
     }
     case "add_note": {

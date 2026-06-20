@@ -18,27 +18,41 @@ export default async function EventDetailPage({
   });
   if (!event) notFound();
 
-  const [guests, logs, checkedIn, dupAgg, invalidAttempts] = await Promise.all([
-    prisma.guest.findMany({
-      where: { eventId: id },
-      orderBy: { createdAt: "asc" },
-      include: { ticket: { select: { token: true, checkedInAt: true } } },
-    }),
-    prisma.checkInLog.findMany({
-      where: { eventId: id },
-      orderBy: { scannedAt: "desc" },
-      take: 100,
-      include: { guest: { select: { name: true } } },
-    }),
-    prisma.ticket.count({ where: { eventId: id, status: "checked_in" } }),
-    prisma.ticket.aggregate({
-      where: { eventId: id },
-      _sum: { duplicateScanCount: true },
-    }),
-    prisma.checkInLog.count({
-      where: { eventId: id, status: { in: ["invalid", "wrong_event"] } },
-    }),
-  ]);
+  const [guests, logs, emailLogs, checkedIn, dupAgg, invalidAttempts] =
+    await Promise.all([
+      prisma.guest.findMany({
+        where: { eventId: id },
+        orderBy: { createdAt: "asc" },
+        include: { ticket: { select: { token: true, checkedInAt: true } } },
+      }),
+      prisma.checkInLog.findMany({
+        where: { eventId: id },
+        orderBy: { scannedAt: "desc" },
+        take: 100,
+        include: { guest: { select: { name: true } } },
+      }),
+      prisma.emailLog.findMany({
+        where: { eventId: id, provider: "ghl" },
+        orderBy: { createdAt: "desc" },
+        select: { guestId: true, status: true, sentAt: true },
+      }),
+      prisma.ticket.count({ where: { eventId: id, status: "checked_in" } }),
+      prisma.ticket.aggregate({
+        where: { eventId: id },
+        _sum: { duplicateScanCount: true },
+      }),
+      prisma.checkInLog.count({
+        where: { eventId: id, status: { in: ["invalid", "wrong_event"] } },
+      }),
+    ]);
+
+  // Status de entrega do e-mail por convidado (último registro vence).
+  const emailByGuest = new Map<string, { status: string; sentAt: Date | null }>();
+  for (const log of emailLogs) {
+    if (!emailByGuest.has(log.guestId)) {
+      emailByGuest.set(log.guestId, { status: log.status, sentAt: log.sentAt });
+    }
+  }
 
   const activeGuests = guests.filter((g) => g.status !== "canceled");
 
@@ -67,11 +81,14 @@ export default async function EventDetailPage({
         status: g.status,
         ticketToken: g.ticket?.token ?? null,
         checkedInAt: g.ticket?.checkedInAt?.toISOString() ?? null,
+        emailStatus: emailByGuest.get(g.id)?.status ?? null,
+        emailSentAt: emailByGuest.get(g.id)?.sentAt?.toISOString() ?? null,
       }))}
       logs={logs.map((l) => ({
         id: l.id,
         status: l.status,
         message: l.message,
+        guestId: l.guestId,
         guestName: l.guest?.name ?? null,
         scannedAt: l.scannedAt.toISOString(),
         deviceInfo: l.deviceInfo,

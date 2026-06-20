@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { ticketValidationUrl } from "@/lib/ticket";
 import { Button } from "@/components/ui/button";
+import { RsvpButtons } from "@/components/ticket/rsvp-buttons";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +18,7 @@ export default async function GuestQrPage({
   const ticket = await prisma.ticket.findUnique({
     where: { token },
     include: {
-      guest: { select: { name: true, status: true } },
+      guest: { select: { name: true, status: true, rsvp: true } },
       event: {
         select: {
           name: true,
@@ -92,6 +93,10 @@ export default async function GuestQrPage({
             <p className="mt-3 text-sm text-neutral-500">
               Apresente este QR Code na entrada do evento.
             </p>
+          )}
+
+          {!checkedIn && (
+            <RsvpButtons token={ticket.token} initial={ticket.guest.rsvp} />
           )}
 
           <Button asChild variant="outline" className="mt-5 w-full">

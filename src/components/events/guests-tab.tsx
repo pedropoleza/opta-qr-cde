@@ -495,6 +495,16 @@ export function GuestsTab({
                     sentAt={detail.emailSentAt}
                   />
                   <TierBadge tier={detail.tier} />
+                  {detail.rsvp === "yes" && (
+                    <Badge className="border-transparent bg-success text-xs text-success-foreground">
+                      Confirmou presença
+                    </Badge>
+                  )}
+                  {detail.rsvp === "no" && (
+                    <Badge variant="secondary" className="text-xs">
+                      Não vai
+                    </Badge>
+                  )}
                 </div>
 
                 <div className="space-y-1.5">

@@ -1,13 +1,16 @@
 import Link from "next/link";
+import {
+  Calendar,
+  CalendarCheck,
+  CheckCircle2,
+  QrCode,
+  Users,
+} from "lucide-react";
 import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { PageHeader } from "@/components/ui/page-header";
+import { MetricCard } from "@/components/ui/metric-card";
 
 export const dynamic = "force-dynamic";
 
@@ -26,33 +29,32 @@ export default async function DashboardPage() {
   ]);
 
   const metrics = [
-    { label: "Eventos", value: events },
-    { label: "Eventos ativos", value: activeEvents },
-    { label: "Convidados", value: guests },
-    { label: "QR Codes gerados", value: qrGenerated },
-    { label: "Check-ins", value: checkedIn },
+    { label: "Eventos", value: events, icon: Calendar },
+    { label: "Eventos ativos", value: activeEvents, icon: CalendarCheck },
+    { label: "Convidados", value: guests, icon: Users },
+    { label: "QR Codes gerados", value: qrGenerated, icon: QrCode },
+    { label: "Check-ins", value: checkedIn, icon: CheckCircle2 },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Dashboard</h1>
-        <Button asChild>
-          <Link href="/events">Ver eventos</Link>
-        </Button>
-      </div>
+      <PageHeader
+        title="Dashboard"
+        description="Visão geral dos eventos, convidados e check-ins."
+        actions={
+          <Button asChild>
+            <Link href="/events">Ver eventos</Link>
+          </Button>
+        }
+      />
       <div className="grid grid-cols-2 gap-4 md:grid-cols-5">
         {metrics.map((m) => (
-          <Card key={m.label}>
-            <CardHeader className="pb-2">
-              <CardTitle className="text-sm font-medium text-neutral-500">
-                {m.label}
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-3xl font-bold">{m.value}</p>
-            </CardContent>
-          </Card>
+          <MetricCard
+            key={m.label}
+            label={m.label}
+            value={m.value}
+            icon={m.icon}
+          />
         ))}
       </div>
     </div>

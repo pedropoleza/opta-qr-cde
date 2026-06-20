@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { CreateEventDialog } from "@/components/events/create-event-dialog";
+import { PageHeader } from "@/components/ui/page-header";
 import { EVENT_STATUS_LABEL, EVENT_STATUS_VARIANT } from "@/components/events/status";
 
 export const dynamic = "force-dynamic";
@@ -28,11 +29,12 @@ export default async function EventsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Eventos</h1>
-        <CreateEventDialog />
-      </div>
-      <div className="rounded-lg border bg-white">
+      <PageHeader
+        title="Eventos"
+        description="Crie e gerencie seus eventos de credenciamento."
+        actions={<CreateEventDialog />}
+      />
+      <div className="rounded-lg border bg-card">
         <Table>
           <TableHeader>
             <TableRow>
@@ -47,7 +49,7 @@ export default async function EventsPage() {
           <TableBody>
             {events.length === 0 && (
               <TableRow>
-                <TableCell colSpan={6} className="py-8 text-center text-neutral-500">
+                <TableCell colSpan={6} className="py-8 text-center text-muted-foreground">
                   Nenhum evento ainda. Crie o primeiro com o botão acima.
                 </TableCell>
               </TableRow>

@@ -1,38 +1,34 @@
-import Link from "next/link";
+import { Sparkles } from "lucide-react";
+import { MainNav } from "@/components/layout/main-nav";
+import { ThemeToggle } from "@/components/theme-toggle";
 
-// App embutido como iframe no CRM — sem tela de login. O CRM autentica o
-// usuário; aqui apenas a navegação do painel do organizador.
+// App embutido como iframe no CRM — sem tela de login. Navegação por abas
+// superiores (sem sidebar). O CRM autentica o usuário; aqui é só o painel do
+// organizador, white-label "Spark".
 export default function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex min-h-screen bg-neutral-50">
-      <aside className="hidden w-56 flex-col border-r bg-white p-4 sm:flex">
-        <Link href="/" className="mb-8 text-lg font-bold">
-          Spark Check-in
-        </Link>
-        <nav className="flex flex-col gap-1 text-sm">
-          <Link href="/" className="rounded-md px-3 py-2 hover:bg-neutral-100">
-            Dashboard
-          </Link>
-          <Link href="/events" className="rounded-md px-3 py-2 hover:bg-neutral-100">
-            Eventos
-          </Link>
-        </nav>
-      </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex h-14 items-center justify-between border-b bg-white px-4 sm:hidden">
-          <Link href="/" className="font-bold">
-            Spark Check-in
-          </Link>
-          <nav className="flex gap-3 text-sm">
-            <Link href="/events">Eventos</Link>
-          </nav>
-        </header>
-        <main className="flex-1 p-4 sm:p-8">{children}</main>
-      </div>
+    <div className="flex min-h-screen flex-col bg-background">
+      <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
+        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
+          <div className="flex shrink-0 items-center gap-2 font-semibold">
+            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
+              <Sparkles className="size-4" />
+            </span>
+            <span className="hidden sm:inline">Spark</span>
+          </div>
+          <div className="min-w-0 flex-1 overflow-x-auto">
+            <MainNav />
+          </div>
+          <ThemeToggle />
+        </div>
+      </header>
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-8">
+        {children}
+      </main>
     </div>
   );
 }

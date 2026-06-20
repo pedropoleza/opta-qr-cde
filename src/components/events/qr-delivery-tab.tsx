@@ -68,12 +68,20 @@ export function QrDeliveryTab({
     onChange();
   }
 
-  async function sendAll() {
+  // Reenvio em massa apenas para os PENDENTES (QR gerado e ainda não enviado).
+  async function sendPending() {
+    const ids = withTicket
+      .filter((g) => g.status === "qr_generated")
+      .map((g) => g.id);
+    if (ids.length === 0) {
+      toast.info("Nenhum convite pendente para enviar");
+      return;
+    }
     setSending(true);
     const res = await fetch(`/api/events/${event.id}/send`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({}),
+      body: JSON.stringify({ guestIds: ids }),
     });
     setSending(false);
     const data = await res.json().catch(() => ({}));
@@ -81,7 +89,7 @@ export function QrDeliveryTab({
       toast.error(data.error ?? "Erro ao enviar");
       return;
     }
-    toast.success(`${data.sent} convidado(s) disparados pela automação Spark`);
+    toast.success(`${data.sent} convite(s) disparado(s) pela automação Spark`);
     if (data.withoutGhlContact > 0) {
       toast.warning(
         `${data.withoutGhlContact} ainda sem contato Spark vinculado — entram na fila e saem assim que o contato for conectado`
@@ -204,13 +212,13 @@ export function QrDeliveryTab({
             </Button>
             <Button
               variant={notSent > 0 ? "default" : "secondary"}
-              onClick={sendAll}
+              onClick={sendPending}
               disabled={sending || notSent === 0}
             >
               {sending
                 ? "Disparando..."
                 : notSent > 0
-                  ? `Enviar convite (${notSent})`
+                  ? `Enviar pendentes (${notSent})`
                   : "Convites enviados ✓"}
             </Button>
             <PreviewDialog event={event} appBaseUrl={appBaseUrl} />

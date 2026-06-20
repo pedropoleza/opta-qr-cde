@@ -1,15 +1,28 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   CheckCircle2,
+  CopyPlus,
+  Download,
+  Loader2,
+  MoreHorizontal,
   QrCode,
   UserMinus,
   Users,
   XCircle,
 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { MetricCard } from "@/components/ui/metric-card";
 import { HelpModal } from "@/components/ui/help-modal";
@@ -18,7 +31,16 @@ import { QrDeliveryTab } from "@/components/events/qr-delivery-tab";
 import { CheckerTab } from "@/components/events/checker-tab";
 import { SettingsTab } from "@/components/events/settings-tab";
 import { ActivityTab } from "@/components/events/activity-tab";
-import { EVENT_STATUS_LABEL, EVENT_STATUS_VARIANT } from "@/components/events/status";
+import {
+  EVENT_STATUS_LABEL,
+  EVENT_STATUS_VARIANT,
+  GUEST_STATUS_LABEL,
+} from "@/components/events/status";
+
+function csvCell(value: string) {
+  const s = String(value ?? "");
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
 
 export type EventData = {
   id: string;
@@ -79,6 +101,48 @@ export function EventDetail({
 }) {
   const router = useRouter();
   const refresh = () => router.refresh();
+  const [duplicating, setDuplicating] = useState(false);
+
+  // #5 Exportar relatório: CSV dos convidados (nome, contato, status, check-in).
+  function exportCsv() {
+    const header = ["Nome", "E-mail", "Telefone", "Status", "Check-in"];
+    const lines = guests.map((g) => [
+      g.name,
+      g.email ?? "",
+      g.phone ?? "",
+      GUEST_STATUS_LABEL[g.status] ?? g.status,
+      g.checkedInAt ? new Date(g.checkedInAt).toLocaleString("pt-BR") : "",
+    ]);
+    const csv = [header, ...lines]
+      .map((row) => row.map(csvCell).join(","))
+      .join("\n");
+    const blob = new Blob(["﻿" + csv], {
+      type: "text/csv;charset=utf-8;",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${event.slug}-convidados.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    toast.success("Relatório exportado");
+  }
+
+  // #6 Duplicar evento: cria um rascunho com a mesma configuração.
+  async function duplicate() {
+    setDuplicating(true);
+    const res = await fetch(`/api/events/${event.id}/duplicate`, {
+      method: "POST",
+    });
+    const data = await res.json().catch(() => ({}));
+    setDuplicating(false);
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao duplicar evento");
+      return;
+    }
+    toast.success("Evento duplicado");
+    router.push(`/events/${data.event.id}`);
+  }
 
   const metrics = [
     { label: "Convidados", value: report.guests, icon: Users },
@@ -108,7 +172,26 @@ export function EventDetail({
           {event.startTime ? ` · ${event.startTime}` : ""}
           {event.locationName ? ` · ${event.locationName}` : ""}
         </span>
-        <div className="ml-auto">
+        <div className="ml-auto flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={exportCsv}>
+            <Download /> Exportar CSV
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon-sm" aria-label="Mais ações">
+                {duplicating ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <MoreHorizontal />
+                )}
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={duplicate} disabled={duplicating}>
+                <CopyPlus className="size-4" /> Duplicar evento
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <HelpModal
             title="Como funciona o Spark Check-in"
             description="Do convite ao check-in na porta, em 4 passos."

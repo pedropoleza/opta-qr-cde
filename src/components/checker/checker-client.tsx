@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { CheckerSuccess } from "@/components/checker/success-screen";
 import type { Html5Qrcode } from "html5-qrcode";
 
 // Checker Mode (Etapa 2): mobile-first, tela cheia, resposta em menos de 2s.
@@ -177,7 +178,19 @@ export function CheckerClient({
     );
   }
 
-  // Tela de resultado em cor cheia — decisão em menos de 2 segundos.
+  // Sucesso: UI profissional animada de confirmação + agradecimento.
+  if (result && result.result === "checked_in") {
+    return (
+      <CheckerSuccess
+        guestName={result.guestName}
+        checkedInAt={result.checkedInAt}
+        capacityWarning={result.capacityWarning}
+        onNext={() => setResult(null)}
+      />
+    );
+  }
+
+  // Demais resultados (amarelo/vermelho/cinza) — decisão em menos de 2 segundos.
   if (result) {
     const style = RESULT_STYLE[result.result];
     return (

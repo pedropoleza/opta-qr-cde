@@ -142,3 +142,89 @@
     @apply font-sans;
   }
 }
+
+/* Animação de sucesso (confirmação de check-in) — sem dependências. */
+@keyframes spark-check-circle {
+  from {
+    stroke-dashoffset: 166;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes spark-check-mark {
+  from {
+    stroke-dashoffset: 48;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+@keyframes spark-pop {
+  0% {
+    transform: scale(0);
+    opacity: 0;
+  }
+  60% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+@keyframes spark-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.55;
+  }
+  100% {
+    transform: scale(2.3);
+    opacity: 0;
+  }
+}
+@keyframes spark-confetti {
+  0% {
+    transform: translateY(-12vh) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(112vh) rotate(720deg);
+    opacity: 0;
+  }
+}
+@keyframes spark-fade-up {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.spark-pop {
+  animation: spark-pop 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.spark-ring {
+  animation: spark-ring 1.6s ease-out infinite;
+}
+.spark-fade-up {
+  animation: spark-fade-up 0.5s ease-out both;
+}
+.spark-confetti {
+  animation: spark-confetti linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spark-pop,
+  .spark-ring,
+  .spark-fade-up,
+  .spark-confetti {
+    animation: none !important;
+  }
+  .spark-confetti {
+    display: none;
+  }
+}

@@ -6,6 +6,16 @@
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
 const GHL_API_VERSION = "2021-07-28";
 
+// Limpa valores de env var: remove espaços e aspas que sobram de copiar/colar
+// (ex.: GHL_LOCATION_TOKEN="pit-..." vira pit-... sem as aspas).
+export function cleanEnv(value?: string | null): string {
+  return (value ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
+}
+
+function ghlToken(): string {
+  return cleanEnv(process.env.GHL_LOCATION_TOKEN);
+}
+
 export type GhlConfig = {
   locationId: string | null;
   hasToken: boolean;
@@ -13,8 +23,8 @@ export type GhlConfig = {
 };
 
 export function getGhlConfig(): GhlConfig {
-  const locationId = process.env.GHL_LOCATION_ID?.trim() || null;
-  const hasToken = Boolean(process.env.GHL_LOCATION_TOKEN?.trim());
+  const locationId = cleanEnv(process.env.GHL_LOCATION_ID) || null;
+  const hasToken = Boolean(ghlToken());
   return { locationId, hasToken, configured: Boolean(locationId && hasToken) };
 }
 
@@ -40,7 +50,7 @@ export async function checkGhlConnection(
     return { state: "disconnected", locationId };
   }
 
-  const token = process.env.GHL_LOCATION_TOKEN!.trim();
+  const token = ghlToken();
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
 
@@ -117,7 +127,7 @@ async function ghlRequest<T = unknown>(
   path: string,
   init: RequestInit & { method: string },
 ): Promise<T> {
-  const token = process.env.GHL_LOCATION_TOKEN?.trim();
+  const token = ghlToken();
   if (!token) throw new GhlError("GHL token não configurado");
 
   const res = await fetch(`${GHL_API_BASE}${path}`, {

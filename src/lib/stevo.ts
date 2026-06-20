@@ -4,10 +4,10 @@
 //   STEVO_API_URL  ex.: https://smv2-7.stevo.chat
 //   STEVO_API_KEY  apikey da instância
 
+import { cleanEnv } from "@/lib/ghl";
+
 export function stevoConfigured(): boolean {
-  return Boolean(
-    process.env.STEVO_API_URL?.trim() && process.env.STEVO_API_KEY?.trim(),
-  );
+  return Boolean(cleanEnv(process.env.STEVO_API_URL) && cleanEnv(process.env.STEVO_API_KEY));
 }
 
 // Mantém só dígitos (o número precisa de código do país, ex.: 5538...).
@@ -35,8 +35,8 @@ export async function stevoSendDocument({
   filename: string;
   caption?: string;
 }): Promise<void> {
-  const base = process.env.STEVO_API_URL?.trim().replace(/\/$/, "");
-  const apikey = process.env.STEVO_API_KEY?.trim();
+  const base = cleanEnv(process.env.STEVO_API_URL).replace(/\/$/, "");
+  const apikey = cleanEnv(process.env.STEVO_API_KEY);
   if (!base || !apikey) throw new StevoError("Stevo não configurado");
 
   const res = await fetch(`${base}/send/media`, {

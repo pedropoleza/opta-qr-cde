@@ -60,6 +60,12 @@ export default async function EventDetailPage({
 
   const activeGuests = guests.filter((g) => g.status !== "canceled");
 
+  // F4 Painel de inscrições/pagamentos.
+  const paidGuests = activeGuests.filter((g) => g.paymentStatus === "paid");
+  const pendingPayment = activeGuests.filter((g) => g.paymentStatus === "pending").length;
+  const revenueCents = paidGuests.reduce((sum, g) => sum + (g.amountPaid ?? 0), 0);
+  const currency = paidGuests.find((g) => g.currency)?.currency ?? "BRL";
+
   // #4 Tamanho do grupo por convidado (titular + acompanhantes).
   const groupCount = new Map<string, number>();
   for (const g of activeGuests) {
@@ -106,6 +112,9 @@ export default async function EventDetailPage({
         groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
         sessionId: g.sessionId,
         waitlisted: g.waitlisted,
+        paymentStatus: g.paymentStatus,
+        amountPaid: g.amountPaid,
+        currency: g.currency,
         source: g.source,
         status: g.status,
         ticketToken: g.ticket?.token ?? null,
@@ -129,6 +138,10 @@ export default async function EventDetailPage({
         noShow: guests.filter((g) => g.status === "no_show").length,
         duplicateAttempts: dupAgg._sum.duplicateScanCount ?? 0,
         invalidAttempts,
+        paid: paidGuests.length,
+        pendingPayment,
+        revenueCents,
+        currency,
       }}
       sessions={sessionData}
       appBaseUrl={process.env.APP_BASE_URL ?? "http://localhost:3000"}

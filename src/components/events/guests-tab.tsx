@@ -505,13 +505,30 @@ export function GuestsTab({
                   {guest.source === "ghl" ? "Spark" : guest.source.toUpperCase()}
                 </TableCell>
                 <TableCell>
-                  {guest.waitlisted ? (
-                    <Badge variant="secondary">Lista de espera</Badge>
-                  ) : (
-                    <Badge variant={GUEST_STATUS_VARIANT[guest.status] ?? "secondary"}>
-                      {GUEST_STATUS_LABEL[guest.status] ?? guest.status}
-                    </Badge>
-                  )}
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    {guest.waitlisted ? (
+                      <Badge variant="secondary">Lista de espera</Badge>
+                    ) : (
+                      <Badge variant={GUEST_STATUS_VARIANT[guest.status] ?? "secondary"}>
+                        {GUEST_STATUS_LABEL[guest.status] ?? guest.status}
+                      </Badge>
+                    )}
+                    {guest.paymentStatus === "paid" && (
+                      <Badge className="border-transparent bg-success text-xs text-success-foreground">
+                        Pago
+                      </Badge>
+                    )}
+                    {guest.paymentStatus === "pending" && (
+                      <Badge variant="outline" className="text-xs">
+                        A pagar
+                      </Badge>
+                    )}
+                    {guest.paymentStatus === "refunded" && (
+                      <Badge variant="outline" className="text-xs">
+                        Reembolsado
+                      </Badge>
+                    )}
+                  </div>
                 </TableCell>
                 <TableCell
                   onClick={(e) => e.stopPropagation()}

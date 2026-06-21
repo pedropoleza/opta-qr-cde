@@ -7,13 +7,16 @@ import {
   CalendarClock,
   CheckCircle2,
   CopyPlus,
+  DollarSign,
   Download,
   Loader2,
   MonitorPlay,
   MoreHorizontal,
   QrCode,
+  Ticket,
   UserMinus,
   Users,
+  Wallet,
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -72,6 +75,9 @@ export type GuestRow = {
   groupSize: number;
   sessionId: string | null;
   waitlisted: boolean;
+  paymentStatus: string;
+  amountPaid: number | null;
+  currency: string | null;
   source: string;
   status: string;
   ticketToken: string | null;
@@ -97,6 +103,10 @@ export type ReportData = {
   noShow: number;
   duplicateAttempts: number;
   invalidAttempts: number;
+  paid: number;
+  pendingPayment: number;
+  revenueCents: number;
+  currency: string;
 };
 
 export type SessionInfo = {
@@ -137,12 +147,22 @@ export function EventDetail({
 
   // #5 Exportar relatório: CSV dos convidados (nome, contato, status, check-in).
   function exportCsv() {
-    const header = ["Nome", "E-mail", "Telefone", "Status", "Check-in"];
+    const header = [
+      "Nome",
+      "E-mail",
+      "Telefone",
+      "Status",
+      "Pagamento",
+      "Valor",
+      "Check-in",
+    ];
     const lines = guests.map((g) => [
       g.name,
       g.email ?? "",
       g.phone ?? "",
-      GUEST_STATUS_LABEL[g.status] ?? g.status,
+      g.waitlisted ? "Lista de espera" : GUEST_STATUS_LABEL[g.status] ?? g.status,
+      g.paymentStatus === "none" ? "" : g.paymentStatus,
+      g.amountPaid != null ? (g.amountPaid / 100).toFixed(2) : "",
       g.checkedInAt ? new Date(g.checkedInAt).toLocaleString("pt-BR") : "",
     ]);
     const csv = [header, ...lines]
@@ -210,6 +230,18 @@ export function EventDetail({
       toast.info("Sem vagas livres para promover");
     }
   }
+
+  const hasPayments = report.paid > 0 || report.pendingPayment > 0;
+  const revenue = new Intl.NumberFormat("pt-BR", {
+    style: "currency",
+    currency: report.currency || "BRL",
+  }).format(report.revenueCents / 100);
+  const paymentMetrics = [
+    { label: "Inscritos", value: report.guests, icon: Users },
+    { label: "Pagos", value: report.paid, icon: Ticket },
+    { label: "Pendentes", value: report.pendingPayment, icon: Wallet },
+    { label: "Receita", value: revenue, icon: DollarSign },
+  ];
 
   const metrics = [
     { label: "Convidados", value: report.guests, icon: Users },
@@ -318,6 +350,19 @@ export function EventDetail({
           />
         ))}
       </div>
+
+      {hasPayments && (
+        <div>
+          <p className="mb-2 text-sm font-medium text-muted-foreground">
+            Inscrições & receita
+          </p>
+          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+            {paymentMetrics.map((m) => (
+              <MetricCard key={m.label} label={m.label} value={m.value} icon={m.icon} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {(capacity != null || waitlist > 0) && (
         <div className="rounded-xl border bg-card p-4">

@@ -4,6 +4,7 @@ import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { ticketPublicQrUrl, ticketQrImageUrl, ticketPdfUrl } from "@/lib/ticket";
 import { enqueueSendQr } from "@/lib/ghl-sync";
 import { stevoConfigured, normalizePhone } from "@/lib/stevo";
+import { emailConfigured, ticketEmailHtml } from "@/lib/email";
 
 // Disparo do ingresso por canal:
 //  - email (D1): grava dados do QR no contato + tag-gatilho; workflow do GHL
@@ -56,14 +57,54 @@ export async function POST(
   const eventDate = event.date.toISOString().slice(0, 10);
   const eventLocation = event.locationName ?? event.address ?? "";
 
+  const directEmail = emailConfigured();
+
   let sent = 0;
   let withoutContact = 0;
   let withoutPhone = 0;
+  let withoutEmail = 0;
 
   for (const guest of guests) {
     const token = guest.ticket!.token;
     await prisma.$transaction(async (tx) => {
-      if (wantsEmail) {
+      if (wantsEmail && directEmail) {
+        // Envio direto pelo app (Resend) — não depende do workflow do GHL.
+        if (guest.email) {
+          const html = ticketEmailHtml({
+            eventName: event.name,
+            eventDate,
+            eventLocation,
+            guestName: guest.name,
+            qrImageUrl: ticketQrImageUrl(token),
+            ticketUrl: ticketPublicQrUrl(token),
+            pdfUrl: ticketPdfUrl(token),
+          });
+          await tx.ghlSyncJob.create({
+            data: {
+              eventId: id,
+              guestId: guest.id,
+              action: "send_email",
+              payload: {
+                to: guest.email,
+                subject: `Seu ingresso — ${event.name}`,
+                html,
+              },
+            },
+          });
+          await tx.emailLog.create({
+            data: {
+              eventId: id,
+              guestId: guest.id,
+              ticketId: guest.ticket!.id,
+              provider: "resend",
+              status: "queued",
+            },
+          });
+        } else {
+          withoutEmail++;
+        }
+      } else if (wantsEmail) {
+        // Modelo D1: tag-gatilho + workflow do GHL envia o e-mail.
         await enqueueSendQr(
           tx,
           { id: guest.id, eventId: id, ghlContactId: guest.ghlContactId },
@@ -127,7 +168,9 @@ export async function POST(
   return NextResponse.json({
     sent,
     channel,
+    emailMode: directEmail ? "resend" : "ghl",
     withoutGhlContact: withoutContact,
     withoutPhone,
+    withoutEmail,
   });
 }

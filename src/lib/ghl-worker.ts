@@ -7,6 +7,7 @@ import {
   ghlUpdateContactFields,
 } from "@/lib/ghl";
 import { stevoConfigured, stevoSendDocument } from "@/lib/stevo";
+import { emailConfigured, sendEmail } from "@/lib/email";
 
 // Worker da fila de sincronização GHL (Etapa 4 / D7). Consome
 // checkin_ghl_sync_jobs e aplica tags, notas e custom fields no contato, com
@@ -27,8 +28,8 @@ export type ProcessResult = {
 export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   const empty: ProcessResult = { claimed: 0, done: 0, failed: 0, retried: 0 };
 
-  if (!(await ghlConfigured()) && !stevoConfigured()) {
-    return { ...empty, skipped: true, reason: "GHL/Stevo não configurados" };
+  if (!(await ghlConfigured()) && !stevoConfigured() && !emailConfigured()) {
+    return { ...empty, skipped: true, reason: "Nenhum canal configurado" };
   }
 
   // Claim atômico com FOR UPDATE SKIP LOCKED: seguro para execuções
@@ -60,6 +61,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   for (const job of jobs) {
     try {
       if (job.action === "send_whatsapp") await runWhatsappJob(job);
+      else if (job.action === "send_email") await runEmailJob(job);
       else await runJob(job);
       await prisma.ghlSyncJob.update({
         where: { id: job.id },
@@ -144,6 +146,24 @@ async function runJob(job: SyncJob) {
 
 // Envio do ingresso (PDF) por WhatsApp via Stevo. Não usa ghlContactId — o
 // destino é o telefone gravado no payload.
+// Envio direto do e-mail do ingresso (Resend).
+async function runEmailJob(job: SyncJob) {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const to = String(payload.to ?? "");
+  const html = String(payload.html ?? "");
+  const subject = String(payload.subject ?? "Seu ingresso");
+  if (!to || !html) throw new GhlError("E-mail sem destinatário ou conteúdo");
+
+  await sendEmail({ to, subject, html });
+
+  if (job.guestId) {
+    await prisma.emailLog.updateMany({
+      where: { guestId: job.guestId, provider: "resend", status: "queued" },
+      data: { status: "sent", sentAt: new Date() },
+    });
+  }
+}
+
 async function runWhatsappJob(job: SyncJob) {
   const payload = (job.payload ?? {}) as Record<string, unknown>;
   const to = String(payload.to ?? "");

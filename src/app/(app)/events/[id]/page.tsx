@@ -32,7 +32,7 @@ export default async function EventDetailPage({
         include: { guest: { select: { name: true } } },
       }),
       prisma.emailLog.findMany({
-        where: { eventId: id, provider: "ghl" },
+        where: { eventId: id, provider: { in: ["ghl", "resend"] } },
         orderBy: { createdAt: "desc" },
         select: { guestId: true, status: true, sentAt: true },
       }),

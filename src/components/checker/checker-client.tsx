@@ -67,6 +67,7 @@ export function CheckerClient({
 }) {
   const [authorized, setAuthorized] = useState(false);
   const [pin, setPin] = useState("");
+  const [gate, setGate] = useState("");
   const [pinError, setPinError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
   const [reentryMode, setReentryMode] = useState(false);
@@ -153,7 +154,7 @@ export function CheckerClient({
     const res = await fetch("/api/checker/session", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ token: checkerToken, pin }),
+      body: JSON.stringify({ token: checkerToken, pin, gate: gate.trim() || undefined }),
     });
     if (!res.ok) {
       const data = await res.json().catch(() => ({}));
@@ -342,6 +343,13 @@ export function CheckerClient({
             onChange={(e) => setPin(e.target.value)}
             className="bg-white text-center font-mono text-2xl tracking-widest text-black"
             autoFocus
+          />
+          <Input
+            type="text"
+            placeholder="Ponto/Porta (ex.: Porta A) — opcional"
+            value={gate}
+            onChange={(e) => setGate(e.target.value)}
+            className="bg-white text-center text-black"
           />
           {pinError && <p className="text-center text-sm text-red-400">{pinError}</p>}
           <Button type="submit" className="w-full" size="lg">

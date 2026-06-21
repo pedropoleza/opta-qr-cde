@@ -276,6 +276,7 @@ model CheckInLog {
   scannedAt     DateTime @default(now()) @map("scanned_at") @db.Timestamptz()
   deviceInfo    String?  @map("device_info")
   ipAddress     String?  @map("ip_address")
+  gate          String?  @map("gate") // ponto/porta de credenciamento (#6)
 
   event  Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
   guest  Guest?  @relation(fields: [guestId], references: [id], onDelete: SetNull)

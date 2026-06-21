@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       ? String(deviceInfo).slice(0, 500)
       : req.headers.get("user-agent") ?? undefined,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
+    gate: checker.gate,
     reentry: Boolean(reentry),
   });
   return NextResponse.json(result);

@@ -40,6 +40,7 @@ import { MessagesTab } from "@/components/events/messages-tab";
 import { CheckerTab } from "@/components/events/checker-tab";
 import { SettingsTab } from "@/components/events/settings-tab";
 import { ActivityTab } from "@/components/events/activity-tab";
+import { FlowTab, type FlowData } from "@/components/events/flow-tab";
 import {
   EVENT_STATUS_LABEL,
   EVENT_STATUS_VARIANT,
@@ -130,6 +131,7 @@ export function EventDetail({
   logs,
   report,
   sessions,
+  flow,
   appBaseUrl,
 }: {
   event: EventData;
@@ -137,6 +139,7 @@ export function EventDetail({
   logs: LogRow[];
   report: ReportData;
   sessions: SessionInfo[];
+  flow: FlowData;
   appBaseUrl: string;
 }) {
   const router = useRouter();
@@ -425,6 +428,7 @@ export function EventDetail({
           <TabsTrigger value="messages">Mensagens</TabsTrigger>
           <TabsTrigger value="sessions">Sessões</TabsTrigger>
           <TabsTrigger value="checker">Checker</TabsTrigger>
+          <TabsTrigger value="flow">Fluxo</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
           <TabsTrigger value="activity">Atividade</TabsTrigger>
         </TabsList>
@@ -461,6 +465,9 @@ export function EventDetail({
         </TabsContent>
         <TabsContent value="checker">
           <CheckerTab event={event} appBaseUrl={appBaseUrl} />
+        </TabsContent>
+        <TabsContent value="flow">
+          <FlowTab flow={flow} />
         </TabsContent>
         <TabsContent value="settings">
           <SettingsTab event={event} onChange={refresh} />

@@ -7,7 +7,7 @@ import { clientIp, enforceRateLimit } from "@/lib/rate-limit";
 // D4: o Checker autentica com o link único do evento + PIN temporário,
 // sem login do organizador e sem acesso a dados sensíveis.
 export async function POST(req: NextRequest) {
-  const { token, pin } = await req.json();
+  const { token, pin, gate } = await req.json();
   if (!token || !pin) return jsonError(400, "Informe o PIN");
 
   // Anti força-bruta do PIN: por IP + token do evento.
@@ -29,6 +29,7 @@ export async function POST(req: NextRequest) {
   }
   if (event.status === "canceled") return jsonError(400, "Evento cancelado");
 
-  await createCheckerSession(event.id);
+  const gateLabel = gate ? String(gate).trim().slice(0, 40) : undefined;
+  await createCheckerSession(event.id, gateLabel || undefined);
   return NextResponse.json({ ok: true, eventId: event.id, eventName: event.name });
 }

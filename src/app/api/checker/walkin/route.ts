@@ -41,6 +41,7 @@ export async function POST(req: NextRequest) {
     checkerUserId: "checker-pin",
     deviceInfo: "checker:walkin",
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
+    gate: checker.gate,
   });
   return NextResponse.json(result);
 }

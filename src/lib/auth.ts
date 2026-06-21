@@ -11,6 +11,7 @@ const CHECKER_COOKIE = "spark_checker";
 export type CheckerSession = {
   eventId: string;
   role: "checker";
+  gate?: string; // ponto/porta de credenciamento (#6)
 };
 
 function signingKey(): Uint8Array {
@@ -19,8 +20,8 @@ function signingKey(): Uint8Array {
   return new TextEncoder().encode(key);
 }
 
-export async function createCheckerSession(eventId: string) {
-  const jwt = await new SignJWT({ eventId, role: "checker" })
+export async function createCheckerSession(eventId: string, gate?: string) {
+  const jwt = await new SignJWT({ eventId, role: "checker", ...(gate ? { gate } : {}) })
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime("24h")

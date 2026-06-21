@@ -74,6 +74,35 @@ export default async function EventDetailPage({
     groupCount.set(g.groupId, (groupCount.get(g.groupId) ?? 0) + 1);
   }
 
+  // #6 Fluxo: entradas por porta + curva de chegada (buckets de 15 min).
+  const [gateAgg, arrivalRows] = await Promise.all([
+    prisma.checkInLog.groupBy({
+      by: ["gate"],
+      where: { eventId: id, status: { in: ["checked_in", "reentry"] } },
+      _count: { _all: true },
+    }),
+    prisma.$queryRaw<{ bucket: Date; count: number }[]>`
+      SELECT date_trunc('hour', scanned_at)
+               + (floor(extract(minute from scanned_at) / 15) * interval '15 minutes') AS bucket,
+             count(*)::int AS count
+      FROM checkin_check_in_logs
+      WHERE event_id = ${id}::uuid AND status IN ('checked_in', 'reentry')
+      GROUP BY bucket
+      ORDER BY bucket ASC`,
+  ]);
+  const flow = {
+    gates: gateAgg
+      .map((g) => ({ gate: g.gate ?? "Sem porta", count: g._count._all }))
+      .sort((a, b) => b.count - a.count),
+    curve: arrivalRows.map((r) => ({
+      label: new Date(r.bucket).toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
+      count: Number(r.count),
+    })),
+  };
+
   // #8 Ocupação por sessão.
   const sessionData = sessions.map((s) => {
     const members = activeGuests.filter((g) => g.sessionId === s.id);
@@ -150,6 +179,7 @@ export default async function EventDetailPage({
         currency,
       }}
       sessions={sessionData}
+      flow={flow}
       appBaseUrl={process.env.APP_BASE_URL ?? "http://localhost:3000"}
     />
   );

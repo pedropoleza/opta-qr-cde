@@ -31,6 +31,7 @@ type ScanContext = {
   checkerUserId?: string;
   deviceInfo?: string;
   ipAddress?: string;
+  gate?: string; // ponto/porta de credenciamento (#6)
   reentry?: boolean; // modo entrada/saída: alterna presença em vez de duplicar
 };
 
@@ -51,6 +52,7 @@ async function log(
       message,
       deviceInfo: ctx.deviceInfo,
       ipAddress: ctx.ipAddress,
+      gate: ctx.gate,
     },
   });
 }

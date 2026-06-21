@@ -1,6 +1,8 @@
 import { Sparkles } from "lucide-react";
 import { MainNav } from "@/components/layout/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { SignOutButton } from "@/components/auth/sign-out-button";
+import { supabaseConfigured } from "@/lib/supabase/config";
 
 // App embutido como iframe no CRM — sem tela de login. Navegação por abas
 // superiores (sem sidebar). O CRM autentica o usuário; aqui é só o painel do
@@ -24,6 +26,7 @@ export default function AppLayout({
             <MainNav />
           </div>
           <ThemeToggle />
+          {supabaseConfigured() && <SignOutButton />}
         </div>
       </header>
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-8">

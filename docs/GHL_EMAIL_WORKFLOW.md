@@ -1,61 +1,76 @@
-# Envio do QR por e-mail via workflow do Spark/GHL (por cliente)
+# Passo a passo — enviar o QR (e-mail/WhatsApp) via workflow do Spark/GHL
 
-No modelo "workflow", **quem compõe e envia o e-mail é o workflow dentro do GHL
-de cada cliente** — não o app. Isso torna o e-mail **variável por cliente por
-natureza** (cada subaccount tem seu próprio template, remetente, design e idioma).
-O app só (1) grava variáveis no contato e (2) aciona a tag-gatilho.
+No modelo workflow, **o app prepara o contato e dispara a tag; o e-mail/WhatsApp
+é enviado por um workflow no Spark/GHL do cliente**. Como cada contato tem um
+**token único**, o QR/PDF é único por pessoa — e o workflow usa **merge tags**
+(URLs por contato), então um único workflow serve todos os convidados e eventos.
 
-## Como a personalização por cliente funciona
-- Cada cliente monta **um workflow** no próprio GHL, disparado pela tag
-  `qrcode-enviado-{slug-do-evento}`.
-- O e-mail do workflow usa as **variáveis (custom fields)** que o app grava no
-  contato. Assim o conteúdo é 100% editável por cliente — e até por evento
-  (a tag tem o slug do evento, então dá para ramificar por evento).
+---
 
-## Variáveis disponíveis (custom fields gravados pelo app)
-Crie estes campos na location (Settings → Custom Fields) com a **chave** exata:
+## Parte A — O que o app faz sozinho (já pronto)
+A cada **Enviar convite** (canal Spark), o app, para cada convidado:
+1. Grava os **custom fields** no contato (as variáveis do e-mail).
+2. Adiciona as tags-gatilho: **`qrcode-enviado`** (genérica) e
+   `qrcode-enviado-{slug-do-evento}` (por evento).
 
-| Campo (key) | Conteúdo |
-|---|---|
-| `guest_name` | Nome do convidado |
-| `event_name` | Nome do evento |
-| `event_date` | Data (YYYY-MM-DD) |
-| `event_time` | Horário de início |
-| `event_location` | Local |
-| `event_address` | Endereço |
-| `event_qr_link` | Página do ingresso `/q/{token}` (mostra o QR) |
-| `event_qr_image` | PNG público do QR `/api/qr/{token}` (para embutir no e-mail) |
-| `event_pdf_link` | PDF do ingresso `/api/ticket/{token}/pdf` |
-| `event_checkin_status` | `qrcode_enviado` |
+## Parte B — O que VOCÊ faz (uma vez por location)
 
-No editor de e-mail do GHL, use como merge tag, ex.: `{{contact.event_qr_image}}`,
-`{{contact.guest_name}}`, `{{contact.event_qr_link}}`.
+### B1. Conectar + preparar os campos (automático)
+1. No app: **Conexão** → confirme "Conectado".
+2. Clique em **"Preparar campos no Spark"** → o app cria automaticamente estes
+   custom fields na location:
 
-## Exemplo de corpo de e-mail (no workflow do cliente)
-> Olá {{contact.guest_name}}, seu ingresso para **{{contact.event_name}}** está pronto!
-> 📅 {{contact.event_date}} {{contact.event_time}} · 📍 {{contact.event_location}}
-> Apresente o QR na entrada: imagem `{{contact.event_qr_image}}` ou abra
-> {{contact.event_qr_link}}. PDF: {{contact.event_pdf_link}}
+   `guest_name`, `event_name`, `event_date`, `event_time`, `event_location`,
+   `event_address`, `event_qr_link`, `event_qr_image`, `event_pdf_link`,
+   `event_checkin_status`
 
-## Passo a passo (uma vez por cliente)
-1. Criar os custom fields acima na location.
-2. Criar o workflow: **Trigger** = "Contact Tag" contém `qrcode-enviado-` (ou a tag
-   exata do evento) → **Action** = "Send Email" usando as variáveis.
-3. Conectar o Spark na aba **Conexão** (token da location).
-4. No evento → **Enviar convite** (canal Spark): o app grava as variáveis + a tag,
-   e o workflow do cliente envia o e-mail.
+   (Se algum não puder ser criado pela API, o app avisa e você cria manualmente
+   em Settings → Custom Fields com a mesma chave.)
 
-## Escala: distribuir o mesmo workflow para todos os clientes (Snapshot)
-Para não montar manualmente em cada subaccount, use um **Snapshot do GHL**
-(recurso de agência): inclua os custom fields + o workflow no snapshot e
-empurre/instale nos subaccounts. Cada cliente recebe a base pronta e só ajusta
-texto/branding do e-mail. É a forma escalável do modelo workflow.
+### B2. Criar UM workflow (serve todos os eventos)
+1. Automation → **Create Workflow** (em branco).
+2. **Trigger**: "Contact Tag" → tag **`qrcode-enviado`**.
+3. **Action "Send Email"**:
+   - Assunto: `Seu ingresso — {{contact.event_name}}`
+   - Corpo (use o HTML abaixo, com a imagem do QR e o botão do PDF).
+4. (Opcional) **Action "Send SMS/WhatsApp"** para mandar o link/PDF (ver B4).
+5. **Publique** o workflow.
 
-## Alternativa: configurar os e-mails CENTRALIZADO no app (sem workflow)
-Se você prefere editar os e-mails de cada cliente **dentro do Spark** (no-code,
-com variáveis), use o **envio direto**:
-- **Resend** (e-mail direto) ou **GHL Conversations (OAuth)** — neste, o e-mail é
-  composto pelos nossos **templates (aba Mensagens, por evento/tenant)** e sai
-  pela identidade do próprio GHL do cliente.
-- Vantagem: um só lugar para configurar, variáveis `{{nome}}`, `{{evento}}`,
-  `{{link_qr}}`, `{{link_certificado}}`… por evento e por organização.
+### B3. Modelo de e-mail (cole no editor de e-mail do GHL)
+```html
+<h2>Olá, {{contact.guest_name}}!</h2>
+<p>Seu ingresso para <strong>{{contact.event_name}}</strong> está pronto.</p>
+<p>📅 {{contact.event_date}} {{contact.event_time}}<br/>
+   📍 {{contact.event_location}} — {{contact.event_address}}</p>
+<p style="text-align:center">
+  <img src="{{contact.event_qr_image}}" alt="QR" width="240" height="240"/>
+</p>
+<p style="text-align:center">
+  <a href="{{contact.event_qr_link}}">Ver meu ingresso</a> ·
+  <a href="{{contact.event_pdf_link}}">Baixar PDF</a>
+</p>
+```
+> Cada contato recebe o **seu** QR/PDF porque essas URLs têm o token dele.
+> Anexo dinâmico (PDF anexado) não existe no workflow — por isso usamos a
+> **imagem do QR embutida + o link do PDF** (o link abre o PDF único do contato).
+
+### B4. WhatsApp / SMS (opcional)
+- **SMS**: mande o link → `Seu ingresso: {{contact.event_qr_link}}`
+- **WhatsApp (mídia)**: no campo de mídia/anexo da ação, use a URL
+  `{{contact.event_pdf_link}}` → o GHL entrega o **PDF único** daquele contato.
+
+---
+
+## Reenvio (atenção)
+A tag fica no contato após o 1º envio, então o gatilho "tag adicionada" **não
+dispara de novo** se você reenviar. Para reenviar: remova a tag antes, ou use uma
+ação separada. (No envio direto via Resend/Conversations não há essa limitação.)
+
+## Escala para vários clientes
+Inclua os custom fields + o workflow num **Snapshot do GHL** e instale nos
+subaccounts. Cada cliente recebe a base pronta e só ajusta texto/branding.
+
+## Alternativa centralizada (sem workflow)
+Editar os e-mails de cada cliente **dentro do Spark** (aba Mensagens, com
+variáveis) usando **Resend** agora ou **GHL Conversations (OAuth)** depois — neste,
+o app inclusive anexa o **PDF único** e envia pela identidade do GHL do cliente.

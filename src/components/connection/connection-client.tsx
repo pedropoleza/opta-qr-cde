@@ -47,6 +47,7 @@ export function ConnectionClient({
   const [testing, setTesting] = useState(false);
   const [saving, setSaving] = useState(false);
   const [disconnecting, setDisconnecting] = useState(false);
+  const [settingUp, setSettingUp] = useState(false);
   const [form, setForm] = useState({
     locationId: initialStatus.locationId ?? "",
     token: "",
@@ -101,6 +102,29 @@ export function ConnectionClient({
       toast.success("Spark desconectado");
     } finally {
       setDisconnecting(false);
+    }
+  }
+
+  async function setupFields() {
+    setSettingUp(true);
+    try {
+      const res = await fetch("/api/ghl/setup-fields", { method: "POST" });
+      const d = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        toast.error(d.error ?? "Erro ao preparar os campos");
+        return;
+      }
+      const created = d.created?.length ?? 0;
+      toast.success(
+        created > 0
+          ? `${created} campo(s) criado(s) no Spark. Pronto para o workflow.`
+          : "Campos já estavam prontos no Spark.",
+      );
+      if (d.failed?.length) {
+        toast.warning(`Não consegui criar: ${d.failed.join(", ")} (crie manualmente).`);
+      }
+    } finally {
+      setSettingUp(false);
     }
   }
 
@@ -217,6 +241,14 @@ export function ConnectionClient({
               Testar conexão
             </Button>
             <Button
+              variant="outline"
+              onClick={setupFields}
+              disabled={settingUp || status.state !== "connected"}
+            >
+              {settingUp ? <Loader2 className="size-4 animate-spin" /> : <KeyRound className="size-4" />}
+              Preparar campos no Spark
+            </Button>
+            <Button
               variant="destructive"
               onClick={disconnect}
               disabled={disconnecting || status.state === "disconnected"}
@@ -225,6 +257,12 @@ export function ConnectionClient({
               Desconectar
             </Button>
           </div>
+          {status.state === "connected" && (
+            <p className="text-xs text-muted-foreground">
+              "Preparar campos" cria automaticamente no Spark os campos usados no
+              e-mail do workflow (nome, evento, data, QR, PDF…).
+            </p>
+          )}
         </CardContent>
       </Card>
 

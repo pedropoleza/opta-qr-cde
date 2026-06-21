@@ -407,6 +407,58 @@ async function getCustomFieldIdMap(organizationId: string): Promise<Record<strin
   return map;
 }
 
+// Campos que o app grava no contato (viram as variáveis do e-mail no workflow).
+export const SPARK_CONTACT_FIELDS = [
+  "guest_name",
+  "event_name",
+  "event_date",
+  "event_time",
+  "event_location",
+  "event_address",
+  "event_qr_link",
+  "event_qr_image",
+  "event_pdf_link",
+  "event_checkin_status",
+] as const;
+
+// Cria no Spark (location) os custom fields que faltam, para o workflow do
+// cliente ter todas as variáveis. Idempotente.
+export async function ensureGhlCustomFields(
+  organizationId: string,
+): Promise<{ created: string[]; existing: string[]; failed: string[] }> {
+  const { locationId, token } = await authOrThrow(organizationId);
+  const data = await ghlRequest<{
+    customFields?: Array<{ id: string; name?: string; fieldKey?: string }>;
+  }>(token, `/locations/${locationId}/customFields`, { method: "GET" });
+
+  const present = new Set<string>();
+  for (const f of data.customFields ?? []) {
+    if (f.fieldKey) present.add(f.fieldKey.split(".").pop()!.toLowerCase());
+    if (f.name) present.add(f.name.trim().toLowerCase().replace(/\s+/g, "_"));
+  }
+
+  const created: string[] = [];
+  const existing: string[] = [];
+  const failed: string[] = [];
+  for (const key of SPARK_CONTACT_FIELDS) {
+    if (present.has(key)) {
+      existing.push(key);
+      continue;
+    }
+    try {
+      await ghlRequest(token, `/locations/${locationId}/customFields`, {
+        method: "POST",
+        body: JSON.stringify({ name: key, dataType: "TEXT", model: "contact" }),
+      });
+      created.push(key);
+    } catch {
+      failed.push(key);
+    }
+  }
+  customFieldCache.delete(organizationId); // força recarregar o mapa
+  return { created, existing, failed };
+}
+
 export async function ghlUpdateContactFields(
   organizationId: string,
   contactId: string,

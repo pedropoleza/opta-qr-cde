@@ -118,10 +118,17 @@ export async function enqueueSendQr(
         },
       },
       {
-        // Tag-gatilho: o workflow do GHL escuta "tag adicionada" e envia o e-mail.
+        // Tag-gatilho por evento (segmentação/relatório no GHL).
         ...base,
         action: "add_tag",
         payload: { tag: `qrcode-enviado-${eventSlug}` },
+      },
+      {
+        // Tag-gatilho GENÉRICA: permite UM único workflow servir todos os eventos
+        // (o conteúdo do e-mail vem dos custom fields, que são por contato).
+        ...base,
+        action: "add_tag",
+        payload: { tag: `qrcode-enviado` },
       },
     ],
   });

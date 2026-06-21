@@ -48,8 +48,8 @@ const ACTION_LABEL: Record<string, string> = {
   "member.remove": "Removeu membro",
   "invite.create": "Convidou",
   "invite.revoke": "Revogou convite",
-  "ghl.connect": "Conectou o GHL",
-  "ghl.disconnect": "Desconectou o GHL",
+  "ghl.connect": "Conectou o Spark",
+  "ghl.disconnect": "Desconectou o Spark",
 };
 
 const ROLE_LABEL: Record<string, string> = {

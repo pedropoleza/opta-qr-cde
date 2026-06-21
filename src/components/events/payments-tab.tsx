@@ -174,7 +174,7 @@ export function PaymentsTab({ eventId }: { eventId: string }) {
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="ghl">Workflow do GHL (tag)</SelectItem>
+                <SelectItem value="ghl">Workflow do Spark (tag)</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp (Stevo)</SelectItem>
                 <SelectItem value="email">E-mail (Resend)</SelectItem>
               </SelectContent>

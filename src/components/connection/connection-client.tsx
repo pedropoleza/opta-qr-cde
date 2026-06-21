@@ -106,16 +106,16 @@ export function ConnectionClient({
     <div className="max-w-2xl space-y-6">
       <PageHeader
         title="Conexão do Spark"
-        description="Integração com o HighLevel desta organização — sincroniza contatos, tags e o envio do convite."
+        description="Integração com o seu CRM Spark — sincroniza contatos, tags e o envio do convite."
         actions={
           <HelpModal title="Sobre a conexão" description="Como o Spark fala com o seu CRM.">
             <p>
               Cada organização conecta o <strong className="text-foreground">próprio</strong>{" "}
-              HighLevel com um <strong className="text-foreground">Private Integration Token</strong>{" "}
+              CRM Spark com um <strong className="text-foreground">Private Integration Token</strong>{" "}
               da location. O token é guardado <strong className="text-foreground">criptografado</strong>.
             </p>
             <p>
-              No GHL: Settings → Private Integrations → criar token com os escopos
+              No Spark: Settings → Private Integrations → criar token com os escopos
               de contatos/tags. Cole aqui junto com o Location ID.
             </p>
           </HelpModal>
@@ -130,7 +130,7 @@ export function ConnectionClient({
                 <PlugZap className="size-5" />
               </span>
               <div>
-                <p className="font-medium">Spark · HighLevel</p>
+                <p className="font-medium">Spark CRM</p>
                 <p className="text-sm text-muted-foreground">
                   {locationName ?? "Location do credenciamento"}
                 </p>
@@ -173,8 +173,8 @@ export function ConnectionClient({
                   <PopoverContent align="start">
                     <p className="font-medium text-foreground">Private Integration Token</p>
                     <p className="mt-1 text-muted-foreground">
-                      Chave da location do HighLevel que autoriza o Spark a aplicar
-                      tags, notas e campos nos contatos. Guardada criptografada.
+                      Chave da location do Spark que autoriza o credenciamento a
+                      aplicar tags, notas e campos nos contatos. Guardada criptografada.
                     </p>
                   </PopoverContent>
                 </Popover>

@@ -6,7 +6,6 @@ import {
   CalendarPlus,
   CheckCircle2,
   MapPin,
-  PlugZap,
   QrCode,
   Users,
 } from "lucide-react";
@@ -149,12 +148,6 @@ export default async function DashboardPage() {
                 icon={Users}
                 title="Contatos"
                 desc="Base de convidados do CRM"
-              />
-              <QuickAction
-                href="/connection"
-                icon={PlugZap}
-                title="Conexão GHL"
-                desc="Integração com o CRM"
               />
             </div>
           </CardContent>

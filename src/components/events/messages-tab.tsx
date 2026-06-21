@@ -146,7 +146,7 @@ const AUDIENCE_LABEL: Record<string, string> = {
 const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: "WhatsApp",
   email: "E-mail",
-  ghl: "GHL (tag)",
+  ghl: "Spark (tag)",
 };
 type Rule = {
   id: string;
@@ -251,7 +251,7 @@ function RemindersCard({ eventId }: { eventId: string }) {
               <SelectContent>
                 <SelectItem value="whatsapp">WhatsApp</SelectItem>
                 <SelectItem value="email">E-mail</SelectItem>
-                <SelectItem value="ghl">GHL (tag)</SelectItem>
+                <SelectItem value="ghl">Spark (tag)</SelectItem>
               </SelectContent>
             </Select>
           </div>

@@ -6,7 +6,9 @@ import { useRouter } from "next/navigation";
 import {
   CalendarClock,
   CheckCircle2,
+  Activity,
   CopyPlus,
+  CreditCard,
   DollarSign,
   DoorOpen,
   Download,
@@ -14,6 +16,9 @@ import {
   MonitorPlay,
   MoreHorizontal,
   QrCode,
+  ScanLine,
+  Send,
+  Settings2,
   Ticket,
   UserMinus,
   Users,
@@ -21,6 +26,7 @@ import {
   XCircle,
 } from "lucide-react";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -50,6 +56,37 @@ import {
 function csvCell(value: string) {
   const s = String(value ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+// Sub-navegação segmentada dentro de uma aba (reduz o número de abas no topo).
+function Segmented<T extends string>({
+  value,
+  onChange,
+  options,
+}: {
+  value: T;
+  onChange: (v: T) => void;
+  options: { value: T; label: string }[];
+}) {
+  return (
+    <div className="mb-5 inline-flex rounded-lg border bg-muted/40 p-1 text-sm">
+      {options.map((o) => (
+        <button
+          key={o.value}
+          type="button"
+          onClick={() => onChange(o.value)}
+          className={cn(
+            "rounded-md px-3.5 py-1.5 font-medium transition-colors",
+            value === o.value
+              ? "bg-background text-foreground shadow-sm"
+              : "text-muted-foreground hover:text-foreground",
+          )}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
 }
 
 export type EventData = {
@@ -145,6 +182,8 @@ export function EventDetail({
   const router = useRouter();
   const refresh = () => router.refresh();
   const [duplicating, setDuplicating] = useState(false);
+  const [enviosView, setEnviosView] = useState<"qr" | "messages">("qr");
+  const [opView, setOpView] = useState<"checker" | "sessions" | "flow">("checker");
 
   // #8 Check-in ao vivo: revalida os dados a cada 10s enquanto ligado.
   const [live, setLive] = useState(false);
@@ -420,18 +459,30 @@ export function EventDetail({
         </div>
       )}
 
-      <Tabs defaultValue="guests">
-        <TabsList>
-          <TabsTrigger value="guests">Convidados</TabsTrigger>
-          <TabsTrigger value="qr">QR Delivery</TabsTrigger>
-          <TabsTrigger value="payments">Inscrições & Pagamentos</TabsTrigger>
-          <TabsTrigger value="messages">Mensagens</TabsTrigger>
-          <TabsTrigger value="sessions">Sessões</TabsTrigger>
-          <TabsTrigger value="checker">Checker</TabsTrigger>
-          <TabsTrigger value="flow">Fluxo</TabsTrigger>
-          <TabsTrigger value="settings">Configurações</TabsTrigger>
-          <TabsTrigger value="activity">Atividade</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="guests" className="gap-0">
+        <div className="-mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+          <TabsList variant="line" className="mb-5 h-auto gap-1 border-b">
+            <TabsTrigger value="guests" className="px-3 py-2">
+              <Users /> Convidados
+            </TabsTrigger>
+            <TabsTrigger value="envios" className="px-3 py-2">
+              <Send /> Envios
+            </TabsTrigger>
+            <TabsTrigger value="payments" className="px-3 py-2">
+              <CreditCard /> Pagamentos
+            </TabsTrigger>
+            <TabsTrigger value="operacao" className="px-3 py-2">
+              <ScanLine /> Check-in
+            </TabsTrigger>
+            <TabsTrigger value="settings" className="px-3 py-2">
+              <Settings2 /> Configurações
+            </TabsTrigger>
+            <TabsTrigger value="activity" className="px-3 py-2">
+              <Activity /> Atividade
+            </TabsTrigger>
+          </TabsList>
+        </div>
+
         <TabsContent value="guests">
           <GuestsTab
             event={event}
@@ -442,36 +493,55 @@ export function EventDetail({
             onChange={refresh}
           />
         </TabsContent>
-        <TabsContent value="sessions">
-          <SessionsTab
-            eventId={event.id}
-            sessions={sessions}
-            onChange={refresh}
+
+        <TabsContent value="envios">
+          <Segmented
+            value={enviosView}
+            onChange={setEnviosView}
+            options={[
+              { value: "qr", label: "Entrega do QR" },
+              { value: "messages", label: "Mensagens" },
+            ]}
           />
+          {enviosView === "qr" ? (
+            <QrDeliveryTab
+              event={event}
+              guests={guests}
+              appBaseUrl={appBaseUrl}
+              onChange={refresh}
+            />
+          ) : (
+            <MessagesTab eventId={event.id} />
+          )}
         </TabsContent>
-        <TabsContent value="qr">
-          <QrDeliveryTab
-            event={event}
-            guests={guests}
-            appBaseUrl={appBaseUrl}
-            onChange={refresh}
-          />
-        </TabsContent>
+
         <TabsContent value="payments">
           <PaymentsTab eventId={event.id} />
         </TabsContent>
-        <TabsContent value="messages">
-          <MessagesTab eventId={event.id} />
+
+        <TabsContent value="operacao">
+          <Segmented
+            value={opView}
+            onChange={setOpView}
+            options={[
+              { value: "checker", label: "Checker & Totem" },
+              { value: "sessions", label: "Sessões" },
+              { value: "flow", label: "Fluxo" },
+            ]}
+          />
+          {opView === "checker" && (
+            <CheckerTab event={event} appBaseUrl={appBaseUrl} />
+          )}
+          {opView === "sessions" && (
+            <SessionsTab eventId={event.id} sessions={sessions} onChange={refresh} />
+          )}
+          {opView === "flow" && <FlowTab flow={flow} />}
         </TabsContent>
-        <TabsContent value="checker">
-          <CheckerTab event={event} appBaseUrl={appBaseUrl} />
-        </TabsContent>
-        <TabsContent value="flow">
-          <FlowTab flow={flow} />
-        </TabsContent>
+
         <TabsContent value="settings">
           <SettingsTab event={event} onChange={refresh} />
         </TabsContent>
+
         <TabsContent value="activity">
           <ActivityTab logs={logs} />
         </TabsContent>

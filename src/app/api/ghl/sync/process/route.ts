@@ -1,8 +1,20 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processSyncJobs } from "@/lib/ghl-worker";
+import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 60;
+
+// Limpa baldes de rate limit já expirados (>1h) para manter a tabela enxuta.
+async function pruneRateLimits(): Promise<number> {
+  try {
+    return await prisma.$executeRaw`
+      DELETE FROM checkin_rate_limits WHERE window_start < now() - interval '1 hour';
+    `;
+  } catch {
+    return 0;
+  }
+}
 
 // Worker da fila GHL — chamado pelo Vercel Cron (GET) e disponível para
 // disparo manual. Protegido por CRON_SECRET quando definido.
@@ -17,8 +29,11 @@ async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
-  const result = await processSyncJobs();
-  return NextResponse.json(result);
+  const [result, pruned] = await Promise.all([
+    processSyncJobs(),
+    pruneRateLimits(),
+  ]);
+  return NextResponse.json({ ...result, rateLimitsPruned: pruned });
 }
 
 export async function GET(req: NextRequest) {

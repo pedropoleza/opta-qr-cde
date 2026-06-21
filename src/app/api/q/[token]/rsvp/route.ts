@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { jsonError } from "@/lib/api";
 import { enqueueAddTag } from "@/lib/ghl-sync";
+import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
 
@@ -11,6 +12,9 @@ export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ token: string }> },
 ) {
+  const limited = await enforceRateLimit(req, "rsvp", 20, 60);
+  if (limited) return limited;
+
   const { token } = await params;
   const body = await req.json().catch(() => ({}));
   const rsvp = body.rsvp === "yes" ? "yes" : body.rsvp === "no" ? "no" : null;

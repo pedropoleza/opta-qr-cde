@@ -264,3 +264,16 @@ model GhlSyncJob {
   @@index([status, nextRetryAt])
   @@map("checkin_ghl_sync_jobs")
 }
+
+// Rate limiting por janela fixa (Fase 5 — escala). Cada linha é um balde
+// (ex.: "validate:1.2.3.4"). Fica no Postgres para funcionar no serverless
+// (sem estado em memória) e sem dependência externa. O limiter "falha aberto":
+// nunca derruba a rota por erro próprio.
+model RateLimit {
+  key         String   @id
+  windowStart DateTime @default(now()) @map("window_start") @db.Timestamptz()
+  count       Int      @default(0)
+
+  @@index([windowStart])
+  @@map("checkin_rate_limits")
+}

@@ -20,6 +20,11 @@ function headerEffectStyle(effect: string): React.CSSProperties {
     };
   if (effect === "gradient")
     return { backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.25))" };
+  if (effect === "waves")
+    return {
+      backgroundImage:
+        "radial-gradient(120% 60% at 50% 120%, rgba(255,255,255,0.22), transparent 60%)",
+    };
   return {};
 }
 function backgroundStyle(bg: string, color: string): React.CSSProperties {

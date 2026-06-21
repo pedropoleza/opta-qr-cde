@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { sparkLogoUrl } from "@/lib/ticket";
+import { getEventTicketConfig } from "@/lib/ticket-config";
 import { renderCertificatePdf } from "@/lib/certificate-pdf";
 
 export const runtime = "nodejs";
@@ -18,6 +19,7 @@ export async function GET(
     where: { token },
     select: {
       status: true,
+      eventId: true,
       event: {
         select: {
           name: true,
@@ -36,14 +38,17 @@ export async function GET(
   }
 
   const org = ticket.event.organization;
+  const { config } = await getEventTicketConfig(ticket.eventId);
   const pdf = await renderCertificatePdf({
     guestName: ticket.guest.name,
     eventName: ticket.event.name,
     eventDate: ticket.event.date.toISOString().slice(0, 10),
-    brandColor: org?.primaryColor ?? null,
+    brandColor: org?.primaryColor ?? config.brandColor,
     brandName: org?.brandName ?? null,
-    logoUrl: org?.logoUrl ?? null,
+    logoUrl: org?.logoUrl ?? config.logoUrl,
     sparkLogoUrl: sparkLogoUrl(),
+    headerEffect: config.headerEffect,
+    background: config.background,
   });
 
   return new NextResponse(new Uint8Array(pdf), {

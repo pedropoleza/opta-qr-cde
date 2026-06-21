@@ -24,7 +24,7 @@ import {
   DrawerTitle,
   DrawerTrigger,
 } from "@/components/ui/drawer";
-import type { TicketConfig } from "@/lib/ticket-template";
+import { type TicketConfig, TICKET_STYLE_PRESETS } from "@/lib/ticket-template";
 
 const TOGGLES: { key: keyof TicketConfig; label: string }[] = [
   { key: "showTime", label: "Mostrar horário" },
@@ -142,6 +142,27 @@ export function TicketTemplateEditor({
             <>
               <div className="space-y-4">
                 <div className="space-y-1.5">
+                  <Label>Presets</Label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {TICKET_STYLE_PRESETS.map((p) => (
+                      <button
+                        key={p.id}
+                        type="button"
+                        onClick={() =>
+                          setConfig((c) => (c ? { ...c, ...p.config } : c))
+                        }
+                        className="rounded-full border px-3 py-1 text-xs font-medium transition-colors hover:bg-muted"
+                      >
+                        {p.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Aplica estilo, cor, efeito e fundo de uma vez (mantém logo e textos).
+                  </p>
+                </div>
+
+                <div className="space-y-1.5">
                   <Label>Estilo</Label>
                   <Select
                     value={config.preset}
@@ -177,6 +198,7 @@ export function TicketTemplateEditor({
                         <SelectItem value="halftone">Halftone (pontos)</SelectItem>
                         <SelectItem value="bars">Barras diagonais</SelectItem>
                         <SelectItem value="gradient">Gradiente</SelectItem>
+                        <SelectItem value="waves">Ondas</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

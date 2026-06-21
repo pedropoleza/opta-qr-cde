@@ -7,8 +7,14 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import {
+  HeaderDecoration,
+  PageBackground,
+  type HeaderEffect,
+  type Background,
+} from "@/lib/pdf-effects";
 
-// Certificado de participação (#9). A4 paisagem, com a marca do tenant.
+// Certificado de participação (#9). A4 paisagem, com a marca do tenant + tema.
 export type CertificateData = {
   guestName: string;
   eventName: string;
@@ -17,6 +23,8 @@ export type CertificateData = {
   brandName?: string | null;
   logoUrl?: string | null;
   sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
+  headerEffect?: HeaderEffect;
+  background?: Background;
 };
 
 function styles(brand: string) {
@@ -28,6 +36,8 @@ function styles(brand: string) {
       padding: 28,
     },
     frame: {
+      position: "relative",
+      overflow: "hidden",
       flexGrow: 1,
       borderWidth: 3,
       borderColor: brand,
@@ -36,6 +46,14 @@ function styles(brand: string) {
       justifyContent: "center",
       paddingHorizontal: 48,
       paddingVertical: 36,
+    },
+    topBar: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      height: 16,
+      backgroundColor: brand,
     },
     logo: { height: 34, objectFit: "contain", marginBottom: 14 },
     brand: { fontSize: 12, letterSpacing: 2, color: brand, marginBottom: 6 },
@@ -77,7 +95,11 @@ function CertificateDoc({ data }: { data: CertificateData }) {
   return (
     <Document title={`Certificado — ${data.guestName}`}>
       <Page size="A4" orientation="landscape" style={s.page}>
+        <PageBackground background={data.background ?? "plain"} color={brand} />
         <View style={s.frame}>
+          <View style={s.topBar}>
+            <HeaderDecoration effect={data.headerEffect ?? "none"} color="#ffffff" />
+          </View>
           {data.logoUrl ? (
             // eslint-disable-next-line jsx-a11y/alt-text
             <Image src={data.logoUrl} style={s.logo} />

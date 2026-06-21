@@ -3,7 +3,7 @@
 // evento.
 
 export type TicketPreset = "modern" | "classic" | "compact";
-export type TicketHeaderEffect = "none" | "bars" | "halftone" | "gradient";
+export type TicketHeaderEffect = "none" | "bars" | "halftone" | "gradient" | "waves";
 export type TicketBackground = "plain" | "dots" | "grid" | "gradient";
 
 export type TicketConfig = {
@@ -35,6 +35,45 @@ export const DEFAULT_TICKET_CONFIG: TicketConfig = {
   showTime: true,
   showLocation: true,
 };
+
+// Presets de 1 clique (design pronto). Aplicam estilo/cor/efeito/fundo de uma vez;
+// preservam logo, textos e toggles do usuário.
+export type TicketStylePreset = {
+  id: string;
+  label: string;
+  config: Pick<
+    TicketConfig,
+    "preset" | "brandColor" | "headerEffect" | "background"
+  >;
+};
+
+export const TICKET_STYLE_PRESETS: TicketStylePreset[] = [
+  {
+    id: "minimal",
+    label: "Minimal",
+    config: { preset: "classic", brandColor: "#111827", headerEffect: "none", background: "plain" },
+  },
+  {
+    id: "bold",
+    label: "Bold",
+    config: { preset: "modern", brandColor: "#2563EB", headerEffect: "bars", background: "plain" },
+  },
+  {
+    id: "halftone",
+    label: "Halftone",
+    config: { preset: "modern", brandColor: "#0EA5E9", headerEffect: "halftone", background: "dots" },
+  },
+  {
+    id: "gala",
+    label: "Gala",
+    config: { preset: "modern", brandColor: "#111827", headerEffect: "halftone", background: "plain" },
+  },
+  {
+    id: "festival",
+    label: "Festival",
+    config: { preset: "modern", brandColor: "#7C3AED", headerEffect: "gradient", background: "gradient" },
+  },
+];
 
 // Normaliza um config vindo do banco (JSON parcial) com os defaults.
 export function resolveTicketConfig(

@@ -1,8 +1,8 @@
-import { Svg, Rect, Circle, Defs, LinearGradient, Stop } from "@react-pdf/renderer";
+import { Svg, Rect, Circle, Path, Defs, LinearGradient, Stop } from "@react-pdf/renderer";
 
 // Efeitos decorativos para o cabeçalho dos PDFs (ingresso/crachá/certificado).
 // Desenhados com Svg do @react-pdf, em camada absoluta atrás do conteúdo.
-export type HeaderEffect = "none" | "bars" | "halftone" | "gradient";
+export type HeaderEffect = "none" | "bars" | "halftone" | "gradient" | "waves";
 
 const VB_W = 300;
 const VB_H = 120;
@@ -126,6 +126,20 @@ export function HeaderDecoration({
       )}
       {effect === "halftone" && <HalftoneDots color={color} />}
       {effect === "bars" && <DiagonalBars color={color} />}
+      {effect === "waves" && (
+        <>
+          <Path
+            d={`M0 ${VB_H - 28} C 75 ${VB_H - 6}, 150 ${VB_H - 50}, 225 ${VB_H - 28} S 375 ${VB_H - 6}, ${VB_W} ${VB_H - 28} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
+            fill={color}
+            opacity={0.12}
+          />
+          <Path
+            d={`M0 ${VB_H - 14} C 75 ${VB_H + 4}, 150 ${VB_H - 34}, 225 ${VB_H - 14} S 375 ${VB_H + 4}, ${VB_W} ${VB_H - 14} L ${VB_W} ${VB_H} L 0 ${VB_H} Z`}
+            fill={color}
+            opacity={0.18}
+          />
+        </>
+      )}
     </Svg>
   );
 }

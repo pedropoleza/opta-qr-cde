@@ -20,6 +20,7 @@ export type DeliveryGuest = {
   ghlContactId: string | null;
   ticketId: string;
   token: string;
+  vip?: boolean;
 };
 
 export type DeliveryEvent = {
@@ -28,8 +29,32 @@ export type DeliveryEvent = {
   slug: string;
   date: string; // YYYY-MM-DD
   location: string;
+  time?: string | null;
   organizationId?: string | null;
 };
+
+// Identidade visual do tenant para o e-mail (cor, marca, logo).
+export type EmailBranding = {
+  brandColor?: string | null;
+  brandName?: string | null;
+  logoUrl?: string | null;
+};
+
+export async function resolveEmailBranding(
+  tx: Tx,
+  organizationId?: string | null,
+): Promise<EmailBranding> {
+  if (!organizationId) return {};
+  const org = await tx.organization.findUnique({
+    where: { id: organizationId },
+    select: { brandName: true, primaryColor: true, logoUrl: true },
+  });
+  return {
+    brandColor: org?.primaryColor ?? null,
+    brandName: org?.brandName ?? null,
+    logoUrl: org?.logoUrl ?? null,
+  };
+}
 
 // Enfileira a entrega do QR pelo canal escolhido, com fallback sensato:
 //  - ghl: grava campos no contato + tag-gatilho (workflow do GHL envia). Se não
@@ -50,6 +75,27 @@ export async function enqueueQrDelivery(
   opts?: DeliveryOverrides,
 ): Promise<{ queued: boolean; via: string }> {
   const token = guest.token;
+
+  // E-mail profissional com identidade do tenant. Construtor único (DRY): só
+  // mudam o QR e as variáveis; o desenho é o mesmo em todos os caminhos.
+  let branding: EmailBranding | null = null;
+  const buildHtml = async () => {
+    if (!branding) branding = await resolveEmailBranding(tx, event.organizationId);
+    return ticketEmailHtml({
+      eventName: event.name,
+      eventDate: event.date,
+      eventTime: event.time,
+      eventLocation: event.location,
+      guestName: guest.name,
+      qrImageUrl: ticketQrImageUrl(token),
+      ticketUrl: ticketPublicQrUrl(token),
+      pdfUrl: ticketPdfUrl(token),
+      vip: guest.vip,
+      brandColor: branding.brandColor,
+      brandName: branding.brandName,
+      logoUrl: branding.logoUrl,
+    });
+  };
 
   if (channel === "whatsapp" && guest.phone) {
     await tx.ghlSyncJob.create({
@@ -73,17 +119,7 @@ export async function enqueueQrDelivery(
   }
 
   if (channel === "email" && emailConfigured() && guest.email) {
-    const html =
-      opts?.emailHtml ??
-      ticketEmailHtml({
-        eventName: event.name,
-        eventDate: event.date,
-        eventLocation: event.location,
-        guestName: guest.name,
-        qrImageUrl: ticketQrImageUrl(token),
-        ticketUrl: ticketPublicQrUrl(token),
-        pdfUrl: ticketPdfUrl(token),
-      });
+    const html = opts?.emailHtml ?? (await buildHtml());
     await tx.ghlSyncJob.create({
       data: {
         eventId: event.id,
@@ -116,17 +152,7 @@ export async function enqueueQrDelivery(
         payload: {
           type: "Email",
           subject: opts?.emailSubject ?? `Seu ingresso — ${event.name}`,
-          html:
-            opts?.emailHtml ??
-            ticketEmailHtml({
-              eventName: event.name,
-              eventDate: event.date,
-              eventLocation: event.location,
-              guestName: guest.name,
-              qrImageUrl: ticketQrImageUrl(token),
-              ticketUrl: ticketPublicQrUrl(token),
-              pdfUrl: ticketPdfUrl(token),
-            }),
+          html: opts?.emailHtml ?? (await buildHtml()),
           attachments: [ticketPdfUrl(token)],
         },
       },
@@ -157,15 +183,7 @@ export async function enqueueQrDelivery(
 
   // Sem contato GHL: tenta e-mail direto como último recurso.
   if (emailConfigured() && guest.email) {
-    const html = ticketEmailHtml({
-      eventName: event.name,
-      eventDate: event.date,
-      eventLocation: event.location,
-      guestName: guest.name,
-      qrImageUrl: ticketQrImageUrl(token),
-      ticketUrl: ticketPublicQrUrl(token),
-      pdfUrl: ticketPdfUrl(token),
-    });
+    const html = await buildHtml();
     await tx.ghlSyncJob.create({
       data: {
         eventId: event.id,

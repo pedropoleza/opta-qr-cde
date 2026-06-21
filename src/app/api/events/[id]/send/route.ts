@@ -56,8 +56,14 @@ export async function POST(
 
   const eventDate = event.date.toISOString().slice(0, 10);
   const eventLocation = event.locationName ?? event.address ?? "";
+  const eventTime = [event.startTime, event.endTime].filter(Boolean).join(" – ");
 
   const directEmail = emailConfigured();
+  // Identidade visual do tenant para o e-mail (cor, marca, logo).
+  const org = await prisma.organization.findUnique({
+    where: { id: organizationId },
+    select: { brandName: true, primaryColor: true, logoUrl: true },
+  });
 
   let sent = 0;
   let withoutContact = 0;
@@ -73,11 +79,16 @@ export async function POST(
           const html = ticketEmailHtml({
             eventName: event.name,
             eventDate,
+            eventTime,
             eventLocation,
             guestName: guest.name,
             qrImageUrl: ticketQrImageUrl(token),
             ticketUrl: ticketPublicQrUrl(token),
             pdfUrl: ticketPdfUrl(token),
+            vip: guest.vip || guest.tier === "vip",
+            brandColor: org?.primaryColor,
+            brandName: org?.brandName,
+            logoUrl: org?.logoUrl,
           });
           await tx.ghlSyncJob.create({
             data: {

@@ -31,3 +31,15 @@ export function isLightColor(hex: string): boolean {
 export function readableOn(bg: string, dark = "#101828", light = "#FFFFFF"): string {
   return isLightColor(bg) ? dark : light;
 }
+
+// Clareia (percent > 0) ou escurece (percent < 0) um hex. Usado para gerar o
+// gradiente do hero do e-mail a partir da cor da marca.
+export function shade(hex: string, percent: number): string {
+  const c = parseHex(hex);
+  if (!c) return hex;
+  const t = percent < 0 ? 0 : 255;
+  const p = Math.abs(percent) / 100;
+  const mix = (x: number) => Math.round((t - x) * p + x);
+  const h = (x: number) => mix(x).toString(16).padStart(2, "0");
+  return `#${h(c.r)}${h(c.g)}${h(c.b)}`;
+}

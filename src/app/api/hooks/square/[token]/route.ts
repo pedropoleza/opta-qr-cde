@@ -173,6 +173,7 @@ export async function POST(
         ghlContactId: guest!.ghlContactId,
         ticketId: ticket.id,
         token: ticket.token,
+        vip: guest!.vip || guest!.tier === "vip",
       },
       integration.sendChannel,
       overrides,

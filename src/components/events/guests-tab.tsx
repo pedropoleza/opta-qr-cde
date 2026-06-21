@@ -6,6 +6,7 @@ import {
   Copy,
   Eye,
   FileText,
+  IdCard,
   Loader2,
   MoreHorizontal,
   RotateCcw,
@@ -804,15 +805,26 @@ export function GuestsTab({
                         <Copy />
                       </Button>
                     </div>
-                    <Button variant="outline" className="w-full" asChild>
-                      <a
-                        href={`/api/ticket/${detail.ticketToken}/pdf`}
-                        target="_blank"
-                        rel="noreferrer"
-                      >
-                        <FileText /> Ver ingresso em PDF
-                      </a>
-                    </Button>
+                    <div className="grid grid-cols-2 gap-2">
+                      <Button variant="outline" asChild>
+                        <a
+                          href={`/api/ticket/${detail.ticketToken}/pdf`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <FileText /> Ingresso PDF
+                        </a>
+                      </Button>
+                      <Button variant="outline" asChild>
+                        <a
+                          href={`/api/ticket/${detail.ticketToken}/badge`}
+                          target="_blank"
+                          rel="noreferrer"
+                        >
+                          <IdCard /> Crachá
+                        </a>
+                      </Button>
+                    </div>
                   </div>
                 ) : (
                   <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">

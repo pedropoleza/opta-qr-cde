@@ -19,6 +19,7 @@ export type CheckInResult = {
   guestName?: string;
   guestTier?: string | null;
   checkedInAt?: string;
+  token?: string; // para impressão de crachá on-site (#4)
   // D5: capacity atingida NÃO bloqueia — apenas alerta o Checker.
   capacityWarning?: boolean;
 };
@@ -195,6 +196,7 @@ export async function performCheckIn(
       guestName: ticket.guest.name,
       guestTier: ticket.guest.tier,
       checkedInAt: now.toISOString(),
+      token: ticket.token,
       capacityWarning,
       _eventId: ticket.eventId,
       _guestId: ticket.guestId,

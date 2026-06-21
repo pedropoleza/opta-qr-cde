@@ -16,6 +16,7 @@ type ScanResult = {
   guestName?: string;
   guestTier?: string | null;
   checkedInAt?: string;
+  token?: string;
   capacityWarning?: boolean;
 };
 
@@ -372,6 +373,7 @@ export function CheckerClient({
         guestTier={result.guestTier}
         checkedInAt={result.checkedInAt}
         capacityWarning={result.capacityWarning}
+        badgeToken={result.token}
         onNext={closeResult}
       />
     );

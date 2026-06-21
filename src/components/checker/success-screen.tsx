@@ -25,12 +25,14 @@ export function CheckerSuccess({
   guestTier,
   checkedInAt,
   capacityWarning,
+  badgeToken,
   onNext,
 }: {
   guestName?: string;
   guestTier?: string | null;
   checkedInAt?: string;
   capacityWarning?: boolean;
+  badgeToken?: string;
   onNext: () => void;
 }) {
   return (
@@ -137,10 +139,28 @@ export function CheckerSuccess({
         </p>
       )}
 
+      {badgeToken && (
+        <Button
+          size="lg"
+          variant="secondary"
+          className="spark-fade-up mt-10 w-full max-w-xs bg-white/90 text-lg text-emerald-700"
+          style={{ animationDelay: "0.95s" }}
+          asChild
+        >
+          <a
+            href={`/api/ticket/${badgeToken}/badge`}
+            target="_blank"
+            rel="noreferrer"
+          >
+            Imprimir crachá
+          </a>
+        </Button>
+      )}
+
       <Button
         size="lg"
         variant="secondary"
-        className="spark-fade-up mt-10 w-full max-w-xs text-lg"
+        className={`spark-fade-up w-full max-w-xs text-lg ${badgeToken ? "mt-3" : "mt-10"}`}
         style={{ animationDelay: "1s" }}
         onClick={onNext}
       >

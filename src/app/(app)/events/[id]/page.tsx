@@ -90,7 +90,23 @@ export default async function EventDetailPage({
       GROUP BY bucket
       ORDER BY bucket ASC`,
   ]);
+  // #9 Resumo de NPS.
+  const npsResponses = activeGuests.filter((g) => g.npsScore != null);
+  const promoters = npsResponses.filter((g) => (g.npsScore ?? 0) >= 9).length;
+  const detractors = npsResponses.filter((g) => (g.npsScore ?? 0) <= 6).length;
+  const npsSummary = {
+    responses: npsResponses.length,
+    nps:
+      npsResponses.length > 0
+        ? Math.round(((promoters - detractors) / npsResponses.length) * 100)
+        : 0,
+    promoters,
+    detractors,
+    neutrals: npsResponses.length - promoters - detractors,
+  };
+
   const flow = {
+    nps: npsSummary,
     gates: gateAgg
       .map((g) => ({ gate: g.gate ?? "Sem porta", count: g._count._all }))
       .sort((a, b) => b.count - a.count),

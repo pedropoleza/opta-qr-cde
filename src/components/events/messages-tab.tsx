@@ -26,6 +26,8 @@ const VARIABLES = [
   "endereco",
   "valor",
   "link_qr",
+  "link_certificado",
+  "link_nps",
 ];
 
 const KIND_META: Record<string, { title: string; hint: string; subject: boolean }> = {

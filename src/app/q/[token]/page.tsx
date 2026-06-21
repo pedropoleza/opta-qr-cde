@@ -107,12 +107,30 @@ export default async function GuestQrPage({
           <p className="mt-4 text-lg font-semibold">{ticket.guest.name}</p>
 
           {checkedIn ? (
-            <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
-              ✓ Check-in realizado
-              {ticket.checkedInAt
-                ? ` às ${ticket.checkedInAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
-                : ""}
-            </p>
+            <>
+              <p className="mt-3 rounded-md bg-green-50 px-3 py-2 text-sm font-medium text-green-700">
+                ✓ Check-in realizado
+                {ticket.checkedInAt
+                  ? ` às ${ticket.checkedInAt.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}`
+                  : ""}
+              </p>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                <a
+                  href={`/api/ticket/${ticket.token}/certificate`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-neutral-50"
+                >
+                  Certificado
+                </a>
+                <a
+                  href={`/nps/${ticket.token}`}
+                  className="rounded-md border px-3 py-2 text-sm font-medium hover:bg-neutral-50"
+                >
+                  Avaliar evento
+                </a>
+              </div>
+            </>
           ) : (
             <p className="mt-3 text-sm text-neutral-500">
               Apresente este QR Code na entrada do evento.

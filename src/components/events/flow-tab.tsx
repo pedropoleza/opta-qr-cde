@@ -5,12 +5,20 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/empty-state";
 
 export type FlowData = {
+  nps: {
+    responses: number;
+    nps: number;
+    promoters: number;
+    detractors: number;
+    neutrals: number;
+  };
   gates: { gate: string; count: number }[];
   curve: { label: string; count: number }[];
 };
 
 export function FlowTab({ flow }: { flow: FlowData }) {
   const totalEntries = flow.gates.reduce((s, g) => s + g.count, 0);
+  const nps = flow.nps;
   const maxGate = Math.max(1, ...flow.gates.map((g) => g.count));
   const maxCurve = Math.max(1, ...flow.curve.map((c) => c.count));
   const peak = flow.curve.reduce(
@@ -18,7 +26,7 @@ export function FlowTab({ flow }: { flow: FlowData }) {
     { label: "—", count: 0 },
   );
 
-  if (totalEntries === 0) {
+  if (totalEntries === 0 && nps.responses === 0) {
     return (
       <EmptyState
         icon={TrendingUp}
@@ -30,6 +38,39 @@ export function FlowTab({ flow }: { flow: FlowData }) {
 
   return (
     <div className="space-y-5 pt-2">
+      {nps.responses > 0 && (
+        <Card>
+          <CardContent className="space-y-4 p-5">
+            <div className="flex items-center justify-between">
+              <p className="font-medium">Satisfação (NPS)</p>
+              <span
+                className={`text-2xl font-black ${
+                  nps.nps >= 50 ? "text-success" : nps.nps >= 0 ? "text-amber-500" : "text-destructive"
+                }`}
+              >
+                {nps.nps > 0 ? "+" : ""}
+                {nps.nps}
+              </span>
+            </div>
+            <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+              <div className="bg-success" style={{ width: `${(nps.promoters / nps.responses) * 100}%` }} />
+              <div className="bg-amber-400" style={{ width: `${(nps.neutrals / nps.responses) * 100}%` }} />
+              <div className="bg-destructive" style={{ width: `${(nps.detractors / nps.responses) * 100}%` }} />
+            </div>
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>Promotores {nps.promoters}</span>
+              <span>Neutros {nps.neutrals}</span>
+              <span>Detratores {nps.detractors}</span>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              {nps.responses} resposta(s).
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {totalEntries > 0 && (
+      <>
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="flex items-center gap-2">
@@ -87,6 +128,8 @@ export function FlowTab({ flow }: { flow: FlowData }) {
           </p>
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

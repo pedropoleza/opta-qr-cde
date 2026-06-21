@@ -226,6 +226,10 @@ model Guest {
   paidAt          DateTime? @map("paid_at") @db.Timestamptz()
   paymentRef      String?   @map("payment_ref") // id do pagamento no Square
   registrationRef String?   @map("registration_ref") // id do envio do formulário
+  // Pesquisa/NPS pós-evento (#9)
+  npsScore        Int?      @map("nps_score")
+  npsComment      String?   @map("nps_comment")
+  npsAt           DateTime? @map("nps_at") @db.Timestamptz()
   source       String   @default("csv") // csv|ghl|manual
   status       String   @default("pending_qr") // pending_qr|qr_generated|email_sent|checked_in|no_show|canceled
   createdAt    DateTime @default(now()) @map("created_at") @db.Timestamptz()

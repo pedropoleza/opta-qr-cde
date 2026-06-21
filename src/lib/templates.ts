@@ -1,4 +1,4 @@
-import { ticketPublicQrUrl } from "@/lib/ticket";
+import { ticketPublicQrUrl, ticketCertificateUrl, npsUrl } from "@/lib/ticket";
 
 // Renderização de mensagens no-code (F2). Variáveis no formato {{chave}}.
 
@@ -11,6 +11,8 @@ export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
   { key: "endereco", label: "Endereço" },
   { key: "valor", label: "Valor pago" },
   { key: "link_qr", label: "Link do ingresso/QR" },
+  { key: "link_certificado", label: "Link do certificado" },
+  { key: "link_nps", label: "Link da pesquisa/NPS" },
 ];
 
 export type TemplateContext = {
@@ -22,6 +24,8 @@ export type TemplateContext = {
   endereco?: string | null;
   valor?: string | null;
   link_qr?: string | null;
+  link_certificado?: string | null;
+  link_nps?: string | null;
 };
 
 export function renderTemplate(tpl: string, ctx: TemplateContext): string {
@@ -59,6 +63,8 @@ export function buildContext(args: {
     endereco: args.address ?? null,
     valor,
     link_qr: args.token ? ticketPublicQrUrl(args.token) : null,
+    link_certificado: args.token ? ticketCertificateUrl(args.token) : null,
+    link_nps: args.token ? npsUrl(args.token) : null,
   };
 }
 

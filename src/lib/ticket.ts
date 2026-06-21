@@ -59,3 +59,13 @@ export function ticketPdfUrl(token: string): string {
 export function ticketBadgeUrl(token: string): string {
   return `/api/ticket/${encodeURIComponent(token)}/badge`;
 }
+
+export function ticketCertificateUrl(token: string): string {
+  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  return `${base}/api/ticket/${encodeURIComponent(token)}/certificate`;
+}
+
+export function npsUrl(token: string): string {
+  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  return `${base}/nps/${encodeURIComponent(token)}`;
+}

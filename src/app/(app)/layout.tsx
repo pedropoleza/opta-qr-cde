@@ -1,4 +1,3 @@
-import { Sparkles } from "lucide-react";
 import { MainNav } from "@/components/layout/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/auth/sign-out-button";
@@ -24,9 +23,12 @@ export default async function AppLayout({
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
           <div className="flex shrink-0 items-center gap-2 font-semibold">
-            <span className="flex size-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-              <Sparkles className="size-4" />
-            </span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/spark-logo.png"
+              alt="Spark"
+              className="size-7 rounded-md object-contain"
+            />
             <span className="hidden sm:inline">Spark</span>
             {orgName && (
               <span className="hidden truncate text-sm font-normal text-muted-foreground md:inline">

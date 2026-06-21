@@ -2,7 +2,6 @@
 
 import { useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { Sparkles } from "lucide-react";
 import { createSupabaseBrowser } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,9 +46,12 @@ export function LoginForm() {
   return (
     <div className="w-full max-w-sm space-y-6">
       <div className="flex flex-col items-center gap-2 text-center">
-        <span className="flex size-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Sparkles className="size-5" />
-        </span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/spark-logo.png"
+          alt="Spark"
+          className="size-14 rounded-2xl object-contain"
+        />
         <h1 className="text-xl font-bold">Spark Check-in</h1>
         <p className="text-sm text-muted-foreground">
           {mode === "in" ? "Entre na sua conta" : "Crie sua organização"}

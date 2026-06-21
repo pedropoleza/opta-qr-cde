@@ -44,6 +44,12 @@ export async function GET(
 
   const { config } = await getEventTicketConfig(ticket.eventId);
 
+  // Logo base do Spark quando o tenant não definiu um logo próprio.
+  if (!config.logoUrl) {
+    const base = process.env.APP_BASE_URL ?? "https://spark-qrcode-checker.vercel.app";
+    config.logoUrl = `${base}/spark-logo.png`;
+  }
+
   const pdf = await renderTicketPdf(
     {
       event: {

@@ -1,9 +1,42 @@
 import { notFound } from "next/navigation";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { ticketValidationUrl } from "@/lib/ticket";
+import { ticketValidationUrl, isVipGuest } from "@/lib/ticket";
+import { getEventTicketConfig } from "@/lib/ticket-config";
 import { Button } from "@/components/ui/button";
 import { RsvpButtons } from "@/components/ticket/rsvp-buttons";
+
+// Padrões CSS dos efeitos (espelham os do PDF) para a página pública.
+function headerEffectStyle(effect: string): React.CSSProperties {
+  if (effect === "halftone")
+    return {
+      backgroundImage: "radial-gradient(rgba(255,255,255,0.35) 1px, transparent 1.4px)",
+      backgroundSize: "9px 9px",
+    };
+  if (effect === "bars")
+    return {
+      backgroundImage:
+        "repeating-linear-gradient(115deg, rgba(255,255,255,0.12) 0 8px, transparent 8px 26px)",
+    };
+  if (effect === "gradient")
+    return { backgroundImage: "linear-gradient(135deg, rgba(255,255,255,0) 30%, rgba(255,255,255,0.25))" };
+  return {};
+}
+function backgroundStyle(bg: string, color: string): React.CSSProperties {
+  if (bg === "dots")
+    return {
+      backgroundImage: `radial-gradient(${color}12 1.3px, transparent 1.3px)`,
+      backgroundSize: "20px 20px",
+    };
+  if (bg === "grid")
+    return {
+      backgroundImage: `linear-gradient(${color}10 0.6px, transparent 0.6px), linear-gradient(90deg, ${color}10 0.6px, transparent 0.6px)`,
+      backgroundSize: "26px 26px",
+    };
+  if (bg === "gradient")
+    return { backgroundImage: `linear-gradient(180deg, ${color}0d, transparent)` };
+  return {};
+}
 
 export const dynamic = "force-dynamic";
 
@@ -18,7 +51,7 @@ export default async function GuestQrPage({
   const ticket = await prisma.ticket.findUnique({
     where: { token },
     include: {
-      guest: { select: { name: true, status: true, rsvp: true, vip: true } },
+      guest: { select: { name: true, status: true, rsvp: true, vip: true, tier: true } },
       event: {
         select: {
           name: true,
@@ -41,6 +74,8 @@ export default async function GuestQrPage({
     { width: 512, margin: 1, errorCorrectionLevel: "M" }
   );
 
+  const { config } = await getEventTicketConfig(ticket.eventId);
+
   const checkedIn = ticket.status === "checked_in";
   const dateLabel = ticket.event.date.toISOString().slice(0, 10);
   const timeLabel = [ticket.event.startTime, ticket.event.endTime]
@@ -50,20 +85,25 @@ export default async function GuestQrPage({
   // White-label por tenant (Fase 5): marca, logo e cor primária da organização.
   const org = ticket.event.organization;
   const brand = org?.brandName?.trim() || "Spark Check-in";
-  const vip = ticket.guest.vip;
+  const vip = isVipGuest(ticket.guest);
   const headerColor = org?.primaryColor?.trim() || null;
   // VIP (#8): arte especial — fundo escuro + halftone dourado.
-  const headerStyle = vip
+  const headerStyle: React.CSSProperties | undefined = vip
     ? {
         backgroundColor: "#15171C",
         backgroundImage:
           "radial-gradient(rgba(201,162,39,0.35) 1px, transparent 1.4px)",
         backgroundSize: "10px 10px",
       }
-    : headerColor
-      ? { backgroundColor: headerColor }
-      : undefined;
+    : {
+        ...(headerColor ? { backgroundColor: headerColor } : {}),
+        ...headerEffectStyle(config.headerEffect),
+      };
   const headerClass = vip || headerColor ? "" : "bg-neutral-900";
+  // Textura do corpo (F2), exceto no VIP (que tem arte própria).
+  const bodyBgStyle = vip
+    ? undefined
+    : backgroundStyle(config.background, headerColor || "#101828");
 
   return (
     <div className={`flex min-h-screen items-center justify-center p-4 ${vip ? "bg-[#0F1115]" : "bg-neutral-900"}`}>
@@ -113,7 +153,7 @@ export default async function GuestQrPage({
         </div>
 
         {/* Corpo com o QR */}
-        <div className="px-6 py-6 text-center">
+        <div className="px-6 py-6 text-center" style={bodyBgStyle}>
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={dataUrl}

@@ -160,6 +160,47 @@ export function TicketTemplateEditor({
                   </Select>
                 </div>
 
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Efeito do cabeçalho</Label>
+                    <Select
+                      value={config.headerEffect}
+                      onValueChange={(v) =>
+                        set("headerEffect", v as TicketConfig["headerEffect"])
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Nenhum</SelectItem>
+                        <SelectItem value="halftone">Halftone (pontos)</SelectItem>
+                        <SelectItem value="bars">Barras diagonais</SelectItem>
+                        <SelectItem value="gradient">Gradiente</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Fundo</Label>
+                    <Select
+                      value={config.background}
+                      onValueChange={(v) =>
+                        set("background", v as TicketConfig["background"])
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="plain">Liso</SelectItem>
+                        <SelectItem value="dots">Pontilhado</SelectItem>
+                        <SelectItem value="grid">Grade</SelectItem>
+                        <SelectItem value="gradient">Gradiente suave</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
                 <div className="space-y-1.5">
                   <Label>Cor principal</Label>
                   <div className="flex items-center gap-2">

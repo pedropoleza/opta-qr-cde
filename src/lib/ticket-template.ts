@@ -3,6 +3,8 @@
 // evento.
 
 export type TicketPreset = "modern" | "classic" | "compact";
+export type TicketHeaderEffect = "none" | "bars" | "halftone" | "gradient";
+export type TicketBackground = "plain" | "dots" | "grid" | "gradient";
 
 export type TicketConfig = {
   preset: TicketPreset;
@@ -11,6 +13,8 @@ export type TicketConfig = {
   headerTitle: string; // vazio = usa o nome do evento; aceita merge fields
   subtitle: string; // vazio = data · local; aceita merge fields
   instructions: string; // rodapé; aceita merge fields
+  headerEffect: TicketHeaderEffect; // efeito decorativo no cabeçalho
+  background: TicketBackground; // textura do corpo
   showEmail: boolean;
   showPhone: boolean;
   showTime: boolean;
@@ -24,6 +28,8 @@ export const DEFAULT_TICKET_CONFIG: TicketConfig = {
   headerTitle: "",
   subtitle: "",
   instructions: "Apresente este QR Code na entrada do evento.",
+  headerEffect: "none",
+  background: "plain",
   showEmail: false,
   showPhone: false,
   showTime: true,

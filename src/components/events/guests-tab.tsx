@@ -515,14 +515,13 @@ export function GuestsTab({
               className="w-36"
             />
             <Input
-              placeholder="Categoria (VIP…)"
+              placeholder="Categoria (Geral…)"
               list="tier-suggestions"
               value={manual.tier}
               onChange={(e) => setManual((m) => ({ ...m, tier: e.target.value }))}
               className="w-36"
             />
             <datalist id="tier-suggestions">
-              <option value="VIP" />
               <option value="Geral" />
               <option value="Imprensa" />
               <option value="Staff" />
@@ -618,12 +617,14 @@ export function GuestsTab({
                 <TableCell className="font-medium">
                   <span className="flex items-center gap-2">
                     {guest.name}
-                    {guest.vip && (
+                    {(guest.vip || guest.tier?.toLowerCase() === "vip") && (
                       <Badge className="border-transparent bg-amber-400 text-xs text-amber-950">
                         ⭐ VIP
                       </Badge>
                     )}
-                    <TierBadge tier={guest.tier} />
+                    {guest.tier?.toLowerCase() !== "vip" && (
+                      <TierBadge tier={guest.tier} />
+                    )}
                     {guest.groupSize > 1 && (
                       <Badge variant="outline" className="text-xs">
                         Grupo {guest.groupSize}
@@ -796,9 +797,10 @@ export function GuestsTab({
 
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
-                    <p className="text-sm font-medium">VIP</p>
+                    <p className="text-sm font-medium">Convidado VIP</p>
                     <p className="text-xs text-muted-foreground">
-                      Avisa o anfitrião quando este convidado chega.
+                      Arte especial no ingresso e no crachá + aviso ao anfitrião na
+                      chegada. Independe da categoria.
                     </p>
                   </div>
                   <Button
@@ -806,7 +808,7 @@ export function GuestsTab({
                     variant={detail.vip ? "default" : "outline"}
                     onClick={() => toggleVip(detail, !detail.vip)}
                   >
-                    {detail.vip ? "⭐ VIP" : "Marcar VIP"}
+                    {detail.vip ? "⭐ VIP ativo" : "Marcar VIP"}
                   </Button>
                 </div>
 

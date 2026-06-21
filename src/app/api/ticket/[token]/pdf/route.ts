@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { ticketValidationUrl, ticketPublicQrUrl, sparkLogoUrl } from "@/lib/ticket";
+import { ticketValidationUrl, ticketPublicQrUrl, sparkLogoUrl, isVipGuest } from "@/lib/ticket";
 import { renderTicketPdf } from "@/lib/ticket-pdf";
 import { getEventTicketConfig } from "@/lib/ticket-config";
 
@@ -32,7 +32,7 @@ export async function GET(
           address: true,
         },
       },
-      guest: { select: { name: true, email: true, phone: true, vip: true } },
+      guest: { select: { name: true, email: true, phone: true, vip: true, tier: true } },
     },
   });
   if (!ticket) return new NextResponse("Not found", { status: 404 });
@@ -66,7 +66,7 @@ export async function GET(
       qrDataUrl,
       ticketUrl: ticketPublicQrUrl(ticket.token),
       sparkLogoUrl: sparkLogoUrl(),
-      vip: ticket.guest.vip,
+      vip: isVipGuest(ticket.guest),
     },
     config,
   );

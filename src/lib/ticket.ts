@@ -75,3 +75,9 @@ export function sparkLogoUrl(): string {
   const base = process.env.APP_BASE_URL ?? "https://spark-qrcode-checker.vercel.app";
   return `${base}/spark-logo.png`;
 }
+
+// Fonte única de verdade do VIP: o sinalizador VIP do convidado OU a categoria
+// "VIP". Evita as duas lógicas concorrentes (#8).
+export function isVipGuest(g: { vip?: boolean | null; tier?: string | null }): boolean {
+  return Boolean(g.vip) || (g.tier?.trim().toLowerCase() === "vip");
+}

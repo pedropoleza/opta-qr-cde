@@ -3,6 +3,7 @@ import {
   verifyTicketSignature,
   generateTicketToken,
   signTicket,
+  isVipGuest,
 } from "@/lib/ticket";
 import { enqueueCheckInSync } from "@/lib/ghl-sync";
 
@@ -215,7 +216,7 @@ export async function performCheckIn(
 
     // #8 Protocolo VIP: ao VIP entrar, avisa o anfitrião pelo canal configurado.
     if (
-      ticket.guest.vip &&
+      isVipGuest(ticket.guest) &&
       ticket.event.vipNotifyTarget &&
       ticket.event.vipNotifyChannel
     ) {
@@ -269,7 +270,7 @@ export async function performCheckIn(
       guestTier: ticket.guest.tier,
       checkedInAt: now.toISOString(),
       token: ticket.token,
-      vip: ticket.guest.vip,
+      vip: isVipGuest(ticket.guest),
       capacityWarning,
       _eventId: ticket.eventId,
       _guestId: ticket.guestId,

@@ -12,7 +12,7 @@ import {
   type TicketMergeData,
   mergeFields,
 } from "@/lib/ticket-template";
-import { HeaderDecoration } from "@/lib/pdf-effects";
+import { HeaderDecoration, PageBackground } from "@/lib/pdf-effects";
 
 const GOLD = "#C9A227";
 
@@ -158,9 +158,10 @@ function TicketDocument({
   return (
     <Document title={`Ingresso — ${data.event.name}`}>
       <Page size="A5" style={s.page}>
+        {!vip && <PageBackground background={config.background} color={config.brandColor || "#101828"} />}
         <View style={s.header}>
           <HeaderDecoration
-            effect={vip ? "halftone" : "none"}
+            effect={vip ? "halftone" : config.headerEffect}
             color={vip ? GOLD : "#ffffff"}
           />
           {config.logoUrl ? (

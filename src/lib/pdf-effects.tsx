@@ -46,6 +46,59 @@ function DiagonalBars({ color }: { color: string }) {
   return <>{bars}</>;
 }
 
+export type Background = "plain" | "dots" | "grid" | "gradient";
+
+// Textura sutil de fundo do corpo (camada absoluta, renderizar antes do conteúdo).
+export function PageBackground({
+  background,
+  color = "#101828",
+}: {
+  background: Background;
+  color?: string;
+}) {
+  if (!background || background === "plain") return null;
+  const W = 420;
+  const H = 595;
+  const items = [];
+  if (background === "dots") {
+    const step = 22;
+    for (let y = step; y < H; y += step) {
+      for (let x = step; x < W; x += step) {
+        items.push(<Circle key={`${x}-${y}`} cx={x} cy={y} r={1.3} fill={color} opacity={0.06} />);
+      }
+    }
+  } else if (background === "grid") {
+    const step = 28;
+    for (let x = step; x < W; x += step) {
+      items.push(<Rect key={`v${x}`} x={x} y={0} width={0.6} height={H} fill={color} opacity={0.05} />);
+    }
+    for (let y = step; y < H; y += step) {
+      items.push(<Rect key={`h${y}`} x={0} y={y} width={W} height={0.6} fill={color} opacity={0.05} />);
+    }
+  }
+  return (
+    <Svg
+      viewBox={`0 0 ${W} ${H}`}
+      preserveAspectRatio="none"
+      style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
+    >
+      {background === "gradient" ? (
+        <>
+          <Defs>
+            <LinearGradient id="bg" x1="0" y1="0" x2="0.6" y2="1">
+              <Stop offset="0" stopColor={color} stopOpacity={0.05} />
+              <Stop offset="1" stopColor={color} stopOpacity={0} />
+            </LinearGradient>
+          </Defs>
+          <Rect x={0} y={0} width={W} height={H} fill="url(#bg)" />
+        </>
+      ) : (
+        items
+      )}
+    </Svg>
+  );
+}
+
 export function HeaderDecoration({
   effect,
   color = "#ffffff",

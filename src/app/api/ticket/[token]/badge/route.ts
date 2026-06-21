@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { ticketValidationUrl, sparkLogoUrl } from "@/lib/ticket";
+import { ticketValidationUrl, sparkLogoUrl, isVipGuest } from "@/lib/ticket";
 import { renderBadgePdf } from "@/lib/badge-pdf";
 
 export const runtime = "nodejs";
@@ -54,7 +54,7 @@ export async function GET(
     eventName: ticket.event.name,
     eventDate: ticket.event.date.toISOString().slice(0, 10),
     tier: ticket.guest.tier,
-    vip: ticket.guest.vip,
+    vip: isVipGuest(ticket.guest),
     sessionName: session?.name ?? null,
     qrDataUrl,
     brandColor: org?.primaryColor ?? null,

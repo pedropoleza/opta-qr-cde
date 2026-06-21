@@ -143,7 +143,9 @@ function BadgeDoc({ data }: { data: BadgeData }) {
             <Text style={s.label}>CREDENCIAL</Text>
           )}
           <Text style={s.name}>{data.guestName}</Text>
-          {data.tier ? <Text style={s.tier}>{data.tier}</Text> : null}
+          {data.tier && data.tier.trim().toLowerCase() !== "vip" ? (
+            <Text style={s.tier}>{data.tier}</Text>
+          ) : null}
           {data.sessionName ? (
             <Text style={s.session}>{data.sessionName}</Text>
           ) : null}

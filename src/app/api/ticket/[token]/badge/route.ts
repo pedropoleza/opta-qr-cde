@@ -30,7 +30,7 @@ export async function GET(
         },
       },
       guest: {
-        select: { name: true, tier: true, sessionId: true },
+        select: { name: true, tier: true, sessionId: true, vip: true },
       },
     },
   });
@@ -54,6 +54,7 @@ export async function GET(
     eventName: ticket.event.name,
     eventDate: ticket.event.date.toISOString().slice(0, 10),
     tier: ticket.guest.tier,
+    vip: ticket.guest.vip,
     sessionName: session?.name ?? null,
     qrDataUrl,
     brandColor: org?.primaryColor ?? null,

@@ -18,7 +18,7 @@ export default async function GuestQrPage({
   const ticket = await prisma.ticket.findUnique({
     where: { token },
     include: {
-      guest: { select: { name: true, status: true, rsvp: true } },
+      guest: { select: { name: true, status: true, rsvp: true, vip: true } },
       event: {
         select: {
           name: true,
@@ -50,18 +50,34 @@ export default async function GuestQrPage({
   // White-label por tenant (Fase 5): marca, logo e cor primária da organização.
   const org = ticket.event.organization;
   const brand = org?.brandName?.trim() || "Spark Check-in";
+  const vip = ticket.guest.vip;
   const headerColor = org?.primaryColor?.trim() || null;
-  const headerStyle = headerColor ? { backgroundColor: headerColor } : undefined;
-  const headerClass = headerColor ? "" : "bg-neutral-900";
+  // VIP (#8): arte especial — fundo escuro + halftone dourado.
+  const headerStyle = vip
+    ? {
+        backgroundColor: "#15171C",
+        backgroundImage:
+          "radial-gradient(rgba(201,162,39,0.35) 1px, transparent 1.4px)",
+        backgroundSize: "10px 10px",
+      }
+    : headerColor
+      ? { backgroundColor: headerColor }
+      : undefined;
+  const headerClass = vip || headerColor ? "" : "bg-neutral-900";
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-neutral-900 p-4">
+    <div className={`flex min-h-screen items-center justify-center p-4 ${vip ? "bg-[#0F1115]" : "bg-neutral-900"}`}>
       <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* Cabeçalho do ingresso */}
         <div
           className={`px-6 py-5 text-center text-white ${headerClass}`}
           style={headerStyle}
         >
+          {vip && (
+            <span className="mb-2 inline-block rounded-full bg-[#C9A227] px-3 py-0.5 text-xs font-bold tracking-wider text-[#1A1407]">
+              ★ VIP
+            </span>
+          )}
           {org?.logoUrl ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -72,7 +88,7 @@ export default async function GuestQrPage({
               />
             </>
           ) : (
-            <p className="text-xs uppercase tracking-[0.2em] text-white/70">
+            <p className={`text-xs uppercase tracking-[0.2em] ${vip ? "text-[#C9A227]" : "text-white/70"}`}>
               {brand} · Ingresso
             </p>
           )}

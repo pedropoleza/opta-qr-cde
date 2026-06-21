@@ -32,7 +32,7 @@ export async function GET(
           address: true,
         },
       },
-      guest: { select: { name: true, email: true, phone: true } },
+      guest: { select: { name: true, email: true, phone: true, vip: true } },
     },
   });
   if (!ticket) return new NextResponse("Not found", { status: 404 });
@@ -66,6 +66,7 @@ export async function GET(
       qrDataUrl,
       ticketUrl: ticketPublicQrUrl(ticket.token),
       sparkLogoUrl: sparkLogoUrl(),
+      vip: ticket.guest.vip,
     },
     config,
   );

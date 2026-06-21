@@ -7,9 +7,11 @@ import {
   View,
   renderToBuffer,
 } from "@react-pdf/renderer";
+import { HeaderDecoration, type HeaderEffect } from "@/lib/pdf-effects";
 
 // Crachá/etiqueta de credenciamento on-site (#4). A6 retrato, com a marca do
 // tenant (cor/logo). Inclui um QR pequeno para sub-estações de scan.
+// VIP (#8) recebe arte especial: tema escuro + dourado + halftone.
 export type BadgeData = {
   guestName: string;
   eventName: string;
@@ -21,22 +23,36 @@ export type BadgeData = {
   brandName?: string | null;
   logoUrl?: string | null;
   sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
+  vip?: boolean;
+  effect?: HeaderEffect;
 };
 
-function styles(brand: string) {
+const GOLD = "#C9A227";
+
+function styles(brand: string, vip: boolean) {
+  const bandBg = vip ? "#15171C" : brand;
+  const accent = vip ? GOLD : brand;
   return StyleSheet.create({
-    page: { fontFamily: "Helvetica", color: "#101828", backgroundColor: "#fff" },
+    page: {
+      fontFamily: "Helvetica",
+      color: vip ? "#F8FAFC" : "#101828",
+      backgroundColor: vip ? "#0F1115" : "#fff",
+    },
     band: {
-      backgroundColor: brand,
+      position: "relative",
+      overflow: "hidden",
+      backgroundColor: bandBg,
       color: "#fff",
       paddingHorizontal: 20,
       paddingVertical: 14,
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
+      borderBottomWidth: vip ? 2 : 0,
+      borderBottomColor: GOLD,
     },
-    brandText: { fontFamily: "Helvetica-Bold", fontSize: 11 },
-    eventText: { fontSize: 9, color: "#ffffff", opacity: 0.9, maxWidth: 180, textAlign: "right" },
+    brandText: { fontFamily: "Helvetica-Bold", fontSize: 11, color: vip ? GOLD : "#fff" },
+    eventText: { fontSize: 9, color: "#ffffff", opacity: 0.9, maxWidth: 170, textAlign: "right" },
     logo: { height: 18, objectFit: "contain" },
     body: {
       flexGrow: 1,
@@ -45,25 +61,37 @@ function styles(brand: string) {
       paddingHorizontal: 18,
       paddingVertical: 16,
     },
-    label: { fontSize: 9, color: "#98a2b3", letterSpacing: 2, marginBottom: 6 },
+    vipPill: {
+      marginBottom: 10,
+      backgroundColor: GOLD,
+      color: "#1A1407",
+      fontFamily: "Helvetica-Bold",
+      fontSize: 11,
+      letterSpacing: 1,
+      paddingHorizontal: 12,
+      paddingVertical: 3,
+      borderRadius: 999,
+    },
+    label: { fontSize: 9, color: vip ? GOLD : "#98a2b3", letterSpacing: 2, marginBottom: 6 },
     name: {
       fontFamily: "Helvetica-Bold",
       fontSize: 26,
       textAlign: "center",
       lineHeight: 1.15,
+      color: vip ? "#FFFFFF" : "#101828",
     },
     tier: {
       marginTop: 14,
       borderWidth: 2,
-      borderColor: brand,
-      color: brand,
+      borderColor: accent,
+      color: accent,
       fontFamily: "Helvetica-Bold",
       fontSize: 12,
       paddingHorizontal: 14,
       paddingVertical: 4,
       borderRadius: 999,
     },
-    session: { marginTop: 10, fontSize: 11, color: "#475467" },
+    session: { marginTop: 10, fontSize: 11, color: vip ? "#CBD5E1" : "#475467" },
     footer: {
       flexDirection: "row",
       alignItems: "center",
@@ -71,9 +99,10 @@ function styles(brand: string) {
       paddingHorizontal: 20,
       paddingVertical: 12,
       borderTopWidth: 1,
-      borderTopColor: "#eaecf0",
+      borderTopColor: vip ? "rgba(201,162,39,0.4)" : "#eaecf0",
     },
-    date: { fontSize: 10, color: "#667085" },
+    date: { fontSize: 10, color: vip ? "#CBD5E1" : "#667085" },
+    qrWrap: { backgroundColor: "#fff", borderRadius: 6, padding: vip ? 4 : 0 },
     qr: { width: 56, height: 56 },
     madeBy: {
       flexDirection: "row",
@@ -83,17 +112,21 @@ function styles(brand: string) {
       paddingBottom: 6,
     },
     madeByLogo: { width: 9, height: 9, objectFit: "contain", opacity: 0.7 },
-    madeByText: { fontSize: 6.5, color: "#98a2b3", letterSpacing: 0.5 },
+    madeByText: { fontSize: 6.5, color: vip ? "#94A3B8" : "#98a2b3", letterSpacing: 0.5 },
   });
 }
 
 function BadgeDoc({ data }: { data: BadgeData }) {
   const brand = data.brandColor || "#2563EB";
-  const s = styles(brand);
+  const vip = Boolean(data.vip);
+  const s = styles(brand, vip);
+  const effect = vip ? "halftone" : data.effect ?? "none";
+  const effectColor = vip ? GOLD : "#ffffff";
   return (
     <Document title={`Crachá — ${data.guestName}`}>
       <Page size="A6" style={s.page}>
         <View style={s.band}>
+          <HeaderDecoration effect={effect} color={effectColor} />
           {data.logoUrl ? (
             // eslint-disable-next-line jsx-a11y/alt-text
             <Image src={data.logoUrl} style={s.logo} />
@@ -104,7 +137,11 @@ function BadgeDoc({ data }: { data: BadgeData }) {
         </View>
 
         <View style={s.body}>
-          <Text style={s.label}>CREDENCIAL</Text>
+          {vip ? (
+            <Text style={s.vipPill}>★ VIP</Text>
+          ) : (
+            <Text style={s.label}>CREDENCIAL</Text>
+          )}
           <Text style={s.name}>{data.guestName}</Text>
           {data.tier ? <Text style={s.tier}>{data.tier}</Text> : null}
           {data.sessionName ? (
@@ -115,8 +152,10 @@ function BadgeDoc({ data }: { data: BadgeData }) {
         <View style={s.footer}>
           <Text style={s.date}>{data.eventDate}</Text>
           {data.qrDataUrl ? (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <Image src={data.qrDataUrl} style={s.qr} />
+            <View style={s.qrWrap}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image src={data.qrDataUrl} style={s.qr} />
+            </View>
           ) : null}
         </View>
 

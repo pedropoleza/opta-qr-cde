@@ -12,11 +12,15 @@ import {
   type TicketMergeData,
   mergeFields,
 } from "@/lib/ticket-template";
+import { HeaderDecoration } from "@/lib/pdf-effects";
+
+const GOLD = "#C9A227";
 
 export type TicketPdfData = TicketMergeData & {
   qrDataUrl: string;
   ticketUrl: string;
   sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
+  vip?: boolean; // arte VIP especial (#8)
 };
 
 function resolveTexts(data: TicketPdfData, config: TicketConfig) {
@@ -43,9 +47,10 @@ function resolveTexts(data: TicketPdfData, config: TicketConfig) {
   return { title, subtitle, instructions };
 }
 
-function buildStyles(config: TicketConfig) {
-  const brand = config.brandColor || "#2563EB";
-  const modern = config.preset !== "classic";
+function buildStyles(config: TicketConfig, vip: boolean) {
+  const brand = vip ? GOLD : config.brandColor || "#2563EB";
+  const modern = vip || config.preset !== "classic";
+  const headerBg = vip ? "#15171C" : modern ? brand : "#ffffff";
   return StyleSheet.create({
     page: {
       fontFamily: "Helvetica",
@@ -53,19 +58,38 @@ function buildStyles(config: TicketConfig) {
       backgroundColor: "#ffffff",
     },
     header: {
-      backgroundColor: modern ? brand : "#ffffff",
+      position: "relative",
+      overflow: "hidden",
+      backgroundColor: headerBg,
       color: modern ? "#ffffff" : "#101828",
       paddingHorizontal: 28,
       paddingVertical: config.preset === "compact" ? 18 : 26,
-      borderBottomWidth: modern ? 0 : 3,
-      borderBottomColor: brand,
+      borderBottomWidth: vip ? 2 : modern ? 0 : 3,
+      borderBottomColor: vip ? GOLD : brand,
+    },
+    vipPill: {
+      alignSelf: "flex-start",
+      marginBottom: 8,
+      backgroundColor: GOLD,
+      color: "#1A1407",
+      fontFamily: "Helvetica-Bold",
+      fontSize: 10,
+      letterSpacing: 1,
+      paddingHorizontal: 10,
+      paddingVertical: 2,
+      borderRadius: 999,
     },
     logo: { height: 28, marginBottom: 10, objectFit: "contain" },
-    title: { fontFamily: "Helvetica-Bold", fontSize: 20, lineHeight: 1.2 },
+    title: {
+      fontFamily: "Helvetica-Bold",
+      fontSize: 20,
+      lineHeight: 1.2,
+      color: vip ? GOLD : modern ? "#ffffff" : "#101828",
+    },
     subtitle: {
       fontSize: 11,
       marginTop: 6,
-      color: modern ? "#eaf0ff" : "#667085",
+      color: vip ? "#CBD5E1" : modern ? "#eaf0ff" : "#667085",
     },
     body: {
       paddingHorizontal: 28,
@@ -127,17 +151,23 @@ function TicketDocument({
   data: TicketPdfData;
   config: TicketConfig;
 }) {
-  const s = buildStyles(config);
+  const vip = Boolean(data.vip);
+  const s = buildStyles(config, vip);
   const { title, subtitle, instructions } = resolveTexts(data, config);
 
   return (
     <Document title={`Ingresso — ${data.event.name}`}>
       <Page size="A5" style={s.page}>
         <View style={s.header}>
+          <HeaderDecoration
+            effect={vip ? "halftone" : "none"}
+            color={vip ? GOLD : "#ffffff"}
+          />
           {config.logoUrl ? (
             // eslint-disable-next-line jsx-a11y/alt-text
             <Image src={config.logoUrl} style={s.logo} />
           ) : null}
+          {vip ? <Text style={s.vipPill}>★ VIP</Text> : null}
           <Text style={s.title}>{title}</Text>
           {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}
         </View>

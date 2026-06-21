@@ -16,6 +16,7 @@ export type CertificateData = {
   brandColor?: string | null;
   brandName?: string | null;
   logoUrl?: string | null;
+  sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
 };
 
 function styles(brand: string) {
@@ -55,6 +56,18 @@ function styles(brand: string) {
     line: { fontSize: 13, color: "#344054", textAlign: "center", lineHeight: 1.5 },
     rule: { width: 220, borderBottomWidth: 1, borderBottomColor: "#d0d5dd", marginVertical: 14 },
     footer: { marginTop: 22, fontSize: 11, color: "#667085" },
+    madeBy: {
+      position: "absolute",
+      bottom: 16,
+      left: 0,
+      right: 0,
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 4,
+    },
+    madeByLogo: { width: 11, height: 11, objectFit: "contain", opacity: 0.7 },
+    madeByText: { fontSize: 7.5, color: "#98a2b3", letterSpacing: 0.5 },
   });
 }
 
@@ -83,6 +96,13 @@ function CertificateDoc({ data }: { data: CertificateData }) {
             Emitido por {data.brandName || "Spark Check-in"}
           </Text>
         </View>
+        {data.sparkLogoUrl ? (
+          <View style={s.madeBy}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={data.sparkLogoUrl} style={s.madeByLogo} />
+            <Text style={s.madeByText}>feito com Spark</Text>
+          </View>
+        ) : null}
       </Page>
     </Document>
   );

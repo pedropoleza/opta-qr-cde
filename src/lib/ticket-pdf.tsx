@@ -16,6 +16,7 @@ import {
 export type TicketPdfData = TicketMergeData & {
   qrDataUrl: string;
   ticketUrl: string;
+  sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
 };
 
 function resolveTexts(data: TicketPdfData, config: TicketConfig) {
@@ -107,6 +108,15 @@ function buildStyles(config: TicketConfig) {
       textAlign: "center",
       marginTop: 6,
     },
+    madeBy: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
+      marginTop: 8,
+    },
+    madeByLogo: { width: 9, height: 9, objectFit: "contain", opacity: 0.7 },
+    madeByText: { fontSize: 7, color: "#98a2b3", letterSpacing: 0.5 },
   });
 }
 
@@ -154,6 +164,13 @@ function TicketDocument({
             <Text style={s.instructions}>{instructions}</Text>
           ) : null}
           <Text style={s.link}>{data.ticketUrl}</Text>
+          {data.sparkLogoUrl ? (
+            <View style={s.madeBy}>
+              {/* eslint-disable-next-line jsx-a11y/alt-text */}
+              <Image src={data.sparkLogoUrl} style={s.madeByLogo} />
+              <Text style={s.madeByText}>feito com Spark</Text>
+            </View>
+          ) : null}
         </View>
       </Page>
     </Document>

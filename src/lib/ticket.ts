@@ -69,3 +69,9 @@ export function npsUrl(token: string): string {
   const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
   return `${base}/nps/${encodeURIComponent(token)}`;
 }
+
+// URL absoluta da logo do Spark — usada como selo "feito com Spark" nos PDFs.
+export function sparkLogoUrl(): string {
+  const base = process.env.APP_BASE_URL ?? "https://spark-qrcode-checker.vercel.app";
+  return `${base}/spark-logo.png`;
+}

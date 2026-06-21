@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { sparkLogoUrl } from "@/lib/ticket";
 import { renderCertificatePdf } from "@/lib/certificate-pdf";
 
 export const runtime = "nodejs";
@@ -42,6 +43,7 @@ export async function GET(
     brandColor: org?.primaryColor ?? null,
     brandName: org?.brandName ?? null,
     logoUrl: org?.logoUrl ?? null,
+    sparkLogoUrl: sparkLogoUrl(),
   });
 
   return new NextResponse(new Uint8Array(pdf), {

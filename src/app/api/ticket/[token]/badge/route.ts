@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { ticketValidationUrl } from "@/lib/ticket";
+import { ticketValidationUrl, sparkLogoUrl } from "@/lib/ticket";
 import { renderBadgePdf } from "@/lib/badge-pdf";
 
 export const runtime = "nodejs";
@@ -59,6 +59,7 @@ export async function GET(
     brandColor: org?.primaryColor ?? null,
     brandName: org?.brandName ?? null,
     logoUrl: org?.logoUrl ?? null,
+    sparkLogoUrl: sparkLogoUrl(),
   });
 
   return new NextResponse(new Uint8Array(pdf), {

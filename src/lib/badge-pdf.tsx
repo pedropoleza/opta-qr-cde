@@ -20,6 +20,7 @@ export type BadgeData = {
   brandColor?: string | null;
   brandName?: string | null;
   logoUrl?: string | null;
+  sparkLogoUrl?: string | null; // selo discreto "feito com Spark"
 };
 
 function styles(brand: string) {
@@ -74,6 +75,15 @@ function styles(brand: string) {
     },
     date: { fontSize: 10, color: "#667085" },
     qr: { width: 56, height: 56 },
+    madeBy: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      gap: 3,
+      paddingBottom: 6,
+    },
+    madeByLogo: { width: 9, height: 9, objectFit: "contain", opacity: 0.7 },
+    madeByText: { fontSize: 6.5, color: "#98a2b3", letterSpacing: 0.5 },
   });
 }
 
@@ -109,6 +119,14 @@ function BadgeDoc({ data }: { data: BadgeData }) {
             <Image src={data.qrDataUrl} style={s.qr} />
           ) : null}
         </View>
+
+        {data.sparkLogoUrl ? (
+          <View style={s.madeBy}>
+            {/* eslint-disable-next-line jsx-a11y/alt-text */}
+            <Image src={data.sparkLogoUrl} style={s.madeByLogo} />
+            <Text style={s.madeByText}>feito com Spark</Text>
+          </View>
+        ) : null}
       </Page>
     </Document>
   );

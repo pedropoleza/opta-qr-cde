@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
-import { ticketValidationUrl, ticketPublicQrUrl } from "@/lib/ticket";
+import { ticketValidationUrl, ticketPublicQrUrl, sparkLogoUrl } from "@/lib/ticket";
 import { renderTicketPdf } from "@/lib/ticket-pdf";
 import { getEventTicketConfig } from "@/lib/ticket-config";
 
@@ -65,6 +65,7 @@ export async function GET(
       },
       qrDataUrl,
       ticketUrl: ticketPublicQrUrl(ticket.token),
+      sparkLogoUrl: sparkLogoUrl(),
     },
     config,
   );

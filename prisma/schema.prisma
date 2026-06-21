@@ -99,6 +99,7 @@ model Event {
   // D4: Checker autentica por link + PIN temporário por evento
   checkerToken   String   @unique @map("checker_token")
   checkerPin     String   @map("checker_pin")
+  kioskToken     String?  @unique @map("kiosk_token") // totem de auto-checkin (#5)
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt      DateTime @updatedAt @map("updated_at") @db.Timestamptz()
 

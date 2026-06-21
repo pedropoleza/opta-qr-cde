@@ -54,6 +54,6 @@ export async function proxy(req: NextRequest) {
 // Não roda em estáticos, API, Checker/ingresso (públicos).
 export const config = {
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|api|checker|q|checkin).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw.js|manifest.webmanifest|api|checker|kiosk|q|checkin).*)",
   ],
 };

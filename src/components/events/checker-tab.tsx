@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +18,37 @@ export function CheckerTab({
   appBaseUrl: string;
 }) {
   const checkerUrl = `${appBaseUrl}/checker/${event.checkerToken}`;
+  const [kioskToken, setKioskToken] = useState<string | null>(null);
+  const [kioskBusy, setKioskBusy] = useState(false);
+
+  useEffect(() => {
+    fetch(`/api/events/${event.id}/kiosk`)
+      .then((r) => (r.ok ? r.json() : { kioskToken: null }))
+      .then((d) => setKioskToken(d.kioskToken))
+      .catch(() => {});
+  }, [event.id]);
+
+  async function enableKiosk() {
+    setKioskBusy(true);
+    const res = await fetch(`/api/events/${event.id}/kiosk`, { method: "POST" });
+    const d = await res.json().catch(() => ({}));
+    setKioskBusy(false);
+    if (!res.ok) {
+      toast.error(d.error ?? "Erro ao gerar o totem");
+      return;
+    }
+    setKioskToken(d.kioskToken);
+    toast.success("Totem habilitado");
+  }
+  async function disableKiosk() {
+    setKioskBusy(true);
+    await fetch(`/api/events/${event.id}/kiosk`, { method: "DELETE" });
+    setKioskBusy(false);
+    setKioskToken(null);
+    toast.success("Totem desativado");
+  }
+
+  const kioskUrl = kioskToken ? `${appBaseUrl}/kiosk/${kioskToken}` : "";
 
   return (
     <div className="max-w-xl space-y-4 pt-4">
@@ -70,6 +102,59 @@ export function CheckerTab({
               Abrir Checker neste dispositivo
             </a>
           </Button>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Totem de auto-checkin</CardTitle>
+          <CardDescription>
+            Tablet na entrada onde o próprio convidado busca o nome e faz o
+            check-in sozinho — sem operador e sem PIN. Descongestiona a fila.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {kioskToken ? (
+            <>
+              <div className="space-y-2">
+                <Label>Link do totem</Label>
+                <div className="flex gap-2">
+                  <Input readOnly value={kioskUrl} />
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(kioskUrl);
+                      toast.success("Link copiado");
+                    }}
+                  >
+                    Copiar
+                  </Button>
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Abra esse link no tablet e deixe em tela cheia. Qualquer pessoa
+                  com o link pode buscar nomes — mantenha-o no dispositivo da
+                  entrada.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button asChild className="flex-1">
+                  <a href={kioskUrl} target="_blank" rel="noreferrer">
+                    Abrir totem
+                  </a>
+                </Button>
+                <Button variant="outline" onClick={enableKiosk} disabled={kioskBusy}>
+                  Gerar novo link
+                </Button>
+                <Button variant="ghost" onClick={disableKiosk} disabled={kioskBusy}>
+                  Desativar
+                </Button>
+              </div>
+            </>
+          ) : (
+            <Button onClick={enableKiosk} disabled={kioskBusy} className="w-full">
+              {kioskBusy ? "Habilitando…" : "Habilitar totem"}
+            </Button>
+          )}
         </CardContent>
       </Card>
     </div>

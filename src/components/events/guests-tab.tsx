@@ -93,6 +93,84 @@ function matchesFilter(status: string, filter: string) {
   return status === filter;
 }
 
+// #2 Grupo/acompanhantes: lista o titular + acompanhantes, permite renomear e
+// adicionar um novo acompanhante (+1).
+function GroupSection({
+  detail,
+  guests,
+  onAdd,
+  onRename,
+}: {
+  detail: GuestRow;
+  guests: GuestRow[];
+  onAdd: (host: GuestRow, name: string) => void;
+  onRename: (guest: GuestRow, name: string) => void;
+}) {
+  const gid = detail.groupId ?? detail.id;
+  const members = guests
+    .filter((g) => (g.groupId ?? g.id) === gid && g.status !== "canceled")
+    .sort((a, b) => (a.id === gid ? -1 : b.id === gid ? 1 : 0));
+  const host = members.find((g) => g.id === gid) ?? detail;
+  const [newName, setNewName] = useState("");
+  const [edit, setEdit] = useState<Record<string, string>>({});
+
+  return (
+    <div className="space-y-2 rounded-lg border p-3">
+      <p className="text-xs font-medium text-muted-foreground">
+        Grupo · {members.length} pessoa{members.length > 1 ? "s" : ""}
+      </p>
+      <ul className="space-y-1.5">
+        {members.map((m) => (
+          <li key={m.id} className="flex items-center gap-2">
+            <Input
+              value={edit[m.id] ?? m.name}
+              onChange={(e) => setEdit((s) => ({ ...s, [m.id]: e.target.value }))}
+              className="h-8 flex-1 text-sm"
+            />
+            {m.id === gid ? (
+              <Badge variant="secondary" className="text-xs">
+                Titular
+              </Badge>
+            ) : (
+              <Badge variant="outline" className="text-xs">
+                +1
+              </Badge>
+            )}
+            {(edit[m.id] ?? m.name) !== m.name && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => onRename(m, (edit[m.id] ?? m.name).trim())}
+              >
+                Salvar
+              </Button>
+            )}
+          </li>
+        ))}
+      </ul>
+      <div className="flex items-center gap-2 pt-1">
+        <Input
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          placeholder="Nome do acompanhante"
+          className="h-8 flex-1 text-sm"
+        />
+        <Button
+          size="sm"
+          variant="secondary"
+          disabled={!newName.trim()}
+          onClick={() => {
+            onAdd(host, newName.trim());
+            setNewName("");
+          }}
+        >
+          + Acompanhante
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 export function GuestsTab({
   event,
   guests,
@@ -209,6 +287,40 @@ export function GuestsTab({
     if (await postGuests([payload], "manual")) {
       setManual({ name: "", email: "", phone: "", tier: "", companions: "" });
     }
+  }
+
+  async function addCompanion(host: GuestRow, name: string) {
+    const res = await fetch(
+      `/api/events/${event.id}/guests/${host.id}/companions`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name }),
+      },
+    );
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(d.error ?? "Erro ao adicionar acompanhante");
+      return;
+    }
+    toast.success(
+      d.waitlisted ? "Acompanhante na lista de espera" : "Acompanhante adicionado",
+    );
+    onChange();
+  }
+
+  async function renameGuest(guest: GuestRow, name: string) {
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      toast.error("Erro ao renomear");
+      return;
+    }
+    toast.success("Nome atualizado");
+    onChange();
   }
 
   async function saveSession(guest: GuestRow, sessionId: string) {
@@ -661,6 +773,13 @@ export function GuestsTab({
                     </Select>
                   </div>
                 )}
+
+                <GroupSection
+                  detail={detail}
+                  guests={guests}
+                  onAdd={addCompanion}
+                  onRename={renameGuest}
+                />
 
                 {detail.ticketToken ? (
                   <div className="space-y-2">

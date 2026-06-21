@@ -17,12 +17,17 @@ export async function PATCH(
   if (!guest) return jsonError(404, "Convidado não encontrado");
 
   const body = await req.json().catch(() => ({}));
-  const data: { tier?: string | null; sessionId?: string | null } = {};
+  const data: { tier?: string | null; sessionId?: string | null; name?: string } = {};
   if ("tier" in body) {
     data.tier = body.tier ? String(body.tier).trim() : null;
   }
   if ("sessionId" in body) {
     data.sessionId = body.sessionId ? String(body.sessionId) : null;
+  }
+  if ("name" in body) {
+    const name = String(body.name ?? "").trim();
+    if (!name) return jsonError(400, "O nome não pode ficar vazio.");
+    data.name = name;
   }
 
   const updated = await prisma.guest.update({
@@ -31,6 +36,7 @@ export async function PATCH(
   });
   return NextResponse.json({
     ok: true,
+    name: updated.name,
     tier: updated.tier,
     sessionId: updated.sessionId,
   });

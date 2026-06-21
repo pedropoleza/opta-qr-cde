@@ -110,6 +110,7 @@ export default async function EventDetailPage({
         tier: g.tier,
         rsvp: g.rsvp,
         groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
+        groupId: g.groupId,
         sessionId: g.sessionId,
         waitlisted: g.waitlisted,
         paymentStatus: g.paymentStatus,

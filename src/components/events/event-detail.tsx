@@ -73,6 +73,7 @@ export type GuestRow = {
   tier: string | null;
   rsvp: string | null;
   groupSize: number;
+  groupId: string | null;
   sessionId: string | null;
   waitlisted: boolean;
   paymentStatus: string;

@@ -46,6 +46,7 @@ export async function POST(
     ghlContactId?: string;
     tier?: string;
     companions?: number;
+    companionNames?: string[];
   }[] = Array.isArray(body.guests) ? body.guests : [];
   const valid = input.filter((g) => g.name && String(g.name).trim());
   if (valid.length === 0) return jsonError(400, "Nenhum convidado válido (nome é obrigatório)");
@@ -86,18 +87,25 @@ export async function POST(
       );
       result.push(guest);
 
-      // #4 Acompanhantes: cria N convidados no mesmo grupo do titular.
-      const companions = Math.max(0, Math.min(20, Number(g.companions) || 0));
-      if (companions > 0) {
+      // #2 Acompanhantes: cria convidados no mesmo grupo do titular. Aceita
+      // nomes próprios (companionNames) ou apenas a quantidade (companions).
+      const names = Array.isArray(g.companionNames)
+        ? g.companionNames.map((n) => String(n).trim()).filter(Boolean)
+        : [];
+      const count =
+        names.length > 0
+          ? names.length
+          : Math.max(0, Math.min(20, Number(g.companions) || 0));
+      if (count > 0) {
         await tx.guest.update({
           where: { id: guest.id },
           data: { groupId: guest.id },
         });
-        for (let k = 1; k <= companions; k++) {
+        for (let k = 1; k <= count; k++) {
           const comp = await tx.guest.create({
             data: {
               eventId: id,
-              name: `${String(g.name).trim()} (acompanhante ${k})`,
+              name: names[k - 1] ?? `${String(g.name).trim()} (acompanhante ${k})`,
               tier: g.tier ? String(g.tier).trim() : null,
               source,
               status: "pending_qr",

@@ -23,6 +23,10 @@ export const metadata: Metadata = {
   title: "Spark Check-in",
   description: "Credenciamento digital por QR Code — Spark Check-in",
   manifest: "/manifest.webmanifest",
+  icons: {
+    icon: [{ url: "/spark-logo.png", type: "image/png" }, { url: "/favicon.ico" }],
+    apple: [{ url: "/spark-logo.png" }],
+  },
 };
 
 export default function RootLayout({

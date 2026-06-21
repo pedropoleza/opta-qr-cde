@@ -51,6 +51,7 @@ export async function POST(
       data: {
         name: fields.name ?? existing.name,
         phone: fields.phone ?? existing.phone,
+        ghlContactId: fields.ghlContactId ?? existing.ghlContactId,
         registrationRef: fields.ref ?? existing.registrationRef,
         paymentStatus: existing.paymentStatus === "paid" ? "paid" : "pending",
       },
@@ -68,6 +69,7 @@ export async function POST(
       name: fields.name ?? fields.email!.split("@")[0],
       email: fields.email,
       phone: fields.phone,
+      ghlContactId: fields.ghlContactId,
       source: "manual",
       status: "pending_qr",
       paymentStatus: "pending",

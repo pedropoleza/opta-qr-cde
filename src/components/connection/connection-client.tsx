@@ -15,6 +15,8 @@ import {
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/ui/page-header";
 import { HelpModal } from "@/components/ui/help-modal";
@@ -41,6 +43,12 @@ export function ConnectionClient({
 }) {
   const [status, setStatus] = useState<GhlConnectionStatus>(initialStatus);
   const [testing, setTesting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [disconnecting, setDisconnecting] = useState(false);
+  const [form, setForm] = useState({
+    locationId: initialStatus.locationId ?? "",
+    token: "",
+  });
 
   const meta = STATE_META[status.state];
   const StatusIcon = meta.icon;
@@ -51,11 +59,7 @@ export function ConnectionClient({
     setTesting(true);
     try {
       const res = await fetch("/api/ghl/connection", { cache: "no-store" });
-      const data = (await res.json()) as GhlConnectionStatus;
-      setStatus(data);
-      if (data.state === "connected") toast.success("Spark conectado");
-      else if (data.state === "error") toast.error("Falha na verificação da conexão");
-      else toast.warning("Spark não está configurado");
+      setStatus((await res.json()) as GhlConnectionStatus);
     } catch {
       toast.error("Não foi possível testar a conexão");
     } finally {
@@ -63,25 +67,56 @@ export function ConnectionClient({
     }
   }
 
+  async function connect(e: React.FormEvent) {
+    e.preventDefault();
+    if (!form.locationId.trim() || !form.token.trim()) return;
+    setSaving(true);
+    try {
+      const res = await fetch("/api/ghl/connection", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(form),
+      });
+      const data = (await res.json()) as GhlConnectionStatus & { error?: string };
+      if (!res.ok) {
+        toast.error(data.error ?? "Erro ao salvar a conexão");
+        return;
+      }
+      setStatus(data);
+      setForm((f) => ({ ...f, token: "" }));
+      if (data.state === "connected") toast.success("Spark conectado");
+      else toast.warning("Salvo, mas a verificação falhou — confira o token.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function disconnect() {
+    setDisconnecting(true);
+    try {
+      await fetch("/api/ghl/connection", { method: "DELETE" });
+      setStatus({ state: "disconnected", locationId: null });
+      toast.success("Spark desconectado");
+    } finally {
+      setDisconnecting(false);
+    }
+  }
+
   return (
     <div className="max-w-2xl space-y-6">
       <PageHeader
         title="Conexão do Spark"
-        description="Integração com o HighLevel usada para sincronizar contatos, tags e o envio do convite."
+        description="Integração com o HighLevel desta organização — sincroniza contatos, tags e o envio do convite."
         actions={
-          <HelpModal
-            title="Sobre a conexão"
-            description="Como o Spark fala com o seu CRM."
-          >
+          <HelpModal title="Sobre a conexão" description="Como o Spark fala com o seu CRM.">
             <p>
-              Na versão atual a conexão usa um{" "}
-              <strong className="text-foreground">Private Integration Token</strong>{" "}
-              da location, configurado nas variáveis de ambiente do servidor.
+              Cada organização conecta o <strong className="text-foreground">próprio</strong>{" "}
+              HighLevel com um <strong className="text-foreground">Private Integration Token</strong>{" "}
+              da location. O token é guardado <strong className="text-foreground">criptografado</strong>.
             </p>
             <p>
-              O <strong className="text-foreground">desconectar</strong> com um
-              clique chega junto com o login OAuth do Spark (Etapa 4), quando a
-              credencial passa a ser guardada criptografada por organização.
+              No GHL: Settings → Private Integrations → criar token com os escopos
+              de contatos/tags. Cole aqui junto com o Location ID.
             </p>
           </HelpModal>
         }
@@ -112,13 +147,6 @@ export function ConnectionClient({
               {status.message}
             </p>
           )}
-          {status.state === "disconnected" && (
-            <p className="rounded-md bg-muted p-3 text-xs text-muted-foreground">
-              Defina <code>GHL_LOCATION_ID</code> e{" "}
-              <code>GHL_LOCATION_TOKEN</code> nas variáveis de ambiente para
-              conectar o Spark.
-            </p>
-          )}
 
           <dl className="grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border p-3">
@@ -143,42 +171,73 @@ export function ConnectionClient({
                     </button>
                   </PopoverTrigger>
                   <PopoverContent align="start">
-                    <p className="font-medium text-foreground">
-                      Private Integration Token
-                    </p>
+                    <p className="font-medium text-foreground">Private Integration Token</p>
                     <p className="mt-1 text-muted-foreground">
-                      Uma chave da location do HighLevel que autoriza o Spark a
-                      aplicar tags, notas e campos nos contatos. Fica nas
-                      variáveis de ambiente do servidor — nunca aparece aqui.
+                      Chave da location do HighLevel que autoriza o Spark a aplicar
+                      tags, notas e campos nos contatos. Guardada criptografada.
                     </p>
                   </PopoverContent>
                 </Popover>
               </dt>
               <dd className="mt-1 text-sm">
-                {status.state === "disconnected"
-                  ? "Não configurada"
-                  : "Private Integration Token"}
+                {status.state === "disconnected" ? "Não configurada" : "Private Integration Token"}
               </dd>
             </div>
           </dl>
 
           <div className="flex flex-wrap items-center gap-2 border-t pt-4">
             <Button variant="outline" onClick={testConnection} disabled={testing}>
-              {testing ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <RefreshCw className="size-4" />
-              )}
+              {testing ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
               Testar conexão
             </Button>
-            <Button variant="destructive" disabled title="Disponível com o OAuth (Etapa 4)">
-              <Unplug className="size-4" />
+            <Button
+              variant="destructive"
+              onClick={disconnect}
+              disabled={disconnecting || status.state === "disconnected"}
+            >
+              {disconnecting ? <Loader2 className="size-4 animate-spin" /> : <Unplug className="size-4" />}
               Desconectar
             </Button>
-            <span className="text-xs text-muted-foreground">
-              Desconectar fica disponível com o login OAuth do Spark.
-            </span>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Conectar / atualizar credencial */}
+      <Card>
+        <CardContent className="p-5">
+          <p className="mb-1 font-medium">
+            {status.state === "connected" ? "Atualizar credencial" : "Conectar o Spark"}
+          </p>
+          <p className="mb-4 text-sm text-muted-foreground">
+            Cole o Location ID e o Private Integration Token desta organização.
+          </p>
+          <form onSubmit={connect} className="space-y-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="loc">Location ID</Label>
+              <Input
+                id="loc"
+                value={form.locationId}
+                onChange={(e) => setForm((f) => ({ ...f, locationId: e.target.value }))}
+                placeholder="ex.: qz19EgcgJfyjdVg8krSz"
+                required
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="tok">Private Integration Token</Label>
+              <Input
+                id="tok"
+                type="password"
+                value={form.token}
+                onChange={(e) => setForm((f) => ({ ...f, token: e.target.value }))}
+                placeholder="pit-..."
+                required
+              />
+            </div>
+            <Button type="submit" disabled={saving}>
+              {saving && <Loader2 className="size-4 animate-spin" />}
+              {status.state === "connected" ? "Atualizar e testar" : "Conectar e testar"}
+            </Button>
+          </form>
         </CardContent>
       </Card>
     </div>

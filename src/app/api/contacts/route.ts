@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // em quais eventos cada contato já está.
 export async function GET(req: NextRequest) {
   const organizationId = await getCurrentOrgId();
-  if (!(await ghlConfigured())) {
+  if (!(await ghlConfigured(organizationId))) {
     return NextResponse.json(
       { error: "Spark não conectado. Configure o token na aba Conexão." },
       { status: 400 },
@@ -18,12 +18,15 @@ export async function GET(req: NextRequest) {
 
   const sp = new URL(req.url).searchParams;
   try {
-    const { contacts, startAfter, startAfterId } = await ghlListContacts({
-      query: sp.get("query") || undefined,
-      startAfter: sp.get("startAfter") || undefined,
-      startAfterId: sp.get("startAfterId") || undefined,
-      limit: 25,
-    });
+    const { contacts, startAfter, startAfterId } = await ghlListContacts(
+      organizationId,
+      {
+        query: sp.get("query") || undefined,
+        startAfter: sp.get("startAfter") || undefined,
+        startAfterId: sp.get("startAfterId") || undefined,
+        limit: 25,
+      },
+    );
 
     const ids = contacts.map((c) => c.id);
     const guests = ids.length

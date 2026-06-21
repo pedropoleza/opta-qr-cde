@@ -1,7 +1,7 @@
 import { prisma } from "@/lib/prisma";
 import {
   GhlError,
-  ghlConfigured,
+  cleanEnv,
   ghlAddNote,
   ghlAddTags,
   ghlUpdateContactFields,
@@ -28,7 +28,10 @@ export type ProcessResult = {
 export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   const empty: ProcessResult = { claimed: 0, done: 0, failed: 0, retried: 0 };
 
-  if (!(await ghlConfigured()) && !stevoConfigured() && !emailConfigured()) {
+  const ghlAny =
+    (await prisma.ghlConnection.count()) > 0 ||
+    Boolean(cleanEnv(process.env.GHL_LOCATION_TOKEN));
+  if (!ghlAny && !stevoConfigured() && !emailConfigured()) {
     return { ...empty, skipped: true, reason: "Nenhum canal configurado" };
   }
 
@@ -52,6 +55,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
 
   const jobs = await prisma.ghlSyncJob.findMany({
     where: { id: { in: claimed.map((c) => c.id) } },
+    include: { event: { select: { organizationId: true } } },
   });
 
   let done = 0;
@@ -62,7 +66,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
     try {
       if (job.action === "send_whatsapp") await runWhatsappJob(job);
       else if (job.action === "send_email") await runEmailJob(job);
-      else await runJob(job);
+      else await runJob(job, job.event?.organizationId ?? null);
       await prisma.ghlSyncJob.update({
         where: { id: job.id },
         data: { status: "done", processedAt: new Date(), lastError: null },
@@ -110,15 +114,16 @@ type SyncJob = {
   payload: unknown;
 };
 
-async function runJob(job: SyncJob) {
+async function runJob(job: SyncJob, organizationId: string | null) {
   if (!job.ghlContactId) throw new GhlError("Job sem ghlContactId");
+  if (!organizationId) throw new GhlError("Job sem organização");
   const payload = (job.payload ?? {}) as Record<string, unknown>;
 
   switch (job.action) {
     case "add_tag": {
       const tag = String(payload.tag ?? "");
       if (!tag) throw new GhlError("Tag vazia no payload");
-      await ghlAddTags(job.ghlContactId, [tag]);
+      await ghlAddTags(organizationId, job.ghlContactId, [tag]);
       // #3: ao aplicar a tag-gatilho do convite, marca o e-mail como entregue
       // ao Spark (o disparo em si é do workflow do GHL).
       if (tag.startsWith("qrcode-enviado-") && job.guestId) {
@@ -132,11 +137,11 @@ async function runJob(job: SyncJob) {
     case "add_note": {
       const note = String(payload.note ?? "");
       if (!note) throw new GhlError("Nota vazia no payload");
-      await ghlAddNote(job.ghlContactId, note);
+      await ghlAddNote(organizationId, job.ghlContactId, note);
       return;
     }
     case "update_fields": {
-      await ghlUpdateContactFields(job.ghlContactId, payload);
+      await ghlUpdateContactFields(organizationId, job.ghlContactId, payload);
       return;
     }
     default:

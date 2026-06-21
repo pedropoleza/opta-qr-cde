@@ -1,67 +1,65 @@
-// Conexão com o HighLevel (Spark). A credencial vem do banco
-// (checkin_ghl_connections) quando existir — fix definitivo que não depende do
-// env var do Vercel — com fallback para GHL_LOCATION_ID/GHL_LOCATION_TOKEN.
+// Conexão com o HighLevel por ORGANIZAÇÃO (multi-tenant, Fase 2). A credencial
+// vive em checkin_ghl_connections (token cifrado) por org. Fallback para env
+// apenas quando não há nenhuma conexão no sistema (modo legado/single-tenant).
 
 import { prisma } from "@/lib/prisma";
+import { decryptSecret, encryptSecret } from "@/lib/crypto";
 
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
 const GHL_API_VERSION = "2021-07-28";
 
-// Limpa valores de env var: remove espaços e aspas que sobram de copiar/colar
-// (ex.: GHL_LOCATION_TOKEN="pit-..." vira pit-... sem as aspas).
 export function cleanEnv(value?: string | null): string {
   return (value ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
 }
 
-function ghlToken(): string {
-  return cleanEnv(process.env.GHL_LOCATION_TOKEN);
-}
+export type GhlAuth = { locationId: string | null; token: string | null };
 
-// Resolve a credencial ativa: prioriza a conexão salva no banco (token válido),
-// com fallback para as env vars. Cacheado por alguns segundos por invocação.
-let authCache: { at: number; locationId: string | null; token: string | null } | null = null;
-const AUTH_TTL_MS = 30_000;
-
-export async function resolveGhlAuth(): Promise<{
-  locationId: string | null;
-  token: string | null;
-}> {
-  if (authCache && Date.now() - authCache.at < AUTH_TTL_MS) {
-    return { locationId: authCache.locationId, token: authCache.token };
+// Resolve a credencial da organização: conexão do banco (cifrada) → fallback
+// env só se NÃO houver nenhuma conexão cadastrada (legado).
+export async function resolveGhlAuth(organizationId: string): Promise<GhlAuth> {
+  const conn = await prisma.ghlConnection.findFirst({
+    where: { organizationId },
+    orderBy: { createdAt: "desc" },
+  });
+  if (conn?.accessToken && conn?.locationId) {
+    return { locationId: conn.locationId, token: decryptSecret(conn.accessToken) };
   }
-  let locationId = cleanEnv(process.env.GHL_LOCATION_ID) || null;
-  let token = ghlToken() || null;
-  try {
-    const conn = await prisma.ghlConnection.findFirst({
-      orderBy: { createdAt: "desc" },
-    });
-    if (conn?.accessToken && conn?.locationId) {
-      locationId = conn.locationId;
-      token = conn.accessToken;
-    }
-  } catch {
-    /* sem banco/registro — usa env */
+  const total = await prisma.ghlConnection.count();
+  if (total === 0) {
+    return {
+      locationId: cleanEnv(process.env.GHL_LOCATION_ID) || null,
+      token: cleanEnv(process.env.GHL_LOCATION_TOKEN) || null,
+    };
   }
-  authCache = { at: Date.now(), locationId, token };
-  return { locationId, token };
+  return { locationId: null, token: null };
 }
 
-export type GhlConfig = {
-  locationId: string | null;
-  hasToken: boolean;
-  configured: boolean;
-};
-
-export function getGhlConfig(): GhlConfig {
-  const locationId = cleanEnv(process.env.GHL_LOCATION_ID) || null;
-  const hasToken = Boolean(ghlToken());
-  return { locationId, hasToken, configured: Boolean(locationId && hasToken) };
-}
-
-// Versão definitiva (assíncrona) que considera a conexão do banco.
-export async function ghlConfigured(): Promise<boolean> {
-  const { locationId, token } = await resolveGhlAuth();
+export async function ghlConfigured(organizationId: string): Promise<boolean> {
+  const { locationId, token } = await resolveGhlAuth(organizationId);
   return Boolean(locationId && token);
+}
+
+// Salva/atualiza a conexão da organização (token cifrado em repouso).
+export async function saveGhlConnection(
+  organizationId: string,
+  locationId: string,
+  token: string,
+) {
+  await prisma.ghlConnection.deleteMany({ where: { organizationId } });
+  await prisma.ghlConnection.create({
+    data: {
+      organizationId,
+      locationId,
+      accessToken: encryptSecret(token),
+      refreshToken: "pit-no-refresh",
+      expiresAt: new Date("2099-01-01T00:00:00Z"),
+      scopes: "private-integration",
+    },
+  });
+}
+
+export async function deleteGhlConnection(organizationId: string) {
+  await prisma.ghlConnection.deleteMany({ where: { organizationId } });
 }
 
 export type GhlLocation = {
@@ -76,19 +74,15 @@ export type GhlConnectionStatus =
   | { state: "connected"; locationId: string; location: GhlLocation }
   | { state: "error"; locationId: string | null; message: string };
 
-// Verifica a conexão pingando a location no GHL. Faz fallback gracioso
-// (timeout/erro) para não travar a página — a checagem é informativa.
 export async function checkGhlConnection(
+  organizationId: string,
   timeoutMs = 6000,
 ): Promise<GhlConnectionStatus> {
-  const { locationId, token } = await resolveGhlAuth();
-  if (!locationId || !token) {
-    return { state: "disconnected", locationId };
-  }
+  const { locationId, token } = await resolveGhlAuth(organizationId);
+  if (!locationId || !token) return { state: "disconnected", locationId };
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
-
   try {
     const res = await fetch(`${GHL_API_BASE}/locations/${locationId}`, {
       headers: {
@@ -99,7 +93,6 @@ export async function checkGhlConnection(
       signal: controller.signal,
       cache: "no-store",
     });
-
     if (!res.ok) {
       return {
         state: "error",
@@ -107,7 +100,6 @@ export async function checkGhlConnection(
         message: `O GHL respondeu ${res.status}. Verifique o token e os escopos da integração.`,
       };
     }
-
     const data = (await res.json().catch(() => ({}))) as {
       location?: GhlLocation;
     } & GhlLocation;
@@ -137,7 +129,7 @@ export async function checkGhlConnection(
 }
 
 // --------------------------------------------------------------------------
-// Cliente da API do GHL usado pelo worker da fila (Etapa 4).
+// Cliente da API do GHL (escopado por organização via GhlAuth).
 // --------------------------------------------------------------------------
 
 export class GhlError extends Error {
@@ -149,28 +141,22 @@ export class GhlError extends Error {
   }
 }
 
-function ghlHeaders(token: string) {
-  return {
-    Authorization: `Bearer ${token}`,
-    Version: GHL_API_VERSION,
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  };
-}
-
 async function ghlRequest<T = unknown>(
+  token: string,
   path: string,
   init: RequestInit & { method: string },
 ): Promise<T> {
-  const { token } = await resolveGhlAuth();
-  if (!token) throw new GhlError("GHL token não configurado");
-
   const res = await fetch(`${GHL_API_BASE}${path}`, {
     ...init,
-    headers: { ...ghlHeaders(token), ...(init.headers ?? {}) },
+    headers: {
+      Authorization: `Bearer ${token}`,
+      Version: GHL_API_VERSION,
+      Accept: "application/json",
+      "Content-Type": "application/json",
+      ...(init.headers ?? {}),
+    },
     cache: "no-store",
   });
-
   if (!res.ok) {
     const body = await res.text().catch(() => "");
     throw new GhlError(
@@ -181,18 +167,31 @@ async function ghlRequest<T = unknown>(
   return (await res.json().catch(() => ({}))) as T;
 }
 
-// Aplica tags no contato. A tag-gatilho (ex.: qrcode-enviado-{slug}) é o que
-// dispara o workflow de e-mail no GHL.
-export async function ghlAddTags(contactId: string, tags: string[]) {
-  await ghlRequest(`/contacts/${contactId}/tags`, {
+async function authOrThrow(organizationId: string): Promise<{ locationId: string; token: string }> {
+  const { locationId, token } = await resolveGhlAuth(organizationId);
+  if (!locationId || !token) throw new GhlError("GHL não conectado para esta organização");
+  return { locationId, token };
+}
+
+export async function ghlAddTags(
+  organizationId: string,
+  contactId: string,
+  tags: string[],
+) {
+  const { token } = await authOrThrow(organizationId);
+  await ghlRequest(token, `/contacts/${contactId}/tags`, {
     method: "POST",
     body: JSON.stringify({ tags }),
   });
 }
 
-// Adiciona uma nota ao contato (ex.: confirmação de check-in).
-export async function ghlAddNote(contactId: string, note: string) {
-  await ghlRequest(`/contacts/${contactId}/notes`, {
+export async function ghlAddNote(
+  organizationId: string,
+  contactId: string,
+  note: string,
+) {
+  const { token } = await authOrThrow(organizationId);
+  await ghlRequest(token, `/contacts/${contactId}/notes`, {
     method: "POST",
     body: JSON.stringify({ body: note }),
   });
@@ -230,16 +229,14 @@ function mapContact(c: RawContact): GhlContact {
   };
 }
 
-// Busca contatos da location filtrando por tag (#9). Usa o endpoint de busca
-// avançada do GHL (validado: filters[].field=tags, operator=contains).
 export async function ghlSearchContactsByTag(
+  organizationId: string,
   tag: string,
   pageLimit = 100,
 ): Promise<GhlContact[]> {
-  const { locationId } = await resolveGhlAuth();
-  if (!locationId) throw new GhlError("Location não configurada");
-
+  const { locationId, token } = await authOrThrow(organizationId);
   const data = await ghlRequest<{ contacts?: RawContact[] }>(
+    token,
     `/contacts/search`,
     {
       method: "POST",
@@ -251,25 +248,14 @@ export async function ghlSearchContactsByTag(
       }),
     },
   );
-
   return (data.contacts ?? []).map(mapContact);
 }
 
-// Lista/busca contatos da location (aba Contatos). Suporta busca textual e
-// paginação por startAfter/startAfterId (cursor do GHL).
-export async function ghlListContacts(opts: {
-  query?: string;
-  limit?: number;
-  startAfter?: string;
-  startAfterId?: string;
-}): Promise<{
-  contacts: GhlContact[];
-  startAfter?: string;
-  startAfterId?: string;
-}> {
-  const { locationId } = await resolveGhlAuth();
-  if (!locationId) throw new GhlError("Location não configurada");
-
+export async function ghlListContacts(
+  organizationId: string,
+  opts: { query?: string; limit?: number; startAfter?: string; startAfterId?: string },
+): Promise<{ contacts: GhlContact[]; startAfter?: string; startAfterId?: string }> {
+  const { locationId, token } = await authOrThrow(organizationId);
   const params = new URLSearchParams({
     locationId,
     limit: String(opts.limit ?? 25),
@@ -281,7 +267,7 @@ export async function ghlListContacts(opts: {
   const data = await ghlRequest<{
     contacts?: RawContact[];
     meta?: { startAfter?: number | string; startAfterId?: string };
-  }>(`/contacts/?${params.toString()}`, { method: "GET" });
+  }>(token, `/contacts/?${params.toString()}`, { method: "GET" });
 
   return {
     contacts: (data.contacts ?? []).map(mapContact),
@@ -291,46 +277,41 @@ export async function ghlListContacts(opts: {
   };
 }
 
-// Mapa nome-do-campo → id, cacheado por alguns minutos. Os custom fields D3
-// (event_name, event_date, …) são criados pelo Time na location do GHL.
-let customFieldCache: { at: number; map: Record<string, string> } | null = null;
+// Mapa nome-do-campo → id, cacheado por org.
+const customFieldCache = new Map<string, { at: number; map: Record<string, string> }>();
 const CUSTOM_FIELD_TTL_MS = 5 * 60 * 1000;
 
-async function getCustomFieldIdMap(): Promise<Record<string, string>> {
-  if (customFieldCache && Date.now() - customFieldCache.at < CUSTOM_FIELD_TTL_MS) {
-    return customFieldCache.map;
-  }
-  const { locationId } = await resolveGhlAuth();
-  if (!locationId) throw new GhlError("Location não configurada");
+async function getCustomFieldIdMap(organizationId: string): Promise<Record<string, string>> {
+  const cached = customFieldCache.get(organizationId);
+  if (cached && Date.now() - cached.at < CUSTOM_FIELD_TTL_MS) return cached.map;
 
+  const { locationId, token } = await authOrThrow(organizationId);
   const data = await ghlRequest<{
     customFields?: Array<{ id: string; name?: string; fieldKey?: string }>;
-  }>(`/locations/${locationId}/customFields`, { method: "GET" });
+  }>(token, `/locations/${locationId}/customFields`, { method: "GET" });
 
   const map: Record<string, string> = {};
   for (const field of data.customFields ?? []) {
     if (!field.id) continue;
-    // fieldKey costuma ser "contact.event_name" → indexa por "event_name".
     if (field.fieldKey) {
-      const key = field.fieldKey.split(".").pop();
-      if (key) map[key.toLowerCase()] = field.id;
+      const k = field.fieldKey.split(".").pop();
+      if (k) map[k.toLowerCase()] = field.id;
     }
     if (field.name) {
       map[field.name.trim().toLowerCase().replace(/\s+/g, "_")] = field.id;
     }
   }
-  customFieldCache = { at: Date.now(), map };
+  customFieldCache.set(organizationId, { at: Date.now(), map });
   return map;
 }
 
-// Atualiza custom fields do contato resolvendo nomes → ids. Falha (com erro
-// claro) se nenhum campo existir ainda na location — sinal para o Time criar
-// os custom fields D3.
 export async function ghlUpdateContactFields(
+  organizationId: string,
   contactId: string,
   fields: Record<string, unknown>,
 ) {
-  const map = await getCustomFieldIdMap();
+  const { token } = await authOrThrow(organizationId);
+  const map = await getCustomFieldIdMap(organizationId);
   const customFields: Array<{ id: string; field_value: unknown }> = [];
   const missing: string[] = [];
 
@@ -346,7 +327,7 @@ export async function ghlUpdateContactFields(
     );
   }
 
-  await ghlRequest(`/contacts/${contactId}`, {
+  await ghlRequest(token, `/contacts/${contactId}`, {
     method: "PUT",
     body: JSON.stringify({ customFields }),
   });

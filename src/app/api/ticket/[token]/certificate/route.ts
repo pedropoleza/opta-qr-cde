@@ -54,7 +54,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
+      "Cache-Control": "private, max-age=0, must-revalidate",
       "Content-Disposition": `inline; filename="certificado-${token.slice(0, 8)}.pdf"`,
     },
   });

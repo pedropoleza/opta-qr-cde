@@ -44,12 +44,6 @@ export async function GET(
 
   const { config } = await getEventTicketConfig(ticket.eventId);
 
-  // Logo base do Spark quando o tenant não definiu um logo próprio.
-  if (!config.logoUrl) {
-    const base = process.env.APP_BASE_URL ?? "https://spark-qrcode-checker.vercel.app";
-    config.logoUrl = `${base}/spark-logo.png`;
-  }
-
   const pdf = await renderTicketPdf(
     {
       event: {
@@ -74,7 +68,8 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
+      // Sem cache de CDN: mudanças de design refletem na hora.
+      "Cache-Control": "private, max-age=0, must-revalidate",
       "Content-Disposition": `inline; filename="ingresso-${token.slice(0, 8)}.pdf"`,
     },
   });

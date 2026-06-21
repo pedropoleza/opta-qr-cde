@@ -91,6 +91,8 @@ export default async function GuestQrPage({
   // White-label por tenant (Fase 5): marca, logo e cor primária da organização.
   const org = ticket.event.organization;
   const brand = org?.brandName?.trim() || "Spark Check-in";
+  // Logo do design (herda a da organização por padrão).
+  const logoUrl = config.logoUrl || org?.logoUrl || null;
   const vip = isVipGuest(ticket.guest);
   const headerColor = org?.primaryColor?.trim() || null;
   // VIP (#8): arte especial — fundo escuro + halftone dourado.
@@ -129,11 +131,11 @@ export default async function GuestQrPage({
               ★ VIP
             </span>
           )}
-          {org?.logoUrl ? (
+          {logoUrl ? (
             <>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src={org.logoUrl}
+                src={logoUrl}
                 alt={brand}
                 className="mx-auto mb-2 h-8 w-auto object-contain"
               />

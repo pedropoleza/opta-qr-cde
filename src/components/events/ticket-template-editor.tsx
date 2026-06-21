@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { FileCog, Loader2 } from "lucide-react";
+import { FileCog, ImageIcon, Loader2, Upload } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -47,7 +47,55 @@ export function TicketTemplateEditor({
   const [previewing, setPreviewing] = useState(false);
   const [previewKind, setPreviewKind] = useState<"ticket" | "badge">("ticket");
   const [previewVip, setPreviewVip] = useState(false);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
   const urlRef = useRef<string | null>(null);
+  const logoInputRef = useRef<HTMLInputElement>(null);
+
+  // Lê o arquivo de imagem, redimensiona (máx. 480px) e guarda como data URL —
+  // sem depender de armazenamento externo. Fica embutido no modelo.
+  function onLogoFile(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 4 * 1024 * 1024) {
+      toast.error("Imagem muito grande (máx. 4 MB).");
+      return;
+    }
+    setUploadingLogo(true);
+    const reader = new FileReader();
+    reader.onload = () => {
+      const img = new Image();
+      img.onload = () => {
+        const max = 480;
+        const scale = Math.min(1, max / Math.max(img.width, img.height));
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+        const canvas = document.createElement("canvas");
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          setUploadingLogo(false);
+          return;
+        }
+        ctx.drawImage(img, 0, 0, w, h);
+        // PNG preserva transparência (logos costumam ter fundo transparente).
+        set("logoUrl", canvas.toDataURL("image/png"));
+        setUploadingLogo(false);
+        toast.success("Logo carregada");
+      };
+      img.onerror = () => {
+        setUploadingLogo(false);
+        toast.error("Não foi possível ler a imagem.");
+      };
+      img.src = String(reader.result);
+    };
+    reader.onerror = () => {
+      setUploadingLogo(false);
+      toast.error("Falha ao ler o arquivo.");
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  }
 
   // Carrega o modelo atual ao abrir.
   useEffect(() => {
@@ -244,10 +292,57 @@ export function TicketTemplateEditor({
                 </div>
 
                 <div className="space-y-1.5">
-                  <Label>Logo (URL)</Label>
+                  <Label>Logo</Label>
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-14 shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+                      {config.logoUrl ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={config.logoUrl}
+                          alt="logo"
+                          className="size-full object-contain"
+                        />
+                      ) : (
+                        <ImageIcon className="size-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="flex flex-1 flex-wrap gap-2">
+                      <input
+                        ref={logoInputRef}
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp"
+                        className="hidden"
+                        onChange={onLogoFile}
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        disabled={uploadingLogo}
+                        onClick={() => logoInputRef.current?.click()}
+                      >
+                        {uploadingLogo ? (
+                          <Loader2 className="size-4 animate-spin" />
+                        ) : (
+                          <Upload className="size-4" />
+                        )}
+                        Enviar arquivo
+                      </Button>
+                      {config.logoUrl && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => set("logoUrl", null)}
+                        >
+                          Remover
+                        </Button>
+                      )}
+                    </div>
+                  </div>
                   <Input
-                    placeholder="https://…/logo.png (opcional)"
-                    value={config.logoUrl ?? ""}
+                    placeholder="ou cole uma URL: https://…/logo.png"
+                    value={config.logoUrl?.startsWith("data:") ? "" : config.logoUrl ?? ""}
                     onChange={(e) => set("logoUrl", e.target.value || null)}
                   />
                 </div>

@@ -45,6 +45,8 @@ export function TicketTemplateEditor({
   const [scope, setScope] = useState<"org" | "event">("org");
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [previewKind, setPreviewKind] = useState<"ticket" | "badge">("ticket");
+  const [previewVip, setPreviewVip] = useState(false);
   const urlRef = useRef<string | null>(null);
 
   // Carrega o modelo atual ao abrir.
@@ -70,7 +72,7 @@ export function TicketTemplateEditor({
         const res = await fetch("/api/ticket/preview", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ config }),
+          body: JSON.stringify({ config, kind: previewKind, vip: previewVip }),
         });
         const blob = await res.blob();
         if (urlRef.current) URL.revokeObjectURL(urlRef.current);
@@ -84,7 +86,7 @@ export function TicketTemplateEditor({
       }
     }, 500);
     return () => clearTimeout(t);
-  }, [config, open]);
+  }, [config, open, previewKind, previewVip]);
 
   useEffect(() => {
     return () => {
@@ -121,15 +123,15 @@ export function TicketTemplateEditor({
     <Drawer open={open} onOpenChange={setOpen}>
       <DrawerTrigger asChild>
         <Button variant="outline">
-          <FileCog className="size-4" /> Modelo do ingresso
+          <FileCog className="size-4" /> Editar design
         </Button>
       </DrawerTrigger>
       <DrawerContent className="sm:max-w-3xl">
         <DrawerHeader>
-          <DrawerTitle>Modelo do ingresso (PDF)</DrawerTitle>
+          <DrawerTitle>Design do ingresso e crachá</DrawerTitle>
           <DrawerDescription>
-            Personalize o design. A prévia usa dados de exemplo do evento e do
-            convidado.
+            Edite quando quiser — vale para o ingresso (PDF/QR) e o crachá. A
+            prévia usa dados de exemplo.
           </DrawerDescription>
         </DrawerHeader>
 
@@ -300,8 +302,35 @@ export function TicketTemplateEditor({
               </div>
 
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Prévia</Label>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="inline-flex rounded-lg border bg-muted/40 p-1 text-sm">
+                    {([
+                      ["ticket", "Ingresso"],
+                      ["badge", "Crachá"],
+                    ] as const).map(([k, label]) => (
+                      <button
+                        key={k}
+                        type="button"
+                        onClick={() => setPreviewKind(k)}
+                        className={`rounded-md px-3 py-1 font-medium transition-colors ${
+                          previewKind === k
+                            ? "bg-background text-foreground shadow-sm"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="flex cursor-pointer items-center gap-1.5 text-xs text-muted-foreground">
+                    <input
+                      type="checkbox"
+                      className="size-3.5 accent-primary"
+                      checked={previewVip}
+                      onChange={(e) => setPreviewVip(e.target.checked)}
+                    />
+                    Ver versão VIP
+                  </label>
                   {previewing && (
                     <span className="flex items-center gap-1 text-xs text-muted-foreground">
                       <Loader2 className="size-3 animate-spin" /> atualizando

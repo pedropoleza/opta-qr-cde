@@ -21,7 +21,10 @@ export async function getEventTicketConfig(
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { organizationId: true },
+    select: {
+      organizationId: true,
+      organization: { select: { primaryColor: true, logoUrl: true } },
+    },
   });
   if (event) {
     const orgDefault = await prisma.ticketTemplate.findFirst({
@@ -35,7 +38,16 @@ export async function getEventTicketConfig(
     }
   }
 
-  return { config: resolveTicketConfig(null), scope: "default" };
+  // Sem modelo salvo: a base herda a marca da organização (cor/logo), para que
+  // o ingresso e o crachá já saiam com a identidade do tenant.
+  const brand = event?.organization;
+  return {
+    config: resolveTicketConfig({
+      brandColor: brand?.primaryColor || undefined,
+      logoUrl: brand?.logoUrl || undefined,
+    }),
+    scope: "default",
+  };
 }
 
 // Salva o modelo como padrão da organização (scope=org) ou override do evento.

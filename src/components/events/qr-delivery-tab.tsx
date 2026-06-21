@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Eye, Loader2, Send } from "lucide-react";
+import { Copy, Eye, Loader2, Palette, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -175,9 +175,22 @@ export function QrDeliveryTab({
 
   return (
     <div className="space-y-5 pt-4">
-      <div className="flex justify-end">
-        <TicketTemplateEditor eventId={event.id} />
-      </div>
+      <Card>
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+          <div className="flex items-center gap-3">
+            <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <Palette className="size-5" />
+            </span>
+            <div>
+              <p className="font-medium">Design do ingresso e crachá</p>
+              <p className="text-sm text-muted-foreground">
+                Cores, logo, efeitos e presets — pode mudar quando quiser.
+              </p>
+            </div>
+          </div>
+          <TicketTemplateEditor eventId={event.id} />
+        </CardContent>
+      </Card>
 
       {/* Passo a passo do disparo */}
       <Card>

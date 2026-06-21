@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { ticketValidationUrl, sparkLogoUrl, isVipGuest } from "@/lib/ticket";
+import { getEventTicketConfig } from "@/lib/ticket-config";
 import { renderBadgePdf } from "@/lib/badge-pdf";
 
 export const runtime = "nodejs";
@@ -20,13 +21,12 @@ export async function GET(
     select: {
       token: true,
       signature: true,
+      eventId: true,
       event: {
         select: {
           name: true,
           date: true,
-          organization: {
-            select: { brandName: true, logoUrl: true, primaryColor: true },
-          },
+          organization: { select: { brandName: true } },
         },
       },
       guest: {
@@ -49,6 +49,7 @@ export async function GET(
   );
 
   const org = ticket.event.organization;
+  const { config } = await getEventTicketConfig(ticket.eventId);
   const pdf = await renderBadgePdf({
     guestName: ticket.guest.name,
     eventName: ticket.event.name,
@@ -57,9 +58,10 @@ export async function GET(
     vip: isVipGuest(ticket.guest),
     sessionName: session?.name ?? null,
     qrDataUrl,
-    brandColor: org?.primaryColor ?? null,
+    brandColor: config.brandColor,
     brandName: org?.brandName ?? null,
-    logoUrl: org?.logoUrl ?? null,
+    logoUrl: config.logoUrl,
+    effect: config.headerEffect,
     sparkLogoUrl: sparkLogoUrl(),
   });
 

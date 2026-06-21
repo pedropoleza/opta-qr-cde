@@ -124,7 +124,7 @@ function BadgeDoc({ data }: { data: BadgeData }) {
   const vip = Boolean(data.vip);
   const s = styles(brand, vip);
   const effect = vip ? "halftone" : data.effect ?? "none";
-  const effectColor = vip ? GOLD : "#ffffff";
+  const effectColor = vip ? GOLD : readableOn(brand);
   return (
     <Document title={`Crachá — ${data.guestName}`}>
       <Page size="A6" style={s.page}>

@@ -74,7 +74,7 @@ export async function GET(
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       "Content-Type": "application/pdf",
-      "Cache-Control": "private, max-age=300",
+      "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=86400",
       "Content-Disposition": `inline; filename="ingresso-${token.slice(0, 8)}.pdf"`,
     },
   });

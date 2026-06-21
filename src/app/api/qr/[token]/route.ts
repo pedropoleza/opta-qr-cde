@@ -26,7 +26,8 @@ export async function GET(
   return new NextResponse(new Uint8Array(png), {
     headers: {
       "Content-Type": "image/png",
-      "Cache-Control": "private, max-age=300",
+      // O conteúdo do QR é imutável por token → cacheável no CDN.
+      "Cache-Control": "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
       "Content-Disposition": `inline; filename="qr-${token.slice(0, 8)}.png"`,
     },
   });

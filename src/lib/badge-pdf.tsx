@@ -8,6 +8,7 @@ import {
   renderToBuffer,
 } from "@react-pdf/renderer";
 import { HeaderDecoration, type HeaderEffect } from "@/lib/pdf-effects";
+import { readableOn } from "@/lib/color";
 
 // Crachá/etiqueta de credenciamento on-site (#4). A6 retrato, com a marca do
 // tenant (cor/logo). Inclui um QR pequeno para sub-estações de scan.
@@ -32,6 +33,8 @@ const GOLD = "#C9A227";
 function styles(brand: string, vip: boolean) {
   const bandBg = vip ? "#15171C" : brand;
   const accent = vip ? GOLD : brand;
+  const bandText = vip ? GOLD : readableOn(brand);
+  const bandMuted = vip ? "#ffffff" : readableOn(brand);
   return StyleSheet.create({
     page: {
       fontFamily: "Helvetica",
@@ -51,8 +54,8 @@ function styles(brand: string, vip: boolean) {
       borderBottomWidth: vip ? 2 : 0,
       borderBottomColor: GOLD,
     },
-    brandText: { fontFamily: "Helvetica-Bold", fontSize: 11, color: vip ? GOLD : "#fff" },
-    eventText: { fontSize: 9, color: "#ffffff", opacity: 0.9, maxWidth: 170, textAlign: "right" },
+    brandText: { fontFamily: "Helvetica-Bold", fontSize: 11, color: bandText },
+    eventText: { fontSize: 9, color: bandMuted, opacity: 0.9, maxWidth: 170, textAlign: "right" },
     logo: { height: 18, objectFit: "contain" },
     body: {
       flexGrow: 1,

@@ -3,6 +3,7 @@ import QRCode from "qrcode";
 import { prisma } from "@/lib/prisma";
 import { ticketValidationUrl, isVipGuest } from "@/lib/ticket";
 import { getEventTicketConfig } from "@/lib/ticket-config";
+import { isLightColor } from "@/lib/color";
 import { Button } from "@/components/ui/button";
 import { RsvpButtons } from "@/components/ticket/rsvp-buttons";
 
@@ -105,6 +106,11 @@ export default async function GuestQrPage({
         ...headerEffectStyle(config.headerEffect),
       };
   const headerClass = vip || headerColor ? "" : "bg-neutral-900";
+  // Contraste automático (F4): texto escuro quando a cor da marca é clara.
+  const darkText = !vip && !!headerColor && isLightColor(headerColor);
+  const mainText = darkText ? "text-neutral-900" : "text-white";
+  const mutedText = darkText ? "text-neutral-700" : "text-neutral-300";
+  const faintText = darkText ? "text-neutral-600" : "text-neutral-400";
   // Textura do corpo (F2), exceto no VIP (que tem arte própria).
   const bodyBgStyle = vip
     ? undefined
@@ -115,7 +121,7 @@ export default async function GuestQrPage({
       <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* Cabeçalho do ingresso */}
         <div
-          className={`px-6 py-5 text-center text-white ${headerClass}`}
+          className={`px-6 py-5 text-center ${mainText} ${headerClass}`}
           style={headerStyle}
         >
           {vip && (
@@ -133,20 +139,20 @@ export default async function GuestQrPage({
               />
             </>
           ) : (
-            <p className={`text-xs uppercase tracking-[0.2em] ${vip ? "text-[#C9A227]" : "text-white/70"}`}>
+            <p className={`text-xs uppercase tracking-[0.2em] ${vip ? "text-[#C9A227]" : darkText ? "text-neutral-700" : "text-white/70"}`}>
               {brand} · Ingresso
             </p>
           )}
           <h1 className="mt-1 text-xl font-bold">{ticket.event.name}</h1>
-          <p className="mt-1 text-sm text-neutral-300">
+          <p className={`mt-1 text-sm ${mutedText}`}>
             {dateLabel}
             {timeLabel ? ` · ${timeLabel}` : ""}
           </p>
           {ticket.event.locationName && (
-            <p className="text-sm text-neutral-300">{ticket.event.locationName}</p>
+            <p className={`text-sm ${mutedText}`}>{ticket.event.locationName}</p>
           )}
           {ticket.event.address && (
-            <p className="text-xs text-neutral-400">{ticket.event.address}</p>
+            <p className={`text-xs ${faintText}`}>{ticket.event.address}</p>
           )}
         </div>
 

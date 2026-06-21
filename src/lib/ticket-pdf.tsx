@@ -13,6 +13,7 @@ import {
   mergeFields,
 } from "@/lib/ticket-template";
 import { HeaderDecoration, PageBackground } from "@/lib/pdf-effects";
+import { readableOn } from "@/lib/color";
 
 const GOLD = "#C9A227";
 
@@ -51,6 +52,9 @@ function buildStyles(config: TicketConfig, vip: boolean) {
   const brand = vip ? GOLD : config.brandColor || "#2563EB";
   const modern = vip || config.preset !== "classic";
   const headerBg = vip ? "#15171C" : modern ? brand : "#ffffff";
+  // Contraste automático: texto legível sobre o cabeçalho colorido.
+  const headerText = vip ? GOLD : modern ? readableOn(brand) : "#101828";
+  const headerMuted = vip ? "#CBD5E1" : modern ? readableOn(brand, "#475467", "#eaf0ff") : "#667085";
   return StyleSheet.create({
     page: {
       fontFamily: "Helvetica",
@@ -84,12 +88,12 @@ function buildStyles(config: TicketConfig, vip: boolean) {
       fontFamily: "Helvetica-Bold",
       fontSize: 20,
       lineHeight: 1.2,
-      color: vip ? GOLD : modern ? "#ffffff" : "#101828",
+      color: headerText,
     },
     subtitle: {
       fontSize: 11,
       marginTop: 6,
-      color: vip ? "#CBD5E1" : modern ? "#eaf0ff" : "#667085",
+      color: headerMuted,
     },
     body: {
       paddingHorizontal: 28,

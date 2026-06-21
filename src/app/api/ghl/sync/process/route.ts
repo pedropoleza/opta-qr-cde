@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processSyncJobs } from "@/lib/ghl-worker";
+import { processReminders } from "@/lib/reminders";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -29,11 +30,13 @@ async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
+  // Lembretes antes da fila: pode enfileirar novos jobs para esta rodada.
+  const reminders = await processReminders().catch(() => ({ rulesFired: 0, queued: 0 }));
   const [result, pruned] = await Promise.all([
     processSyncJobs(),
     pruneRateLimits(),
   ]);
-  return NextResponse.json({ ...result, rateLimitsPruned: pruned });
+  return NextResponse.json({ ...result, reminders, rateLimitsPruned: pruned });
 }
 
 export async function GET(req: NextRequest) {

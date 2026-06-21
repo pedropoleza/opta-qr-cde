@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Loader2, MessageSquare } from "lucide-react";
+import { Bell, Loader2, MessageSquare, Trash2 } from "lucide-react";
 import { toast } from "sonner";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -127,6 +128,151 @@ function TemplateCard({
   );
 }
 
+const OFFSET_OPTIONS = [
+  { value: -168, label: "7 dias antes" },
+  { value: -72, label: "3 dias antes" },
+  { value: -24, label: "1 dia antes" },
+  { value: -3, label: "3 horas antes" },
+  { value: -2, label: "2 horas antes" },
+  { value: -1, label: "1 hora antes" },
+];
+const AUDIENCE_LABEL: Record<string, string> = {
+  paid: "Pagos",
+  confirmed: "Confirmados",
+  all: "Todos",
+};
+const CHANNEL_LABEL: Record<string, string> = {
+  whatsapp: "WhatsApp",
+  email: "E-mail",
+  ghl: "GHL (tag)",
+};
+type Rule = {
+  id: string;
+  offsetHours: number;
+  channel: string;
+  audience: string;
+  active: boolean;
+  lastRunAt: string | null;
+};
+
+function offsetLabel(h: number): string {
+  const o = OFFSET_OPTIONS.find((x) => x.value === h);
+  if (o) return o.label;
+  return h < 0 ? `${Math.abs(h)}h antes` : `${h}h depois`;
+}
+
+function RemindersCard({ eventId }: { eventId: string }) {
+  const [rules, setRules] = useState<Rule[]>([]);
+  const [draft, setDraft] = useState({ offsetHours: -24, channel: "whatsapp", audience: "paid" });
+  const [adding, setAdding] = useState(false);
+
+  async function load() {
+    const r = await fetch(`/api/events/${eventId}/reminders`);
+    if (r.ok) setRules((await r.json()).rules ?? []);
+  }
+  useEffect(() => {
+    load();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eventId]);
+
+  async function add() {
+    setAdding(true);
+    const r = await fetch(`/api/events/${eventId}/reminders`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(draft),
+    });
+    setAdding(false);
+    if (!r.ok) {
+      toast.error("Erro ao adicionar");
+      return;
+    }
+    toast.success("Lembrete agendado");
+    load();
+  }
+  async function remove(id: string) {
+    await fetch(`/api/events/${eventId}/reminders/${id}`, { method: "DELETE" });
+    load();
+  }
+
+  return (
+    <Card>
+      <CardContent className="space-y-4 p-5">
+        <div className="flex items-center gap-2">
+          <Bell className="size-4 text-muted-foreground" />
+          <p className="font-medium">Lembretes agendados</p>
+        </div>
+        <p className="text-xs text-muted-foreground">
+          Usa a mensagem de <strong>Lembrete</strong> acima. Disparado pelo
+          sistema no horário relativo ao início do evento.
+        </p>
+
+        {rules.length > 0 && (
+          <ul className="divide-y">
+            {rules.map((r) => (
+              <li key={r.id} className="flex items-center justify-between gap-3 py-2.5 text-sm">
+                <span className="flex flex-wrap items-center gap-2">
+                  <span className="font-medium">{offsetLabel(r.offsetHours)}</span>
+                  <Badge variant="outline">{CHANNEL_LABEL[r.channel] ?? r.channel}</Badge>
+                  <Badge variant="secondary">{AUDIENCE_LABEL[r.audience] ?? r.audience}</Badge>
+                  {r.lastRunAt && (
+                    <span className="text-xs text-success">enviado</span>
+                  )}
+                </span>
+                <Button size="icon-sm" variant="ghost" aria-label="Remover" onClick={() => remove(r.id)}>
+                  <Trash2 className="text-destructive" />
+                </Button>
+              </li>
+            ))}
+          </ul>
+        )}
+
+        <div className="flex flex-wrap items-end gap-2 border-t pt-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Quando</Label>
+            <Select
+              value={String(draft.offsetHours)}
+              onValueChange={(v) => setDraft((d) => ({ ...d, offsetHours: Number(v) }))}
+            >
+              <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {OFFSET_OPTIONS.map((o) => (
+                  <SelectItem key={o.value} value={String(o.value)}>{o.label}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Canal</Label>
+            <Select value={draft.channel} onValueChange={(v) => setDraft((d) => ({ ...d, channel: v }))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                <SelectItem value="email">E-mail</SelectItem>
+                <SelectItem value="ghl">GHL (tag)</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label className="text-xs">Público</Label>
+            <Select value={draft.audience} onValueChange={(v) => setDraft((d) => ({ ...d, audience: v }))}>
+              <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="paid">Pagos</SelectItem>
+                <SelectItem value="confirmed">Confirmados</SelectItem>
+                <SelectItem value="all">Todos</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+          <Button size="sm" onClick={add} disabled={adding}>
+            {adding && <Loader2 className="size-4 animate-spin" />} Agendar
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function MessagesTab({ eventId }: { eventId: string }) {
   const [templates, setTemplates] = useState<Tpl[] | null>(null);
   const [reg, setReg] = useState<{ on: boolean; channel: string } | null>(null);
@@ -201,6 +347,8 @@ export function MessagesTab({ eventId }: { eventId: string }) {
       <TemplateCard eventId={eventId} kind="registration" initial={byKind("registration")} />
       <TemplateCard eventId={eventId} kind="qr_delivery" initial={byKind("qr_delivery")} />
       <TemplateCard eventId={eventId} kind="reminder" initial={byKind("reminder")} />
+
+      <RemindersCard eventId={eventId} />
     </div>
   );
 }

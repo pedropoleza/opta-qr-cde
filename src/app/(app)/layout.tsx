@@ -3,15 +3,22 @@ import { MainNav } from "@/components/layout/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/auth/sign-out-button";
 import { supabaseConfigured } from "@/lib/supabase/config";
+import { getCurrentOrg } from "@/lib/api";
 
-// App embutido como iframe no CRM — sem tela de login. Navegação por abas
-// superiores (sem sidebar). O CRM autentica o usuário; aqui é só o painel do
-// organizador, white-label "Spark".
-export default function AppLayout({
+// Navegação por abas superiores (sem sidebar). White-label "Spark" + nome da
+// organização do tenant.
+export default async function AppLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  let orgName = "";
+  try {
+    orgName = (await getCurrentOrg()).name;
+  } catch {
+    /* sem sessão (não deveria ocorrer em rota protegida) */
+  }
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
@@ -21,6 +28,11 @@ export default function AppLayout({
               <Sparkles className="size-4" />
             </span>
             <span className="hidden sm:inline">Spark</span>
+            {orgName && (
+              <span className="hidden truncate text-sm font-normal text-muted-foreground md:inline">
+                · {orgName}
+              </span>
+            )}
           </div>
           <div className="min-w-0 flex-1 overflow-x-auto">
             <MainNav />

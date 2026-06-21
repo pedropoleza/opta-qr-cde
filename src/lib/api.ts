@@ -39,10 +39,38 @@ export async function getCurrentOrg() {
   });
   if (membership) return membership.organization;
 
+  const email = user.email ?? null;
+
+  // 1) Convite pendente para este e-mail → entra na organização do convite.
+  if (email) {
+    const invite = await prisma.invite.findFirst({
+      where: { email: { equals: email, mode: "insensitive" } },
+    });
+    if (invite) {
+      const org = await prisma.organization.findUnique({
+        where: { id: invite.organizationId },
+      });
+      if (org) {
+        await prisma.$transaction([
+          prisma.membership.create({
+            data: {
+              userId: user.id,
+              organizationId: org.id,
+              email,
+              role: invite.role,
+            },
+          }),
+          prisma.invite.delete({ where: { id: invite.id } }),
+        ]);
+        return org;
+      }
+    }
+  }
+
+  // 2) Primeiro usuário do sistema herda a organização existente (preserva Opta).
   const totalMemberships = await prisma.membership.count();
   let org;
   if (totalMemberships === 0) {
-    // Primeiro usuário assume a organização existente (preserva dados da Opta).
     org =
       (await prisma.organization.findFirst({ orderBy: { createdAt: "asc" } })) ??
       (await prisma.organization.create({
@@ -54,9 +82,34 @@ export async function getCurrentOrg() {
     });
   }
   await prisma.membership.create({
-    data: { userId: user.id, organizationId: org.id, role: "owner" },
+    data: { userId: user.id, organizationId: org.id, email, role: "owner" },
   });
   return org;
+}
+
+// Membership da sessão (organização + papel). Em modo single-tenant (sem
+// Supabase) devolve a org padrão com papel "owner".
+export async function getCurrentMembership() {
+  if (!supabaseConfigured()) {
+    const org = await getCurrentOrg();
+    return { organization: org, role: "owner" as const, userId: null, email: null };
+  }
+  const supabase = await createSupabaseServer();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) throw new Error("UNAUTHENTICATED");
+  // Garante provisão/convite resolvido.
+  const org = await getCurrentOrg();
+  const membership = await prisma.membership.findUnique({
+    where: { userId: user.id },
+  });
+  return {
+    organization: org,
+    role: (membership?.role ?? "owner") as "owner" | "manager" | "member",
+    userId: user.id,
+    email: user.email ?? null,
+  };
 }
 
 export async function getCurrentOrgId(): Promise<string> {

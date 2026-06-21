@@ -26,6 +26,7 @@ model Organization {
   ghlConnections  GhlConnection[]
   ticketTemplates TicketTemplate[]
   memberships     Membership[]
+  invites         Invite[]
 
   @@map("checkin_organizations")
 }
@@ -35,6 +36,7 @@ model Membership {
   id             String   @id @default(uuid()) @db.Uuid
   userId         String   @unique @map("user_id") @db.Uuid
   organizationId String   @map("organization_id") @db.Uuid
+  email          String?
   role           String   @default("owner") // owner|manager|member
   createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
@@ -42,6 +44,20 @@ model Membership {
 
   @@index([organizationId])
   @@map("checkin_memberships")
+}
+
+// Convite de equipe (por e-mail) para uma organização.
+model Invite {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  email          String
+  role           String   @default("member")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@unique([organizationId, email])
+  @@map("checkin_invites")
 }
 
 model User {

@@ -105,6 +105,7 @@ export default async function EventDetailPage({
         rsvp: g.rsvp,
         groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
         sessionId: g.sessionId,
+        waitlisted: g.waitlisted,
         source: g.source,
         status: g.status,
         ticketToken: g.ticket?.token ?? null,

@@ -505,9 +505,13 @@ export function GuestsTab({
                   {guest.source === "ghl" ? "Spark" : guest.source.toUpperCase()}
                 </TableCell>
                 <TableCell>
-                  <Badge variant={GUEST_STATUS_VARIANT[guest.status] ?? "secondary"}>
-                    {GUEST_STATUS_LABEL[guest.status] ?? guest.status}
-                  </Badge>
+                  {guest.waitlisted ? (
+                    <Badge variant="secondary">Lista de espera</Badge>
+                  ) : (
+                    <Badge variant={GUEST_STATUS_VARIANT[guest.status] ?? "secondary"}>
+                      {GUEST_STATUS_LABEL[guest.status] ?? guest.status}
+                    </Badge>
+                  )}
                 </TableCell>
                 <TableCell
                   onClick={(e) => e.stopPropagation()}

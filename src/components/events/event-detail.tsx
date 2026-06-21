@@ -69,6 +69,7 @@ export type GuestRow = {
   rsvp: string | null;
   groupSize: number;
   sessionId: string | null;
+  waitlisted: boolean;
   source: string;
   status: string;
   ticketToken: string | null;
@@ -171,6 +172,41 @@ export function EventDetail({
     }
     toast.success("Evento duplicado");
     router.push(`/events/${data.event.id}`);
+  }
+
+  // #1 Capacidade & lista de espera.
+  const confirmed = guests.filter(
+    (g) => g.status !== "canceled" && !g.waitlisted,
+  ).length;
+  const waitlist = guests.filter((g) => g.waitlisted).length;
+  const capacity = event.capacity;
+  const occupancyPct =
+    capacity != null && capacity > 0
+      ? Math.min(100, Math.round((confirmed / capacity) * 100))
+      : null;
+  const [promoting, setPromoting] = useState(false);
+
+  async function promoteWaitlist() {
+    setPromoting(true);
+    const res = await fetch(`/api/events/${event.id}/capacity`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await res.json().catch(() => ({}));
+    setPromoting(false);
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao promover");
+      return;
+    }
+    if (data.promoted > 0) {
+      toast.success(
+        `${data.promoted} convidado(s) promovido(s) da lista de espera`,
+      );
+      router.refresh();
+    } else {
+      toast.info("Sem vagas livres para promover");
+    }
   }
 
   const metrics = [
@@ -280,6 +316,52 @@ export function EventDetail({
           />
         ))}
       </div>
+
+      {(capacity != null || waitlist > 0) && (
+        <div className="rounded-xl border bg-card p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="text-sm font-medium">
+                Lotação{" "}
+                <span className="text-muted-foreground">
+                  {confirmed}
+                  {capacity != null ? ` / ${capacity}` : ""} confirmados
+                </span>
+                {waitlist > 0 && (
+                  <Badge variant="secondary" className="ml-2">
+                    {waitlist} na lista de espera
+                  </Badge>
+                )}
+              </p>
+              {occupancyPct != null && (
+                <div className="mt-2 h-2 w-full max-w-md overflow-hidden rounded-full bg-muted">
+                  <div
+                    className={`h-full rounded-full transition-all ${
+                      occupancyPct >= 100 ? "bg-destructive" : "bg-primary"
+                    }`}
+                    style={{ width: `${occupancyPct}%` }}
+                  />
+                </div>
+              )}
+            </div>
+            {waitlist > 0 && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={promoteWaitlist}
+                disabled={promoting || (capacity != null && confirmed >= capacity)}
+              >
+                {promoting ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Users className="size-4" />
+                )}
+                Promover da espera
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
 
       <Tabs defaultValue="guests">
         <TabsList>

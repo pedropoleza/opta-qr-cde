@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { enqueueAddTag } from "@/lib/ghl-sync";
+import { capacityStatus } from "@/lib/capacity";
 
 export async function GET(
   _req: NextRequest,
@@ -49,6 +50,18 @@ export async function POST(
   const valid = input.filter((g) => g.name && String(g.name).trim());
   if (valid.length === 0) return jsonError(400, "Nenhum convidado válido (nome é obrigatório)");
 
+  // Capacidade & lista de espera (#1): quem passar do teto entra como waitlisted.
+  const cap = await capacityStatus(id);
+  let remaining = cap.available; // null = sem teto
+  const takeSeat = () => {
+    if (remaining == null) return false; // sem teto → sempre confirmado
+    if (remaining > 0) {
+      remaining -= 1;
+      return false; // ainda há vaga → confirmado
+    }
+    return true; // lotado → lista de espera
+  };
+
   const created = await prisma.$transaction(async (tx) => {
     const result = [];
     for (const g of valid) {
@@ -62,6 +75,7 @@ export async function POST(
           ghlContactId: g.ghlContactId || null,
           source,
           status: "pending_qr",
+          waitlisted: takeSeat(),
         },
       });
       // Tag convidado-{evento} ao incluir na lista (seção 3.5).
@@ -88,6 +102,7 @@ export async function POST(
               source,
               status: "pending_qr",
               groupId: guest.id,
+              waitlisted: takeSeat(),
             },
           });
           result.push(comp);

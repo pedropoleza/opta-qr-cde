@@ -59,6 +59,7 @@ export function SettingsTab({
     status: event.status,
     vipNotifyChannel: event.vipNotifyChannel ?? "none",
     vipNotifyTarget: event.vipNotifyTarget ?? "",
+    ghlTag: event.ghlTag ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -201,6 +202,24 @@ export function SettingsTab({
           Identificador nas automações Spark: <code>{event.slug}</code>{" "}
           (convidado-{event.slug}, presente-evento-{event.slug}, faltou-{event.slug})
         </p>
+      </Section>
+
+      <Section
+        title="Público no Spark (tag)"
+        description="Tag exata que identifica os contatos deste evento no Spark. Usada para filtrar e importar contatos por tag."
+      >
+        <div className="space-y-2">
+          <Label htmlFor="s-ghltag">Tag do evento</Label>
+          <Input
+            id="s-ghltag"
+            value={form.ghlTag}
+            onChange={(e) => set("ghlTag", e.target.value)}
+            placeholder={`ex.: convidado-${event.slug}`}
+          />
+          <p className="text-xs text-muted-foreground">
+            Deixe em branco para não usar uma tag fixa.
+          </p>
+        </div>
       </Section>
 
       <Section

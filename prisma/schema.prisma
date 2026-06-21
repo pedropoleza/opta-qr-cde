@@ -93,6 +93,7 @@ model Event {
   address        String?
   capacity       Int?
   status         String   @default("draft") // draft|active|completed|canceled
+  ghlTag         String?  @map("ghl_tag") // tag do Spark que identifica o público do evento
   // #8 Protocolo VIP: ao VIP chegar, notifica o anfitrião por este canal/alvo.
   vipNotifyChannel String? @map("vip_notify_channel") // whatsapp|email
   vipNotifyTarget  String? @map("vip_notify_target") // telefone ou e-mail do anfitrião

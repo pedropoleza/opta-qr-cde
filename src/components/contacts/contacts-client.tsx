@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
-import { CalendarPlus, Loader2, Users } from "lucide-react";
+import { CalendarPlus, Loader2, Tag, Users } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -41,6 +42,7 @@ export function ContactsClient({
   events: { id: string; name: string }[];
 }) {
   const [query, setQuery] = useState("");
+  const [tagFilter, setTagFilter] = useState("");
   const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -49,13 +51,18 @@ export function ContactsClient({
   const [addingId, setAddingId] = useState<string | null>(null);
 
   const load = useCallback(
-    async (q: string, cursor?: { startAfter?: string; startAfterId: string }) => {
+    async (
+      q: string,
+      tag: string,
+      cursor?: { startAfter?: string; startAfterId: string },
+    ) => {
       const isMore = Boolean(cursor);
       if (isMore) setLoadingMore(true);
       else setLoading(true);
       setError(null);
       const params = new URLSearchParams();
-      if (q) params.set("query", q);
+      if (tag) params.set("tag", tag);
+      else if (q) params.set("query", q);
       if (cursor?.startAfter) params.set("startAfter", cursor.startAfter);
       if (cursor?.startAfterId) params.set("startAfterId", cursor.startAfterId);
       try {
@@ -78,11 +85,11 @@ export function ContactsClient({
     [],
   );
 
-  // Busca (debounce) ao digitar.
+  // Busca (debounce) ao digitar nome/tag.
   useEffect(() => {
-    const t = setTimeout(() => load(query.trim()), 400);
+    const t = setTimeout(() => load(query.trim(), tagFilter.trim()), 400);
     return () => clearTimeout(t);
-  }, [query, load]);
+  }, [query, tagFilter, load]);
 
   async function addToEvent(contact: Contact, event: { id: string; name: string }) {
     setAddingId(contact.id);
@@ -127,12 +134,34 @@ export function ContactsClient({
         description="Contatos do Spark. Cadastre em eventos e veja em quais cada um já está."
       />
 
-      <SearchInput
-        placeholder="Buscar contato por nome, e-mail ou telefone"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        className="w-full sm:max-w-md"
-      />
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+        <SearchInput
+          placeholder="Buscar por nome, e-mail ou telefone"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          disabled={Boolean(tagFilter.trim())}
+          className="w-full sm:max-w-md"
+        />
+        <div className="flex items-center gap-2">
+          <Tag className="size-4 shrink-0 text-muted-foreground" />
+          <Input
+            placeholder="Filtrar por tag (ex.: convidado-evento)"
+            value={tagFilter}
+            onChange={(e) => setTagFilter(e.target.value)}
+            className="w-full sm:w-64"
+          />
+          {tagFilter && (
+            <Button variant="ghost" size="sm" onClick={() => setTagFilter("")}>
+              Limpar
+            </Button>
+          )}
+        </div>
+      </div>
+      {tagFilter.trim() && (
+        <p className="-mt-3 text-xs text-muted-foreground">
+          Mostrando contatos com a tag <strong>{tagFilter.trim()}</strong>.
+        </p>
+      )}
 
       <div className="rounded-lg border bg-card">
         {loading ? (
@@ -229,7 +258,7 @@ export function ContactsClient({
                   variant="outline"
                   size="sm"
                   disabled={loadingMore}
-                  onClick={() => load(query.trim(), next)}
+                  onClick={() => load(query.trim(), tagFilter.trim(), next)}
                 >
                   {loadingMore && <Loader2 className="size-4 animate-spin" />}
                   Carregar mais

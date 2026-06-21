@@ -29,20 +29,22 @@ type Contact = {
 // importa como convidados com ghl_contact_id.
 export function ImportGhlDialog({
   eventId,
+  defaultTag,
   onChange,
 }: {
   eventId: string;
+  defaultTag?: string | null;
   onChange: () => void;
 }) {
   const [open, setOpen] = useState(false);
-  const [tag, setTag] = useState("");
+  const [tag, setTag] = useState(defaultTag ?? "");
   const [loading, setLoading] = useState(false);
   const [contacts, setContacts] = useState<Contact[] | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
 
   function reset() {
-    setTag("");
+    setTag(defaultTag ?? "");
     setContacts(null);
     setSelected(new Set());
   }

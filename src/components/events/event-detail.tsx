@@ -105,6 +105,7 @@ export type EventData = {
   checkerPin: string;
   vipNotifyChannel: string | null;
   vipNotifyTarget: string | null;
+  ghlTag: string | null;
 };
 
 export type GuestRow = {

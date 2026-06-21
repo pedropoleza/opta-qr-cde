@@ -492,7 +492,7 @@ export function GuestsTab({
               {importing ? "Importando..." : "Importar CSV"}
             </Button>
           </div>
-          <ImportGhlDialog eventId={event.id} onChange={onChange} />
+          <ImportGhlDialog eventId={event.id} defaultTag={event.ghlTag} onChange={onChange} />
           <form onSubmit={addManual} className="flex flex-wrap items-end gap-2">
             <Input
               placeholder="Nome"

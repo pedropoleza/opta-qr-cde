@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId } from "@/lib/api";
-import { GhlError, ghlConfigured, ghlListContacts } from "@/lib/ghl";
+import {
+  GhlError,
+  ghlConfigured,
+  ghlListContacts,
+  ghlSearchContactsByTag,
+} from "@/lib/ghl";
 
 export const dynamic = "force-dynamic";
 
@@ -17,16 +22,25 @@ export async function GET(req: NextRequest) {
   }
 
   const sp = new URL(req.url).searchParams;
+  const tag = sp.get("tag")?.trim();
   try {
-    const { contacts, startAfter, startAfterId } = await ghlListContacts(
-      organizationId,
-      {
+    // Filtro por tag (busca dedicada do Spark) ou listagem/busca por texto.
+    let contacts;
+    let startAfter: string | undefined;
+    let startAfterId: string | undefined;
+    if (tag) {
+      contacts = await ghlSearchContactsByTag(organizationId, tag);
+    } else {
+      const res = await ghlListContacts(organizationId, {
         query: sp.get("query") || undefined,
         startAfter: sp.get("startAfter") || undefined,
         startAfterId: sp.get("startAfterId") || undefined,
         limit: 25,
-      },
-    );
+      });
+      contacts = res.contacts;
+      startAfter = res.startAfter;
+      startAfterId = res.startAfterId;
+    }
 
     const ids = contacts.map((c) => c.id);
     const guests = ids.length
@@ -62,7 +76,7 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       contacts: withEvents,
-      next: startAfterId ? { startAfter, startAfterId } : null,
+      next: !tag && startAfterId ? { startAfter, startAfterId } : null,
     });
   } catch (err) {
     const message =

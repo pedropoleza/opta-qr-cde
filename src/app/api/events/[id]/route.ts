@@ -46,6 +46,8 @@ export async function PATCH(
     data.vipNotifyChannel = body.vipNotifyChannel ? String(body.vipNotifyChannel) : null;
   if ("vipNotifyTarget" in body)
     data.vipNotifyTarget = body.vipNotifyTarget ? String(body.vipNotifyTarget).trim() : null;
+  if ("ghlTag" in body)
+    data.ghlTag = body.ghlTag ? String(body.ghlTag).trim() : null;
   if (body.status) {
     if (!EVENT_STATUSES.includes(body.status)) return jsonError(400, "Status inválido");
     data.status = body.status;

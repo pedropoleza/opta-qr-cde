@@ -149,6 +149,7 @@ export default async function EventDetailPage({
         checkerPin: event.checkerPin,
         vipNotifyChannel: event.vipNotifyChannel,
         vipNotifyTarget: event.vipNotifyTarget,
+        ghlTag: event.ghlTag,
       }}
       guests={guests.map((g) => ({
         id: g.id,

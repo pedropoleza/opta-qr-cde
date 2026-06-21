@@ -23,6 +23,7 @@ export default async function EventsPage() {
     date: event.date.toISOString().slice(0, 10),
     startTime: event.startTime,
     locationName: event.locationName,
+    capacity: event.capacity,
     guests: event._count.guests,
     checkedIn: event.tickets.length,
     status: event.status,

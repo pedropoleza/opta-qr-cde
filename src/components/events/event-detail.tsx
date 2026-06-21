@@ -13,6 +13,7 @@ import {
   DoorOpen,
   Download,
   Loader2,
+  MapPin,
   MonitorPlay,
   MoreHorizontal,
   QrCode,
@@ -285,15 +286,15 @@ export function EventDetail({
     currency: report.currency || "BRL",
   }).format(report.revenueCents / 100);
   const paymentMetrics = [
-    { label: "Inscritos", value: report.guests, icon: Users },
-    { label: "Pagos", value: report.paid, icon: Ticket },
-    { label: "Pendentes", value: report.pendingPayment, icon: Wallet },
-    { label: "Receita", value: revenue, icon: DollarSign },
+    { label: "Inscritos", value: report.guests, icon: Users, accent: "violet" as const },
+    { label: "Pagos", value: report.paid, icon: Ticket, accent: "success" as const },
+    { label: "Pendentes", value: report.pendingPayment, icon: Wallet, accent: "amber" as const },
+    { label: "Receita", value: revenue, icon: DollarSign, accent: "primary" as const },
   ];
 
   const metrics = [
-    { label: "Convidados", value: report.guests, icon: Users },
-    { label: "QR gerados", value: report.qrGenerated, icon: QrCode },
+    { label: "Convidados", value: report.guests, icon: Users, accent: "primary" as const },
+    { label: "QR gerados", value: report.qrGenerated, icon: QrCode, accent: "muted" as const },
     {
       label: "Check-ins",
       value:
@@ -301,26 +302,39 @@ export function EventDetail({
           ? `${report.checkedIn}/${event.capacity}`
           : report.checkedIn,
       icon: CheckCircle2,
+      accent: "success" as const,
     },
-    { label: "Dentro agora", value: report.insideNow, icon: DoorOpen },
-    { label: "Ausentes", value: report.noShow, icon: UserMinus },
-    { label: "Duplicados", value: report.duplicateAttempts, icon: CalendarClock },
-    { label: "Inválidos", value: report.invalidAttempts, icon: XCircle },
+    { label: "Dentro agora", value: report.insideNow, icon: DoorOpen, accent: "violet" as const },
+    { label: "Ausentes", value: report.noShow, icon: UserMinus, accent: "muted" as const },
+    { label: "Duplicados", value: report.duplicateAttempts, icon: CalendarClock, accent: "amber" as const },
+    { label: "Inválidos", value: report.invalidAttempts, icon: XCircle, accent: "destructive" as const },
   ];
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-center gap-3">
-        <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
-        <Badge variant={EVENT_STATUS_VARIANT[event.status] ?? "secondary"}>
-          {EVENT_STATUS_LABEL[event.status] ?? event.status}
-        </Badge>
-        <span className="text-sm text-muted-foreground">
-          {event.date}
-          {event.startTime ? ` · ${event.startTime}` : ""}
-          {event.locationName ? ` · ${event.locationName}` : ""}
-        </span>
-        <div className="ml-auto flex items-center gap-2">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="min-w-0 space-y-1.5">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <h1 className="text-2xl font-bold tracking-tight">{event.name}</h1>
+            <Badge variant={EVENT_STATUS_VARIANT[event.status] ?? "secondary"}>
+              {EVENT_STATUS_LABEL[event.status] ?? event.status}
+            </Badge>
+          </div>
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted-foreground">
+            <span className="flex items-center gap-1.5">
+              <CalendarClock className="size-3.5" />
+              {event.date}
+              {event.startTime ? ` · ${event.startTime}` : ""}
+            </span>
+            {event.locationName && (
+              <span className="flex items-center gap-1.5">
+                <MapPin className="size-3.5" />
+                {event.locationName}
+              </span>
+            )}
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
           <Button
             variant={live ? "default" : "outline"}
             size="sm"
@@ -389,13 +403,14 @@ export function EventDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-3 gap-3 md:grid-cols-6">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {metrics.map((m) => (
           <MetricCard
             key={m.label}
             label={m.label}
             value={m.value}
             icon={m.icon}
+            accent={m.accent}
           />
         ))}
       </div>
@@ -407,7 +422,13 @@ export function EventDetail({
           </p>
           <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
             {paymentMetrics.map((m) => (
-              <MetricCard key={m.label} label={m.label} value={m.value} icon={m.icon} />
+              <MetricCard
+                key={m.label}
+                label={m.label}
+                value={m.value}
+                icon={m.icon}
+                accent={m.accent}
+              />
             ))}
           </div>
         </div>

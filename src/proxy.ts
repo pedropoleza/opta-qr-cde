@@ -1,11 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
+import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
 
-// Renova a sessão e protege as rotas do organizador quando o Supabase Auth
-// está configurado. Sem as env vars, não faz nada (modo single-tenant).
+// Proxy (antigo "middleware", renomeado no Next 16). Renova a sessão e protege
+// as rotas do organizador. Multi-tenant ligado via chaves do Supabase.
 export async function proxy(req: NextRequest) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  const url = SUPABASE_URL;
+  const key = SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();
 
   let res = NextResponse.next({ request: req });

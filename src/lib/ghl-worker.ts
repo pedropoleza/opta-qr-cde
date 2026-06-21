@@ -6,7 +6,7 @@ import {
   ghlAddTags,
   ghlUpdateContactFields,
 } from "@/lib/ghl";
-import { stevoConfigured, stevoSendDocument } from "@/lib/stevo";
+import { stevoConfigured, stevoSendDocument, stevoSendText } from "@/lib/stevo";
 import { emailConfigured, sendEmail } from "@/lib/email";
 
 // Worker da fila de sincronização GHL (Etapa 4 / D7). Consome
@@ -65,6 +65,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   for (const job of jobs) {
     try {
       if (job.action === "send_whatsapp") await runWhatsappJob(job);
+      else if (job.action === "send_whatsapp_text") await runWhatsappTextJob(job);
       else if (job.action === "send_email") await runEmailJob(job);
       else await runJob(job, job.event?.organizationId ?? null);
       await prisma.ghlSyncJob.update({
@@ -164,6 +165,22 @@ async function runEmailJob(job: SyncJob) {
   if (job.guestId) {
     await prisma.emailLog.updateMany({
       where: { guestId: job.guestId, provider: "resend", status: "queued" },
+      data: { status: "sent", sentAt: new Date() },
+    });
+  }
+}
+
+async function runWhatsappTextJob(job: SyncJob) {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const to = String(payload.to ?? "");
+  const text = String(payload.text ?? "");
+  if (!to || !text) throw new GhlError("WhatsApp sem número ou texto no payload");
+
+  await stevoSendText({ to, text });
+
+  if (job.guestId) {
+    await prisma.emailLog.updateMany({
+      where: { guestId: job.guestId, provider: "stevo-whatsapp", status: "queued" },
       data: { status: "sent", sentAt: new Date() },
     });
   }

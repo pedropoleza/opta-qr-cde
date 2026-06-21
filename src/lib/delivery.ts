@@ -34,11 +34,18 @@ export type DeliveryEvent = {
 //    houver contato GHL, cai para e-mail direto quando possível.
 //  - whatsapp: envia o PDF pelo Stevo (worker).
 //  - email: envio direto (Resend) quando configurado, senão tag-gatilho do GHL.
+export type DeliveryOverrides = {
+  caption?: string; // WhatsApp
+  emailSubject?: string;
+  emailHtml?: string;
+};
+
 export async function enqueueQrDelivery(
   tx: Tx,
   event: DeliveryEvent,
   guest: DeliveryGuest,
   channel: string,
+  opts?: DeliveryOverrides,
 ): Promise<{ queued: boolean; via: string }> {
   const token = guest.token;
 
@@ -53,7 +60,9 @@ export async function enqueueQrDelivery(
           to: normalizePhone(guest.phone),
           url: ticketPdfUrl(token),
           filename: `ingresso-${event.slug}.pdf`,
-          caption: `Olá! Aqui está o seu ingresso para ${event.name} (${event.date}). Apresente o QR Code na entrada.`,
+          caption:
+            opts?.caption ??
+            `Olá! Aqui está o seu ingresso para ${event.name} (${event.date}). Apresente o QR Code na entrada.`,
         },
       },
     });
@@ -62,21 +71,27 @@ export async function enqueueQrDelivery(
   }
 
   if (channel === "email" && emailConfigured() && guest.email) {
-    const html = ticketEmailHtml({
-      eventName: event.name,
-      eventDate: event.date,
-      eventLocation: event.location,
-      guestName: guest.name,
-      qrImageUrl: ticketQrImageUrl(token),
-      ticketUrl: ticketPublicQrUrl(token),
-      pdfUrl: ticketPdfUrl(token),
-    });
+    const html =
+      opts?.emailHtml ??
+      ticketEmailHtml({
+        eventName: event.name,
+        eventDate: event.date,
+        eventLocation: event.location,
+        guestName: guest.name,
+        qrImageUrl: ticketQrImageUrl(token),
+        ticketUrl: ticketPublicQrUrl(token),
+        pdfUrl: ticketPdfUrl(token),
+      });
     await tx.ghlSyncJob.create({
       data: {
         eventId: event.id,
         guestId: guest.id,
         action: "send_email",
-        payload: { to: guest.email, subject: `Seu ingresso — ${event.name}`, html },
+        payload: {
+          to: guest.email,
+          subject: opts?.emailSubject ?? `Seu ingresso — ${event.name}`,
+          html,
+        },
       },
     });
     await logQueued(tx, event.id, guest, "resend");
@@ -124,6 +139,38 @@ export async function enqueueQrDelivery(
     return { queued: true, via: "email-fallback" };
   }
 
+  return { queued: false, via: "none" };
+}
+
+// Mensagem avulsa (sem QR), ex.: confirmação de inscrição. Canais texto.
+export async function enqueueMessage(
+  tx: Tx,
+  guest: { id: string; eventId: string; email: string | null; phone: string | null },
+  channel: string,
+  msg: { subject?: string; body: string; html: string },
+): Promise<{ queued: boolean; via: string }> {
+  if (channel === "whatsapp" && guest.phone) {
+    await tx.ghlSyncJob.create({
+      data: {
+        eventId: guest.eventId,
+        guestId: guest.id,
+        action: "send_whatsapp_text",
+        payload: { to: normalizePhone(guest.phone), text: msg.body },
+      },
+    });
+    return { queued: true, via: "whatsapp" };
+  }
+  if (channel === "email" && emailConfigured() && guest.email) {
+    await tx.ghlSyncJob.create({
+      data: {
+        eventId: guest.eventId,
+        guestId: guest.id,
+        action: "send_email",
+        payload: { to: guest.email, subject: msg.subject ?? "Confirmação", html: msg.html },
+      },
+    });
+    return { queued: true, via: "email" };
+  }
   return { queued: false, via: "none" };
 }
 

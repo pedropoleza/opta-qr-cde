@@ -108,9 +108,28 @@ model Event {
   ticketTemplate TicketTemplate?
   sessions       EventSession[]
   integration    EventIntegration?
+  messageTemplates MessageTemplate[]
 
   @@index([organizationId])
   @@map("checkin_events")
+}
+
+// Mensagens configuráveis pelo organizador (no-code), com variáveis tipo
+// {{nome}}, {{evento}}, {{link_qr}}. Uma por tipo (kind) por evento.
+model MessageTemplate {
+  id        String   @id @default(uuid()) @db.Uuid
+  eventId   String   @map("event_id") @db.Uuid
+  kind      String // registration|qr_delivery|reminder
+  subject   String?
+  body      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz()
+
+  event Event @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([eventId, kind])
+  @@map("checkin_message_templates")
 }
 
 // Integração de inscrições/pagamentos por evento (webhooks de entrada + regra
@@ -125,6 +144,8 @@ model EventIntegration {
   fieldMap          Json?    @map("field_map") // mapeia campos do formulário
   autoSendQrOnPaid  Boolean  @default(true) @map("auto_send_qr_on_paid")
   sendChannel       String   @default("ghl") @map("send_channel") // ghl|whatsapp|email
+  sendMsgOnRegistration Boolean @default(false) @map("send_msg_on_registration")
+  registrationChannel   String  @default("whatsapp") @map("registration_channel") // whatsapp|email
   active            Boolean  @default(true)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()

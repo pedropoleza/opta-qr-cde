@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { mapRegistration } from "@/lib/integration";
 import { capacityStatus } from "@/lib/capacity";
+import { enqueueMessage } from "@/lib/delivery";
+import { renderTemplate, buildContext, textToHtml } from "@/lib/templates";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -18,7 +20,19 @@ export async function POST(
 
   const integration = await prisma.eventIntegration.findUnique({
     where: { registrationToken: token },
-    include: { event: { select: { id: true, status: true } } },
+    include: {
+      event: {
+        select: {
+          id: true,
+          status: true,
+          name: true,
+          date: true,
+          startTime: true,
+          locationName: true,
+          address: true,
+        },
+      },
+    },
   });
   if (!integration || !integration.active) {
     return NextResponse.json({ error: "Endpoint inválido" }, { status: 404 });
@@ -77,6 +91,33 @@ export async function POST(
       waitlisted,
     },
   });
+
+  // Mensagem de confirmação de inscrição (F2), se ativada e houver template.
+  if (integration.sendMsgOnRegistration) {
+    const tpl = await prisma.messageTemplate.findUnique({
+      where: { eventId_kind: { eventId, kind: "registration" } },
+    });
+    if (tpl && tpl.active) {
+      const ev = integration.event;
+      const ctx = buildContext({
+        guestName: guest.name,
+        eventName: ev.name,
+        eventDate: ev.date.toISOString().slice(0, 10),
+        startTime: ev.startTime,
+        locationName: ev.locationName,
+        address: ev.address,
+        token: null,
+      });
+      const renderedBody = renderTemplate(tpl.body, ctx);
+      await prisma.$transaction((tx) =>
+        enqueueMessage(tx, guest, integration.registrationChannel, {
+          subject: tpl.subject ? renderTemplate(tpl.subject, ctx) : `Inscrição — ${ev.name}`,
+          body: renderedBody,
+          html: textToHtml(renderedBody),
+        }),
+      );
+    }
+  }
 
   return NextResponse.json({ ok: true, guestId: guest.id, waitlisted });
 }

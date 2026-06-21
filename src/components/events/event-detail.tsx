@@ -32,6 +32,7 @@ import { GuestsTab } from "@/components/events/guests-tab";
 import { SessionsTab } from "@/components/events/sessions-tab";
 import { QrDeliveryTab } from "@/components/events/qr-delivery-tab";
 import { PaymentsTab } from "@/components/events/payments-tab";
+import { MessagesTab } from "@/components/events/messages-tab";
 import { CheckerTab } from "@/components/events/checker-tab";
 import { SettingsTab } from "@/components/events/settings-tab";
 import { ActivityTab } from "@/components/events/activity-tab";
@@ -369,6 +370,7 @@ export function EventDetail({
           <TabsTrigger value="guests">Convidados</TabsTrigger>
           <TabsTrigger value="qr">QR Delivery</TabsTrigger>
           <TabsTrigger value="payments">Inscrições & Pagamentos</TabsTrigger>
+          <TabsTrigger value="messages">Mensagens</TabsTrigger>
           <TabsTrigger value="sessions">Sessões</TabsTrigger>
           <TabsTrigger value="checker">Checker</TabsTrigger>
           <TabsTrigger value="settings">Configurações</TabsTrigger>
@@ -401,6 +403,9 @@ export function EventDetail({
         </TabsContent>
         <TabsContent value="payments">
           <PaymentsTab eventId={event.id} />
+        </TabsContent>
+        <TabsContent value="messages">
+          <MessagesTab eventId={event.id} />
         </TabsContent>
         <TabsContent value="checker">
           <CheckerTab event={event} appBaseUrl={appBaseUrl} />

@@ -38,6 +38,8 @@ export async function GET(
     hasSignatureKey: Boolean(integ.squareSignatureKey),
     autoSendQrOnPaid: integ.autoSendQrOnPaid,
     sendChannel: integ.sendChannel,
+    sendMsgOnRegistration: integ.sendMsgOnRegistration,
+    registrationChannel: integ.registrationChannel,
     active: integ.active,
     fieldMap: integ.fieldMap ?? null,
   });
@@ -64,6 +66,13 @@ export async function PATCH(
     data.autoSendQrOnPaid = Boolean(body.autoSendQrOnPaid);
   if (body.sendChannel !== undefined && CHANNELS.includes(body.sendChannel))
     data.sendChannel = body.sendChannel;
+  if (body.sendMsgOnRegistration !== undefined)
+    data.sendMsgOnRegistration = Boolean(body.sendMsgOnRegistration);
+  if (
+    body.registrationChannel !== undefined &&
+    ["whatsapp", "email"].includes(body.registrationChannel)
+  )
+    data.registrationChannel = body.registrationChannel;
   if (body.active !== undefined) data.active = Boolean(body.active);
   if (body.fieldMap !== undefined)
     data.fieldMap = body.fieldMap && typeof body.fieldMap === "object" ? body.fieldMap : null;

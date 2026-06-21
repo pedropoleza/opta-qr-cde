@@ -5,6 +5,7 @@ import { verifySquareSignature, parseSquarePayment } from "@/lib/square";
 import { squareWebhookUrl } from "@/lib/integration";
 import { ensureTicket } from "@/lib/checkin";
 import { enqueueQrDelivery } from "@/lib/delivery";
+import { renderTemplate, buildContext, textToHtml } from "@/lib/templates";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
 export const dynamic = "force-dynamic";
@@ -116,6 +117,30 @@ export async function POST(
   const eventDate = event.date.toISOString().slice(0, 10);
   const location = event.locationName ?? event.address ?? "";
 
+  // Template no-code de entrega do QR (F2), se houver.
+  const tpl = await prisma.messageTemplate.findUnique({
+    where: { eventId_kind: { eventId: event.id, kind: "qr_delivery" } },
+  });
+  let overrides: { caption?: string; emailSubject?: string; emailHtml?: string } | undefined;
+  if (tpl && tpl.active) {
+    const ctx = buildContext({
+      guestName: guest.name,
+      eventName: event.name,
+      eventDate,
+      locationName: event.locationName,
+      address: event.address,
+      amountPaid: payment.amount,
+      currency: payment.currency,
+      token: ticket.token,
+    });
+    const renderedBody = renderTemplate(tpl.body, ctx);
+    overrides = {
+      caption: renderedBody,
+      emailSubject: tpl.subject ? renderTemplate(tpl.subject, ctx) : undefined,
+      emailHtml: textToHtml(renderedBody),
+    };
+  }
+
   const result = await prisma.$transaction(async (tx) => {
     await tx.guest.update({
       where: { id: guest!.id },
@@ -142,6 +167,7 @@ export async function POST(
         token: ticket.token,
       },
       integration.sendChannel,
+      overrides,
     );
   });
 

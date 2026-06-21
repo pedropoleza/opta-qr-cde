@@ -24,6 +24,31 @@ export class StevoError extends Error {
   }
 }
 
+export async function stevoSendText({
+  to,
+  text,
+}: {
+  to: string;
+  text: string;
+}): Promise<void> {
+  const base = cleanEnv(process.env.STEVO_API_URL).replace(/\/$/, "");
+  const apikey = cleanEnv(process.env.STEVO_API_KEY);
+  if (!base || !apikey) throw new StevoError("Stevo não configurado");
+
+  const res = await fetch(`${base}/send/text`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey },
+    body: JSON.stringify({ number: to, text }),
+  });
+  if (!res.ok) {
+    const body = await res.text().catch(() => "");
+    throw new StevoError(
+      `Stevo POST /send/text → ${res.status} ${body.slice(0, 200)}`.trim(),
+      res.status,
+    );
+  }
+}
+
 export async function stevoSendDocument({
   to,
   url,

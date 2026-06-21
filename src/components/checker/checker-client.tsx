@@ -18,6 +18,7 @@ type ScanResult = {
   checkedInAt?: string;
   token?: string;
   movement?: "entry" | "exit" | "reentry";
+  vip?: boolean;
   capacityWarning?: boolean;
 };
 
@@ -401,6 +402,7 @@ export function CheckerClient({
         capacityWarning={result.capacityWarning}
         badgeToken={result.token}
         movement={result.movement}
+        vip={result.vip}
         onNext={closeResult}
       />
     );

@@ -32,6 +32,8 @@ export function SettingsTab({
     address: event.address ?? "",
     capacity: event.capacity?.toString() ?? "",
     status: event.status,
+    vipNotifyChannel: event.vipNotifyChannel ?? "none",
+    vipNotifyTarget: event.vipNotifyTarget ?? "",
   });
   const [saving, setSaving] = useState(false);
 
@@ -51,10 +53,14 @@ export function SettingsTab({
       return;
     }
     setSaving(true);
+    const payload = {
+      ...form,
+      vipNotifyChannel: form.vipNotifyChannel === "none" ? "" : form.vipNotifyChannel,
+    };
     const res = await fetch(`/api/events/${event.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(form),
+      body: JSON.stringify(payload),
     });
     setSaving(false);
     const data = await res.json().catch(() => ({}));
@@ -155,6 +161,44 @@ export function SettingsTab({
               </Select>
             </div>
           </div>
+          <div className="space-y-3 rounded-lg border p-3">
+            <p className="text-sm font-medium">⭐ Aviso de VIP ao anfitrião</p>
+            <p className="text-xs text-muted-foreground">
+              Quando um convidado marcado como VIP faz check-in, o anfitrião é
+              avisado na hora.
+            </p>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Canal</Label>
+                <Select
+                  value={form.vipNotifyChannel}
+                  onValueChange={(v) => set("vipNotifyChannel", v)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Desativado</SelectItem>
+                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                    <SelectItem value="email">E-mail</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="s-viptarget">
+                  {form.vipNotifyChannel === "email" ? "E-mail do anfitrião" : "WhatsApp do anfitrião"}
+                </Label>
+                <Input
+                  id="s-viptarget"
+                  value={form.vipNotifyTarget}
+                  onChange={(e) => set("vipNotifyTarget", e.target.value)}
+                  placeholder={form.vipNotifyChannel === "email" ? "anfitriao@empresa.com" : "5538999999999"}
+                  disabled={form.vipNotifyChannel === "none"}
+                />
+              </div>
+            </div>
+          </div>
+
           <p className="text-xs text-muted-foreground">
             Identificador do evento nas automações Spark:{" "}
             <code>{event.slug}</code> (convidado-{event.slug}, convite-enviado-

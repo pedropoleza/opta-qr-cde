@@ -93,6 +93,9 @@ model Event {
   address        String?
   capacity       Int?
   status         String   @default("draft") // draft|active|completed|canceled
+  // #8 Protocolo VIP: ao VIP chegar, notifica o anfitrião por este canal/alvo.
+  vipNotifyChannel String? @map("vip_notify_channel") // whatsapp|email
+  vipNotifyTarget  String? @map("vip_notify_target") // telefone ou e-mail do anfitrião
   // D4: Checker autentica por link + PIN temporário por evento
   checkerToken   String   @unique @map("checker_token")
   checkerPin     String   @map("checker_pin")
@@ -214,6 +217,7 @@ model Guest {
   groupId      String?  @map("group_id") @db.Uuid // grupo/acompanhantes (#4)
   sessionId    String?  @map("session_id") @db.Uuid // sessão/horário (#8)
   waitlisted   Boolean  @default(false) // lista de espera quando o evento lota
+  vip          Boolean  @default(false) // protocolo VIP — notifica o anfitrião na chegada (#8)
   // Pagamentos (Square via webhook): controla quem pagou e dispara o QR.
   paymentStatus   String    @default("none") @map("payment_status") // none|pending|paid|refunded|failed
   amountPaid      Int?      @map("amount_paid") // centavos

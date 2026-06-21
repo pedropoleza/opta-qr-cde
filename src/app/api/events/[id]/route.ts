@@ -42,6 +42,10 @@ export async function PATCH(
     if (f in body) data[f] = body[f] || null;
   }
   if ("capacity" in body) data.capacity = body.capacity ? Number(body.capacity) : null;
+  if ("vipNotifyChannel" in body)
+    data.vipNotifyChannel = body.vipNotifyChannel ? String(body.vipNotifyChannel) : null;
+  if ("vipNotifyTarget" in body)
+    data.vipNotifyTarget = body.vipNotifyTarget ? String(body.vipNotifyTarget).trim() : null;
   if (body.status) {
     if (!EVENT_STATUSES.includes(body.status)) return jsonError(400, "Status inválido");
     data.status = body.status;

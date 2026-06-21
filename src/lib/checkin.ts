@@ -21,6 +21,7 @@ export type CheckInResult = {
   checkedInAt?: string;
   token?: string; // para impressão de crachá on-site (#4)
   movement?: "entry" | "exit" | "reentry"; // controle de entrada/saída (#7)
+  vip?: boolean; // protocolo VIP (#8)
   // D5: capacity atingida NÃO bloqueia — apenas alerta o Checker.
   capacityWarning?: boolean;
 };
@@ -210,6 +211,45 @@ export async function performCheckIn(
       now
     );
 
+    // #8 Protocolo VIP: ao VIP entrar, avisa o anfitrião pelo canal configurado.
+    if (
+      ticket.guest.vip &&
+      ticket.event.vipNotifyTarget &&
+      ticket.event.vipNotifyChannel
+    ) {
+      const horas = now.toLocaleTimeString("pt-BR", {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      const text = `⭐ VIP chegou: ${ticket.guest.name} — ${ticket.event.name} às ${horas}.`;
+      if (ticket.event.vipNotifyChannel === "email") {
+        await tx.ghlSyncJob.create({
+          data: {
+            eventId: ticket.eventId,
+            guestId: ticket.guestId,
+            action: "send_email",
+            payload: {
+              to: ticket.event.vipNotifyTarget,
+              subject: `VIP chegou — ${ticket.guest.name}`,
+              html: text,
+            },
+          },
+        });
+      } else {
+        await tx.ghlSyncJob.create({
+          data: {
+            eventId: ticket.eventId,
+            guestId: ticket.guestId,
+            action: "send_whatsapp_text",
+            payload: {
+              to: ticket.event.vipNotifyTarget.replace(/\D/g, ""),
+              text,
+            },
+          },
+        });
+      }
+    }
+
     // D5: alerta de capacidade — conta check-ins já incluindo este.
     let capacityWarning = false;
     if (ticket.event.capacity != null) {
@@ -227,6 +267,7 @@ export async function performCheckIn(
       guestTier: ticket.guest.tier,
       checkedInAt: now.toISOString(),
       token: ticket.token,
+      vip: ticket.guest.vip,
       capacityWarning,
       _eventId: ticket.eventId,
       _guestId: ticket.guestId,

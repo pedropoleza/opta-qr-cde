@@ -17,7 +17,12 @@ export async function PATCH(
   if (!guest) return jsonError(404, "Convidado não encontrado");
 
   const body = await req.json().catch(() => ({}));
-  const data: { tier?: string | null; sessionId?: string | null; name?: string } = {};
+  const data: {
+    tier?: string | null;
+    sessionId?: string | null;
+    name?: string;
+    vip?: boolean;
+  } = {};
   if ("tier" in body) {
     data.tier = body.tier ? String(body.tier).trim() : null;
   }
@@ -29,6 +34,9 @@ export async function PATCH(
     if (!name) return jsonError(400, "O nome não pode ficar vazio.");
     data.name = name;
   }
+  if ("vip" in body) {
+    data.vip = Boolean(body.vip);
+  }
 
   const updated = await prisma.guest.update({
     where: { id: guestId },
@@ -39,6 +47,7 @@ export async function PATCH(
     name: updated.name,
     tier: updated.tier,
     sessionId: updated.sessionId,
+    vip: updated.vip,
   });
 }
 

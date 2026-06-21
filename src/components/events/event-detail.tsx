@@ -64,6 +64,8 @@ export type EventData = {
   status: string;
   checkerToken: string;
   checkerPin: string;
+  vipNotifyChannel: string | null;
+  vipNotifyTarget: string | null;
 };
 
 export type GuestRow = {
@@ -77,6 +79,7 @@ export type GuestRow = {
   groupId: string | null;
   sessionId: string | null;
   waitlisted: boolean;
+  vip: boolean;
   paymentStatus: string;
   amountPaid: number | null;
   currency: string | null;

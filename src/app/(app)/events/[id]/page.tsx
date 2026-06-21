@@ -102,6 +102,8 @@ export default async function EventDetailPage({
         status: event.status,
         checkerToken: event.checkerToken,
         checkerPin: event.checkerPin,
+        vipNotifyChannel: event.vipNotifyChannel,
+        vipNotifyTarget: event.vipNotifyTarget,
       }}
       guests={guests.map((g) => ({
         id: g.id,
@@ -114,6 +116,7 @@ export default async function EventDetailPage({
         groupId: g.groupId,
         sessionId: g.sessionId,
         waitlisted: g.waitlisted,
+        vip: g.vip,
         paymentStatus: g.paymentStatus,
         amountPaid: g.amountPaid,
         currency: g.currency,

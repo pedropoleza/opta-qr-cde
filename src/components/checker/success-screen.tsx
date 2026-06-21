@@ -27,6 +27,7 @@ export function CheckerSuccess({
   capacityWarning,
   badgeToken,
   movement,
+  vip,
   onNext,
 }: {
   guestName?: string;
@@ -35,9 +36,14 @@ export function CheckerSuccess({
   capacityWarning?: boolean;
   badgeToken?: string;
   movement?: "entry" | "exit" | "reentry";
+  vip?: boolean;
   onNext: () => void;
 }) {
-  const headline = movement === "reentry" ? "Reentrada confirmada" : "Check-in confirmado";
+  const headline = vip
+    ? "⭐ VIP chegou"
+    : movement === "reentry"
+      ? "Reentrada confirmada"
+      : "Check-in confirmado";
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-emerald-500 to-emerald-700 p-6 text-center text-white">
       {/* Confetes */}

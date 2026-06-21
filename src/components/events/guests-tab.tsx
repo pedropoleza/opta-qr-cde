@@ -310,6 +310,20 @@ export function GuestsTab({
     onChange();
   }
 
+  async function toggleVip(guest: GuestRow, vip: boolean) {
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ vip }),
+    });
+    if (!res.ok) {
+      toast.error("Erro ao atualizar VIP");
+      return;
+    }
+    setDetail((d) => (d && d.id === guest.id ? { ...d, vip } : d));
+    onChange();
+  }
+
   async function renameGuest(guest: GuestRow, name: string) {
     const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
       method: "PATCH",
@@ -604,6 +618,11 @@ export function GuestsTab({
                 <TableCell className="font-medium">
                   <span className="flex items-center gap-2">
                     {guest.name}
+                    {guest.vip && (
+                      <Badge className="border-transparent bg-amber-400 text-xs text-amber-950">
+                        ⭐ VIP
+                      </Badge>
+                    )}
                     <TierBadge tier={guest.tier} />
                     {guest.groupSize > 1 && (
                       <Badge variant="outline" className="text-xs">
@@ -774,6 +793,22 @@ export function GuestsTab({
                     </Select>
                   </div>
                 )}
+
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <p className="text-sm font-medium">VIP</p>
+                    <p className="text-xs text-muted-foreground">
+                      Avisa o anfitrião quando este convidado chega.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={detail.vip ? "default" : "outline"}
+                    onClick={() => toggleVip(detail, !detail.vip)}
+                  >
+                    {detail.vip ? "⭐ VIP" : "Marcar VIP"}
+                  </Button>
+                </div>
 
                 <GroupSection
                   detail={detail}

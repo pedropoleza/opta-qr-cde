@@ -247,6 +247,7 @@ model Ticket {
   checkedInBy        String?   @map("checked_in_by") @db.Uuid
   checkinCount       Int       @default(0) @map("checkin_count")
   duplicateScanCount Int       @default(0) @map("duplicate_scan_count")
+  presence           String    @default("out") // in|out — controle de entrada/saída (#7)
   lastScanAt         DateTime? @map("last_scan_at") @db.Timestamptz()
   createdAt          DateTime  @default(now()) @map("created_at") @db.Timestamptz()
 

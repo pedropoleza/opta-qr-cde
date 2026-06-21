@@ -8,6 +8,7 @@ import {
   CheckCircle2,
   CopyPlus,
   DollarSign,
+  DoorOpen,
   Download,
   Loader2,
   MonitorPlay,
@@ -104,6 +105,7 @@ export type ReportData = {
   noShow: number;
   duplicateAttempts: number;
   invalidAttempts: number;
+  insideNow: number;
   paid: number;
   pendingPayment: number;
   revenueCents: number;
@@ -255,6 +257,7 @@ export function EventDetail({
           : report.checkedIn,
       icon: CheckCircle2,
     },
+    { label: "Dentro agora", value: report.insideNow, icon: DoorOpen },
     { label: "Ausentes", value: report.noShow, icon: UserMinus },
     { label: "Duplicados", value: report.duplicateAttempts, icon: CalendarClock },
     { label: "Inválidos", value: report.invalidAttempts, icon: XCircle },

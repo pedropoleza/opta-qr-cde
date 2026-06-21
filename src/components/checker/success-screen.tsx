@@ -26,6 +26,7 @@ export function CheckerSuccess({
   checkedInAt,
   capacityWarning,
   badgeToken,
+  movement,
   onNext,
 }: {
   guestName?: string;
@@ -33,8 +34,10 @@ export function CheckerSuccess({
   checkedInAt?: string;
   capacityWarning?: boolean;
   badgeToken?: string;
+  movement?: "entry" | "exit" | "reentry";
   onNext: () => void;
 }) {
+  const headline = movement === "reentry" ? "Reentrada confirmada" : "Check-in confirmado";
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden bg-gradient-to-b from-emerald-500 to-emerald-700 p-6 text-center text-white">
       {/* Confetes */}
@@ -98,7 +101,7 @@ export function CheckerSuccess({
         className="spark-fade-up text-sm font-semibold tracking-widest text-emerald-50 uppercase"
         style={{ animationDelay: "0.5s" }}
       >
-        Check-in confirmado
+        {headline}
       </p>
       {guestName && (
         <h1

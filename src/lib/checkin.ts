@@ -20,6 +20,7 @@ export type CheckInResult = {
   guestTier?: string | null;
   checkedInAt?: string;
   token?: string; // para impressão de crachá on-site (#4)
+  movement?: "entry" | "exit" | "reentry"; // controle de entrada/saída (#7)
   // D5: capacity atingida NÃO bloqueia — apenas alerta o Checker.
   capacityWarning?: boolean;
 };
@@ -29,6 +30,7 @@ type ScanContext = {
   checkerUserId?: string;
   deviceInfo?: string;
   ipAddress?: string;
+  reentry?: boolean; // modo entrada/saída: alterna presença em vez de duplicar
 };
 
 async function log(
@@ -120,8 +122,8 @@ export async function performCheckIn(
 ): Promise<CheckInResult> {
   const outcome = await prisma.$transaction(async (tx) => {
     const rows = await tx.$queryRaw<
-      { id: string; status: string; checked_in_at: Date | null }[]
-    >`SELECT id, status, checked_in_at FROM checkin_tickets WHERE id = ${ticketId}::uuid FOR UPDATE`;
+      { id: string; status: string; checked_in_at: Date | null; presence: string }[]
+    >`SELECT id, status, checked_in_at, presence FROM checkin_tickets WHERE id = ${ticketId}::uuid FOR UPDATE`;
     const locked = rows[0];
     if (!locked) {
       return { result: "invalid" as const, message: "Ticket não encontrado" };
@@ -132,8 +134,34 @@ export async function performCheckIn(
       include: { guest: true, event: true },
     });
 
-    // Duplicado -> Amarelo: não altera o estado, só registra a tentativa.
+    // Já tem entrada registrada.
     if (locked.status === "checked_in") {
+      // Modo entrada/saída (#7): alterna a presença em vez de marcar duplicado.
+      if (ctx.reentry) {
+        const goingOut = locked.presence === "in";
+        const now = new Date();
+        await tx.ticket.update({
+          where: { id: ticketId },
+          data: {
+            presence: goingOut ? "out" : "in",
+            lastScanAt: now,
+            ...(goingOut ? {} : { checkinCount: { increment: 1 } }),
+          },
+        });
+        return {
+          result: "checked_in" as const,
+          message: goingOut ? "Saída registrada" : "Reentrada registrada",
+          movement: goingOut ? ("exit" as const) : ("reentry" as const),
+          guestName: ticket.guest.name,
+          guestTier: ticket.guest.tier,
+          checkedInAt: locked.checked_in_at?.toISOString(),
+          token: ticket.token,
+          _eventId: ticket.eventId,
+          _guestId: ticket.guestId,
+          _logStatus: goingOut ? "exit" : "reentry",
+        };
+      }
+      // Duplicado -> Amarelo: não altera o estado, só registra a tentativa.
       await tx.ticket.update({
         where: { id: ticketId },
         data: {
@@ -163,6 +191,7 @@ export async function performCheckIn(
         checkedInAt: now,
         checkedInBy: isUuid ? ctx.checkerUserId : null,
         checkinCount: 1,
+        presence: "in",
         lastScanAt: now,
       },
     });
@@ -193,6 +222,7 @@ export async function performCheckIn(
     return {
       result: "checked_in" as const,
       message: "Check-in efetuado",
+      movement: "entry" as const,
       guestName: ticket.guest.name,
       guestTier: ticket.guest.tier,
       checkedInAt: now.toISOString(),
@@ -203,13 +233,14 @@ export async function performCheckIn(
     };
   });
 
-  const { _eventId, _guestId, ...result } = outcome as CheckInResult & {
+  const { _eventId, _guestId, _logStatus, ...result } = outcome as CheckInResult & {
     _eventId?: string;
     _guestId?: string;
+    _logStatus?: string;
   };
 
   if (_eventId) {
-    await log(_eventId, result.result, result.message, ctx, {
+    await log(_eventId, _logStatus ?? result.result, result.message, ctx, {
       guestId: _guestId,
       ticketId,
     });

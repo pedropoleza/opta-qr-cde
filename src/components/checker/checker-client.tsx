@@ -17,6 +17,7 @@ type ScanResult = {
   guestTier?: string | null;
   checkedInAt?: string;
   token?: string;
+  movement?: "entry" | "exit" | "reentry";
   capacityWarning?: boolean;
 };
 
@@ -67,6 +68,7 @@ export function CheckerClient({
   const [pin, setPin] = useState("");
   const [pinError, setPinError] = useState("");
   const [result, setResult] = useState<ScanResult | null>(null);
+  const [reentryMode, setReentryMode] = useState(false);
   const [mode, setMode] = useState<Mode>("scan");
   const [manualValue, setManualValue] = useState("");
   const [cameraError, setCameraError] = useState("");
@@ -84,6 +86,8 @@ export function CheckerClient({
   const [offline, setOffline] = useState(false);
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const busyRef = useRef(false);
+  const reentryRef = useRef(false);
+  reentryRef.current = reentryMode;
 
   const QKEY = `spark_checker_queue_${checkerToken}`;
   const loadQueue = useCallback((): { token: string; sig: string }[] => {
@@ -175,6 +179,7 @@ export function CheckerClient({
           token: parsed.token,
           sig: parsed.sig,
           deviceInfo: navigator.userAgent,
+          reentry: reentryRef.current,
         }),
       });
       const data = await res.json();
@@ -366,6 +371,27 @@ export function CheckerClient({
     );
   }
 
+  // Saída registrada (#7): tela própria (azul), sem confete.
+  if (result && result.result === "checked_in" && result.movement === "exit") {
+    return (
+      <div className="flex min-h-screen flex-col items-center justify-center bg-indigo-700 p-6 text-center text-white">
+        <p className="text-5xl font-black">SAÍDA</p>
+        {result.guestName && (
+          <h1 className="mt-3 text-3xl font-bold">{result.guestName}</h1>
+        )}
+        <p className="mt-2 text-lg opacity-90">Saída registrada</p>
+        <Button
+          size="lg"
+          variant="secondary"
+          className="mt-10 w-full max-w-xs text-lg"
+          onClick={closeResult}
+        >
+          Escanear próximo
+        </Button>
+      </div>
+    );
+  }
+
   if (result && result.result === "checked_in") {
     return (
       <CheckerSuccess
@@ -374,6 +400,7 @@ export function CheckerClient({
         checkedInAt={result.checkedInAt}
         capacityWarning={result.capacityWarning}
         badgeToken={result.token}
+        movement={result.movement}
         onNext={closeResult}
       />
     );
@@ -426,6 +453,18 @@ export function CheckerClient({
           <p className="font-semibold">{eventName}</p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setReentryMode((v) => !v)}
+            aria-pressed={reentryMode}
+            className={`rounded-md px-2.5 py-1 text-xs font-bold transition-colors ${
+              reentryMode
+                ? "bg-indigo-500 text-white"
+                : "bg-neutral-800 text-neutral-300"
+            }`}
+            title="Alterna entre marcar entrada e saída no mesmo scan"
+          >
+            {reentryMode ? "Entrada/Saída ✓" : "Entrada/Saída"}
+          </button>
           {pendingCount > 0 && (
             <span className="rounded bg-blue-600 px-2 py-1 text-xs font-bold">
               {pendingCount} offline

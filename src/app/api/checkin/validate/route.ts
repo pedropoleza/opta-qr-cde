@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
   if (limited) return limited;
 
   const body = await req.json().catch(() => ({}));
-  const { token, sig, deviceInfo } = body;
+  const { token, sig, deviceInfo, reentry } = body;
   if (!token || !sig) return jsonError(400, "Token e assinatura são obrigatórios");
 
   const checker = await getCheckerSession();
@@ -26,6 +26,7 @@ export async function POST(req: NextRequest) {
       ? String(deviceInfo).slice(0, 500)
       : req.headers.get("user-agent") ?? undefined,
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
+    reentry: Boolean(reentry),
   });
   return NextResponse.json(result);
 }

@@ -18,7 +18,7 @@ export default async function EventDetailPage({
   });
   if (!event) notFound();
 
-  const [guests, logs, emailLogs, sessions, checkedIn, dupAgg, invalidAttempts] =
+  const [guests, logs, emailLogs, sessions, checkedIn, insideNow, dupAgg, invalidAttempts] =
     await Promise.all([
       prisma.guest.findMany({
         where: { eventId: id },
@@ -41,6 +41,7 @@ export default async function EventDetailPage({
         orderBy: { createdAt: "asc" },
       }),
       prisma.ticket.count({ where: { eventId: id, status: "checked_in" } }),
+      prisma.ticket.count({ where: { eventId: id, presence: "in" } }),
       prisma.ticket.aggregate({
         where: { eventId: id },
         _sum: { duplicateScanCount: true },
@@ -139,6 +140,7 @@ export default async function EventDetailPage({
         noShow: guests.filter((g) => g.status === "no_show").length,
         duplicateAttempts: dupAgg._sum.duplicateScanCount ?? 0,
         invalidAttempts,
+        insideNow,
         paid: paidGuests.length,
         pendingPayment,
         revenueCents,

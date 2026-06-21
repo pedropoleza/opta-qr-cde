@@ -9,6 +9,7 @@ import {
 } from "@react-pdf/renderer";
 import { HeaderDecoration, type HeaderEffect } from "@/lib/pdf-effects";
 import { readableOn } from "@/lib/color";
+import { pdfText } from "@/lib/pdf-safe";
 
 // Crachá/etiqueta de credenciamento on-site (#4). A6 retrato, com a marca do
 // tenant (cor/logo). Inclui um QR pequeno para sub-estações de scan.
@@ -136,7 +137,7 @@ function BadgeDoc({ data }: { data: BadgeData }) {
           ) : (
             <Text style={s.brandText}>{data.brandName || "Spark Check-in"}</Text>
           )}
-          <Text style={s.eventText}>{data.eventName}</Text>
+          <Text style={s.eventText}>{pdfText(data.eventName)}</Text>
         </View>
 
         <View style={s.body}>
@@ -145,12 +146,12 @@ function BadgeDoc({ data }: { data: BadgeData }) {
           ) : (
             <Text style={s.label}>CREDENCIAL</Text>
           )}
-          <Text style={s.name}>{data.guestName}</Text>
+          <Text style={s.name}>{pdfText(data.guestName)}</Text>
           {data.tier && data.tier.trim().toLowerCase() !== "vip" ? (
-            <Text style={s.tier}>{data.tier}</Text>
+            <Text style={s.tier}>{pdfText(data.tier)}</Text>
           ) : null}
           {data.sessionName ? (
-            <Text style={s.session}>{data.sessionName}</Text>
+            <Text style={s.session}>{pdfText(data.sessionName)}</Text>
           ) : null}
         </View>
 

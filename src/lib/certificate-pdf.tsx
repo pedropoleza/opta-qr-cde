@@ -13,6 +13,7 @@ import {
   type HeaderEffect,
   type Background,
 } from "@/lib/pdf-effects";
+import { pdfText } from "@/lib/pdf-safe";
 
 // Certificado de participação (#9). A4 paisagem, com a marca do tenant + tema.
 export type CertificateData = {
@@ -108,10 +109,10 @@ function CertificateDoc({ data }: { data: CertificateData }) {
           )}
           <Text style={s.title}>CERTIFICADO DE PARTICIPAÇÃO</Text>
           <Text style={s.intro}>Certificamos que</Text>
-          <Text style={s.name}>{data.guestName}</Text>
+          <Text style={s.name}>{pdfText(data.guestName)}</Text>
           <View style={s.rule} />
           <Text style={s.line}>
-            participou do evento <Text style={{ fontFamily: "Helvetica-Bold" }}>{data.eventName}</Text>,
+            participou do evento <Text style={{ fontFamily: "Helvetica-Bold" }}>{pdfText(data.eventName)}</Text>,
           </Text>
           <Text style={s.line}>realizado em {data.eventDate}.</Text>
           <Text style={s.footer}>

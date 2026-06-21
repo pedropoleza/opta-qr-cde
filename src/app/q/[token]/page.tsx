@@ -112,7 +112,6 @@ export default async function GuestQrPage({
   const darkText = !vip && !!headerColor && isLightColor(headerColor);
   const mainText = darkText ? "text-neutral-900" : "text-white";
   const mutedText = darkText ? "text-neutral-700" : "text-neutral-300";
-  const faintText = darkText ? "text-neutral-600" : "text-neutral-400";
   // Textura do corpo (F2), exceto no VIP (que tem arte própria).
   const bodyBgStyle = vip
     ? undefined
@@ -150,11 +149,10 @@ export default async function GuestQrPage({
             {dateLabel}
             {timeLabel ? ` · ${timeLabel}` : ""}
           </p>
-          {ticket.event.locationName && (
-            <p className={`text-sm ${mutedText}`}>{ticket.event.locationName}</p>
-          )}
-          {ticket.event.address && (
-            <p className={`text-xs ${faintText}`}>{ticket.event.address}</p>
+          {(ticket.event.locationName || ticket.event.address) && (
+            <p className={`text-sm ${mutedText}`}>
+              {ticket.event.locationName || ticket.event.address}
+            </p>
           )}
         </div>
 

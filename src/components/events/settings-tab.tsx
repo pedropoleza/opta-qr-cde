@@ -146,23 +146,14 @@ export function SettingsTab({
             />
           </div>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <div className="space-y-2">
-            <Label htmlFor="s-location">Local</Label>
-            <Input
-              id="s-location"
-              value={form.locationName}
-              onChange={(e) => set("locationName", e.target.value)}
-            />
-          </div>
-          <div className="space-y-2">
-            <Label htmlFor="s-address">Endereço</Label>
-            <Input
-              id="s-address"
-              value={form.address}
-              onChange={(e) => set("address", e.target.value)}
-            />
-          </div>
+        <div className="space-y-2">
+          <Label htmlFor="s-location">Local</Label>
+          <Input
+            id="s-location"
+            value={form.locationName}
+            onChange={(e) => set("locationName", e.target.value)}
+            placeholder="Nome e endereço do espaço"
+          />
         </div>
       </Section>
 

@@ -14,6 +14,7 @@ import {
 } from "@/lib/ticket-template";
 import { HeaderDecoration, PageBackground } from "@/lib/pdf-effects";
 import { readableOn } from "@/lib/color";
+import { pdfText } from "@/lib/pdf-safe";
 
 const GOLD = "#C9A227";
 
@@ -45,7 +46,7 @@ function resolveTexts(data: TicketPdfData, config: TicketConfig) {
     : subtitleParts.filter(Boolean).join("  ·  ");
 
   const instructions = mergeFields(config.instructions, data);
-  return { title, subtitle, instructions };
+  return { title: pdfText(title), subtitle: pdfText(subtitle), instructions: pdfText(instructions) };
 }
 
 function buildStyles(config: TicketConfig, vip: boolean) {
@@ -179,7 +180,7 @@ function TicketDocument({
 
         <View style={s.body}>
           <Text style={s.guestLabel}>INGRESSO DE</Text>
-          <Text style={s.guestName}>{data.contact.name}</Text>
+          <Text style={s.guestName}>{pdfText(data.contact.name)}</Text>
           <View style={s.qrWrap}>
             {/* eslint-disable-next-line jsx-a11y/alt-text */}
             <Image src={data.qrDataUrl} style={s.qr} />

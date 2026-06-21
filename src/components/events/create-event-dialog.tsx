@@ -138,7 +138,7 @@ export function CreateEventDialog() {
                     id="locationName"
                     value={form.locationName}
                     onChange={(e) => set("locationName", e.target.value)}
-                    placeholder="Nome do espaço"
+                    placeholder="Nome e endereço do espaço"
                   />
                 </div>
                 <div className="space-y-2">
@@ -150,15 +150,6 @@ export function CreateEventDialog() {
                     value={form.capacity}
                     onChange={(e) => set("capacity", e.target.value)}
                     placeholder="Sem limite"
-                  />
-                </div>
-                <div className="space-y-2 sm:col-span-2">
-                  <Label htmlFor="address">Endereço</Label>
-                  <Input
-                    id="address"
-                    value={form.address}
-                    onChange={(e) => set("address", e.target.value)}
-                    placeholder="Rua, número, cidade"
                   />
                 </div>
               </div>

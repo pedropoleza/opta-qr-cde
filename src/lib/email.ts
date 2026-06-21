@@ -35,7 +35,15 @@ export async function sendEmail({
   }
 }
 
-// Template do e-mail do ingresso (imagem do QR + botão + link do PDF).
+function esc(s: string): string {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+// Template PROFISSIONAL e fixo do e-mail do ingresso (tabelas + estilos inline,
+// compatível com Outlook/Gmail). Só mudam o QR e as variáveis.
 export function ticketEmailHtml(p: {
   eventName: string;
   eventDate: string;
@@ -44,25 +52,80 @@ export function ticketEmailHtml(p: {
   qrImageUrl: string;
   ticketUrl: string;
   pdfUrl: string;
+  eventTime?: string | null;
+  brandColor?: string | null;
+  brandName?: string | null;
 }): string {
-  return `<!doctype html><html><body style="margin:0;background:#f7f8fa;padding:24px;font-family:Inter,Arial,sans-serif;color:#101828">
-  <div style="max-width:480px;margin:auto;background:#fff;border-radius:16px;overflow:hidden;border:1px solid #eaecf0">
-    <div style="background:#2563eb;color:#fff;padding:24px;text-align:center">
-      <div style="font-size:12px;letter-spacing:2px;text-transform:uppercase;opacity:.85">Spark Check-in · Ingresso</div>
-      <h1 style="margin:6px 0 0;font-size:20px">${p.eventName}</h1>
-      <div style="margin-top:6px;font-size:13px;opacity:.9">${p.eventDate}${p.eventLocation ? " · " + p.eventLocation : ""}</div>
-    </div>
-    <div style="padding:24px;text-align:center">
-      <p style="margin:0 0 4px;font-size:15px">Olá ${p.guestName},</p>
-      <p style="margin:0 0 16px;color:#667085;font-size:14px">aqui está o seu ingresso. Apresente o QR Code na entrada.</p>
-      <img src="${p.qrImageUrl}" alt="QR Code" width="220" height="220" style="border-radius:12px;border:1px solid #eaecf0" />
-      <div style="margin-top:20px">
-        <a href="${p.ticketUrl}" style="display:inline-block;background:#2563eb;color:#fff;text-decoration:none;padding:12px 22px;border-radius:10px;font-weight:600">Ver meu ingresso</a>
-      </div>
-      <div style="margin-top:12px">
-        <a href="${p.pdfUrl}" style="color:#667085;font-size:13px">Baixar ingresso em PDF</a>
-      </div>
-    </div>
-  </div>
+  const brand = p.brandColor || "#0EA5E9";
+  const brandName = esc(p.brandName || "Spark Check-in");
+  const when = [esc(p.eventDate), p.eventTime ? esc(p.eventTime) : ""]
+    .filter(Boolean)
+    .join(" · ");
+
+  const row = (label: string, value: string) =>
+    value
+      ? `<tr>
+          <td style="padding:6px 0;color:#94a3b8;font-size:13px;width:90px;vertical-align:top">${label}</td>
+          <td style="padding:6px 0;color:#1e293b;font-size:14px;font-weight:600">${value}</td>
+        </tr>`
+      : "";
+
+  return `<!doctype html>
+<html lang="pt-BR">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="x-apple-disable-message-reformatting"><title>${esc(p.eventName)}</title></head>
+<body style="margin:0;padding:0;background:#f1f5f9;">
+  <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f5f9;padding:24px 12px;">
+    <tr><td align="center">
+      <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:560px;background:#ffffff;border-radius:16px;overflow:hidden;border:1px solid #e2e8f0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
+        <!-- Header -->
+        <tr><td style="background:${brand};padding:22px 28px;">
+          <table role="presentation" width="100%"><tr>
+            <td style="color:#ffffff;font-size:16px;font-weight:700;letter-spacing:.3px;">${brandName}</td>
+            <td align="right" style="color:#ffffff;opacity:.85;font-size:11px;letter-spacing:2px;text-transform:uppercase;">Ingresso</td>
+          </tr></table>
+        </td></tr>
+
+        <!-- Título -->
+        <tr><td style="padding:28px 28px 8px;">
+          <h1 style="margin:0;font-size:22px;line-height:1.25;color:#0f172a;">${esc(p.eventName)}</h1>
+          <p style="margin:14px 0 0;color:#475569;font-size:15px;">Olá <strong>${esc(p.guestName)}</strong>, seu ingresso está confirmado. Apresente o QR Code abaixo na entrada.</p>
+        </td></tr>
+
+        <!-- QR -->
+        <tr><td align="center" style="padding:18px 28px 6px;">
+          <table role="presentation" cellpadding="0" cellspacing="0" style="border:1px solid #e2e8f0;border-radius:16px;background:#ffffff;">
+            <tr><td style="padding:16px;">
+              <img src="${p.qrImageUrl}" alt="QR Code do ingresso" width="220" height="220" style="display:block;width:220px;height:220px;">
+            </td></tr>
+          </table>
+        </td></tr>
+
+        <!-- Detalhes -->
+        <tr><td style="padding:14px 28px 4px;">
+          <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border-top:1px solid #eef2f6;">
+            <tr><td style="height:8px"></td></tr>
+            ${row("Data", when)}
+            ${row("Local", esc(p.eventLocation))}
+          </table>
+        </td></tr>
+
+        <!-- CTA -->
+        <tr><td align="center" style="padding:22px 28px 8px;">
+          <table role="presentation" cellpadding="0" cellspacing="0"><tr><td style="border-radius:10px;background:${brand};">
+            <a href="${p.ticketUrl}" style="display:inline-block;padding:13px 28px;color:#ffffff;text-decoration:none;font-weight:700;font-size:15px;border-radius:10px;">Ver meu ingresso</a>
+          </td></tr></table>
+          <p style="margin:12px 0 0;"><a href="${p.pdfUrl}" style="color:#64748b;font-size:13px;text-decoration:underline;">Baixar ingresso em PDF</a></p>
+        </td></tr>
+
+        <!-- Footer -->
+        <tr><td style="padding:20px 28px 26px;border-top:1px solid #eef2f6;">
+          <p style="margin:0;color:#94a3b8;font-size:12px;text-align:center;">
+            Este e-mail foi enviado por ${brandName}. Guarde-o para apresentar na entrada do evento.
+          </p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
 </body></html>`;
 }

@@ -38,8 +38,10 @@ const STATE_META: Record<
 
 export function ConnectionClient({
   initialStatus,
+  oauthAvailable = false,
 }: {
   initialStatus: GhlConnectionStatus;
+  oauthAvailable?: boolean;
 }) {
   const [status, setStatus] = useState<GhlConnectionStatus>(initialStatus);
   const [testing, setTesting] = useState(false);
@@ -121,6 +123,30 @@ export function ConnectionClient({
           </HelpModal>
         }
       />
+
+      {oauthAvailable && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 p-5">
+            <div className="flex items-center gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                <PlugZap className="size-5" />
+              </span>
+              <div>
+                <p className="font-medium">Conectar em 1 clique</p>
+                <p className="text-sm text-muted-foreground">
+                  Autorize o Spark na sua conta e o envio de e-mail/WhatsApp passa
+                  a sair direto — sem token manual.
+                </p>
+              </div>
+            </div>
+            <Button asChild>
+              <a href="/api/ghl/oauth/start">
+                <PlugZap className="size-4" /> Conectar com o Spark
+              </a>
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="space-y-5 p-5">

@@ -28,6 +28,7 @@ export async function POST(
       event: {
         select: {
           id: true,
+          organizationId: true,
           name: true,
           slug: true,
           date: true,
@@ -155,7 +156,14 @@ export async function POST(
     if (!integration.autoSendQrOnPaid) return { queued: false, via: "off" };
     return enqueueQrDelivery(
       tx,
-      { id: event.id, name: event.name, slug: event.slug, date: eventDate, location },
+      {
+        id: event.id,
+        name: event.name,
+        slug: event.slug,
+        date: eventDate,
+        location,
+        organizationId: event.organizationId,
+      },
       {
         id: guest!.id,
         eventId: event.id,

@@ -1,5 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import { enqueueSendQr } from "@/lib/ghl-sync";
+import { ghlCanMessage } from "@/lib/ghl";
 import {
   ticketPublicQrUrl,
   ticketQrImageUrl,
@@ -27,6 +28,7 @@ export type DeliveryEvent = {
   slug: string;
   date: string; // YYYY-MM-DD
   location: string;
+  organizationId?: string | null;
 };
 
 // Enfileira a entrega do QR pelo canal escolhido, com fallback sensato:
@@ -98,7 +100,42 @@ export async function enqueueQrDelivery(
     return { queued: true, via: "email" };
   }
 
-  // Canal GHL (ou fallback): tag-gatilho + campos no contato.
+  // Canal GHL: envio DIRETO pela API de Conversations quando a conexão é OAuth
+  // (escopo de mensagens). Senão, cai no modelo tag-gatilho + workflow.
+  if (
+    guest.ghlContactId &&
+    event.organizationId &&
+    (await ghlCanMessage(event.organizationId))
+  ) {
+    await tx.ghlSyncJob.create({
+      data: {
+        eventId: event.id,
+        guestId: guest.id,
+        ghlContactId: guest.ghlContactId,
+        action: "ghl_message",
+        payload: {
+          type: "Email",
+          subject: opts?.emailSubject ?? `Seu ingresso — ${event.name}`,
+          html:
+            opts?.emailHtml ??
+            ticketEmailHtml({
+              eventName: event.name,
+              eventDate: event.date,
+              eventLocation: event.location,
+              guestName: guest.name,
+              qrImageUrl: ticketQrImageUrl(token),
+              ticketUrl: ticketPublicQrUrl(token),
+              pdfUrl: ticketPdfUrl(token),
+            }),
+          attachments: [ticketPdfUrl(token)],
+        },
+      },
+    });
+    await logQueued(tx, event.id, guest, "ghl");
+    return { queued: true, via: "ghl-conversations" };
+  }
+
+  // Canal GHL (fallback): tag-gatilho + campos no contato.
   if (guest.ghlContactId) {
     await enqueueSendQr(
       tx,

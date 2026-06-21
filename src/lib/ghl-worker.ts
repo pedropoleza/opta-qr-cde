@@ -4,6 +4,7 @@ import {
   cleanEnv,
   ghlAddNote,
   ghlAddTags,
+  ghlSendMessage,
   ghlUpdateContactFields,
 } from "@/lib/ghl";
 import { stevoConfigured, stevoSendDocument, stevoSendText } from "@/lib/stevo";
@@ -143,6 +144,27 @@ async function runJob(job: SyncJob, organizationId: string | null) {
     }
     case "update_fields": {
       await ghlUpdateContactFields(organizationId, job.ghlContactId, payload);
+      return;
+    }
+    case "ghl_message": {
+      // Envio direto pela API de Conversations (e-mail/SMS/WhatsApp).
+      const type = (payload.type as "Email" | "SMS" | "WhatsApp") ?? "Email";
+      await ghlSendMessage(organizationId, {
+        contactId: job.ghlContactId,
+        type,
+        subject: payload.subject ? String(payload.subject) : undefined,
+        html: payload.html ? String(payload.html) : undefined,
+        message: payload.message ? String(payload.message) : undefined,
+        attachments: Array.isArray(payload.attachments)
+          ? (payload.attachments as string[])
+          : undefined,
+      });
+      if (job.guestId) {
+        await prisma.emailLog.updateMany({
+          where: { guestId: job.guestId, provider: "ghl", status: "queued" },
+          data: { status: "sent", sentAt: new Date() },
+        });
+      }
       return;
     }
     default:

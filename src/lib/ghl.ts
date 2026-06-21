@@ -4,9 +4,16 @@
 
 import { prisma } from "@/lib/prisma";
 import { decryptSecret, encryptSecret } from "@/lib/crypto";
+import {
+  ghlOAuthConfigured,
+  refreshAccessToken,
+  type GhlTokenResponse,
+} from "@/lib/ghl-oauth";
 
 const GHL_API_BASE = "https://services.leadconnectorhq.com";
 const GHL_API_VERSION = "2021-07-28";
+
+const PIT_REFRESH = "pit-no-refresh"; // marcador de conexão por PIT (sem refresh)
 
 export function cleanEnv(value?: string | null): string {
   return (value ?? "").trim().replace(/^["']+|["']+$/g, "").trim();
@@ -22,6 +29,18 @@ export async function resolveGhlAuth(organizationId: string): Promise<GhlAuth> {
     orderBy: { createdAt: "desc" },
   });
   if (conn?.accessToken && conn?.locationId) {
+    // Conexão OAuth (Marketplace): renova o token quando expira.
+    const isOauth = conn.refreshToken && conn.refreshToken !== PIT_REFRESH;
+    const expired = conn.expiresAt.getTime() < Date.now() + 60_000; // 1 min de folga
+    if (isOauth && expired && ghlOAuthConfigured()) {
+      try {
+        const refreshed = await refreshAccessToken(decryptSecret(conn.refreshToken));
+        await persistTokens(organizationId, refreshed, conn.locationId);
+        return { locationId: conn.locationId, token: refreshed.access_token };
+      } catch {
+        // Falhou o refresh → tenta com o token atual (pode ainda valer alguns min).
+      }
+    }
     return { locationId: conn.locationId, token: decryptSecret(conn.accessToken) };
   }
   const total = await prisma.ghlConnection.count();
@@ -60,6 +79,56 @@ export async function saveGhlConnection(
 
 export async function deleteGhlConnection(organizationId: string) {
   await prisma.ghlConnection.deleteMany({ where: { organizationId } });
+}
+
+// Salva a conexão OAuth (Marketplace) — tokens cifrados + expiração + escopos.
+export async function saveOauthConnection(
+  organizationId: string,
+  token: GhlTokenResponse,
+  fallbackLocationId?: string,
+) {
+  const locationId = token.locationId || fallbackLocationId || "";
+  await prisma.ghlConnection.deleteMany({ where: { organizationId } });
+  await prisma.ghlConnection.create({
+    data: {
+      organizationId,
+      locationId,
+      accessToken: encryptSecret(token.access_token),
+      refreshToken: encryptSecret(token.refresh_token),
+      expiresAt: new Date(Date.now() + (token.expires_in ?? 86400) * 1000),
+      scopes: token.scope ?? null,
+    },
+  });
+}
+
+// Atualiza só os tokens (usado no refresh automático).
+async function persistTokens(
+  organizationId: string,
+  token: GhlTokenResponse,
+  locationId: string,
+) {
+  await prisma.ghlConnection.updateMany({
+    where: { organizationId },
+    data: {
+      accessToken: encryptSecret(token.access_token),
+      refreshToken: encryptSecret(token.refresh_token),
+      expiresAt: new Date(Date.now() + (token.expires_in ?? 86400) * 1000),
+      ...(token.scope ? { scopes: token.scope } : {}),
+    },
+  });
+}
+
+// A conexão da org consegue ENVIAR mensagens direto (escopo de Conversations)?
+export async function ghlCanMessage(organizationId: string): Promise<boolean> {
+  const conn = await prisma.ghlConnection.findFirst({
+    where: { organizationId },
+    select: { scopes: true, accessToken: true, locationId: true },
+  });
+  return Boolean(
+    conn?.accessToken &&
+      conn?.locationId &&
+      conn.scopes?.includes("conversations"),
+  );
 }
 
 export type GhlLocation = {
@@ -194,6 +263,39 @@ export async function ghlAddNote(
   await ghlRequest(token, `/contacts/${contactId}/notes`, {
     method: "POST",
     body: JSON.stringify({ body: note }),
+  });
+}
+
+// Envio direto pela API de Conversations do GHL (e-mail/SMS/WhatsApp).
+export type GhlMessage = {
+  contactId: string;
+  type: "Email" | "SMS" | "WhatsApp";
+  subject?: string;
+  html?: string;
+  message?: string;
+  attachments?: string[]; // URLs (e-mail)
+};
+
+export async function ghlSendMessage(
+  organizationId: string,
+  msg: GhlMessage,
+): Promise<void> {
+  const { token } = await authOrThrow(organizationId);
+  const body: Record<string, unknown> = {
+    type: msg.type,
+    contactId: msg.contactId,
+  };
+  if (msg.type === "Email") {
+    if (msg.subject) body.subject = msg.subject;
+    if (msg.html) body.html = msg.html;
+    if (msg.message) body.message = msg.message;
+    if (msg.attachments?.length) body.attachments = msg.attachments;
+  } else {
+    body.message = msg.message ?? "";
+  }
+  await ghlRequest(token, `/conversations/messages`, {
+    method: "POST",
+    body: JSON.stringify(body),
   });
 }
 

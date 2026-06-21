@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership, jsonError } from "@/lib/api";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -12,8 +13,13 @@ export async function DELETE(
   const m = await getCurrentMembership();
   if (m.role !== "owner") return jsonError(403, "Apenas o owner pode revogar.");
   const { id } = await params;
+  const invite = await prisma.invite.findFirst({
+    where: { id, organizationId: m.organization.id },
+    select: { email: true },
+  });
   await prisma.invite.deleteMany({
     where: { id, organizationId: m.organization.id },
   });
+  await audit(m, "invite.revoke", invite?.email ?? id);
   return NextResponse.json({ ok: true });
 }

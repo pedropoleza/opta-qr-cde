@@ -27,6 +27,9 @@ export default async function GuestQrPage({
           endTime: true,
           locationName: true,
           address: true,
+          organization: {
+            select: { name: true, brandName: true, logoUrl: true, primaryColor: true },
+          },
         },
       },
     },
@@ -44,14 +47,35 @@ export default async function GuestQrPage({
     .filter(Boolean)
     .join(" – ");
 
+  // White-label por tenant (Fase 5): marca, logo e cor primária da organização.
+  const org = ticket.event.organization;
+  const brand = org?.brandName?.trim() || "Spark Check-in";
+  const headerColor = org?.primaryColor?.trim() || null;
+  const headerStyle = headerColor ? { backgroundColor: headerColor } : undefined;
+  const headerClass = headerColor ? "" : "bg-neutral-900";
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-neutral-900 p-4">
       <div className="w-full max-w-sm overflow-hidden rounded-2xl bg-white shadow-xl">
         {/* Cabeçalho do ingresso */}
-        <div className="bg-neutral-900 px-6 py-5 text-center text-white">
-          <p className="text-xs uppercase tracking-[0.2em] text-neutral-400">
-            Spark Check-in · Ingresso
-          </p>
+        <div
+          className={`px-6 py-5 text-center text-white ${headerClass}`}
+          style={headerStyle}
+        >
+          {org?.logoUrl ? (
+            <>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={org.logoUrl}
+                alt={brand}
+                className="mx-auto mb-2 h-8 w-auto object-contain"
+              />
+            </>
+          ) : (
+            <p className="text-xs uppercase tracking-[0.2em] text-white/70">
+              {brand} · Ingresso
+            </p>
+          )}
           <h1 className="mt-1 text-xl font-bold">{ticket.event.name}</h1>
           <p className="mt-1 text-sm text-neutral-300">
             {dateLabel}
@@ -66,9 +90,9 @@ export default async function GuestQrPage({
         </div>
 
         {/* Recorte perfurado */}
-        <div className="relative h-4 bg-neutral-900">
+        <div className={`relative h-4 ${headerClass}`} style={headerStyle}>
           <div className="absolute -left-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-neutral-900" />
-          <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 border-t border-dashed border-neutral-700" />
+          <div className="absolute inset-x-3 top-1/2 -translate-y-1/2 border-t border-dashed border-white/40" />
           <div className="absolute -right-2 top-1/2 h-4 w-4 -translate-y-1/2 rounded-full bg-neutral-900" />
         </div>
 

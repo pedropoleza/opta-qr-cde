@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership, jsonError } from "@/lib/api";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,7 @@ export async function PATCH(
     where: { userId, organizationId: m.organization.id },
     data: { role },
   });
+  await audit(m, "member.role", target.email ?? userId, { from: target.role, to: role });
   return NextResponse.json({ ok: true });
 }
 
@@ -60,5 +62,6 @@ export async function DELETE(
   await prisma.membership.deleteMany({
     where: { userId, organizationId: m.organization.id },
   });
+  await audit(m, "member.remove", target.email ?? userId, { role: target.role });
   return NextResponse.json({ ok: true });
 }

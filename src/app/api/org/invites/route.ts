@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership, jsonError } from "@/lib/api";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -25,5 +26,6 @@ export async function POST(req: NextRequest) {
     create: { organizationId: m.organization.id, email, role },
     update: { role },
   });
+  await audit(m, "invite.create", email, { role });
   return NextResponse.json({ invite });
 }

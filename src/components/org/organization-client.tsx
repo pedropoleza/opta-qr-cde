@@ -20,12 +20,36 @@ import { Loading } from "@/components/ui/states";
 
 type Member = { userId: string; email: string | null; role: string };
 type Invite = { id: string; email: string; role: string };
+type Org = {
+  id: string;
+  name: string;
+  brandName?: string | null;
+  logoUrl?: string | null;
+  primaryColor?: string | null;
+};
 type Data = {
-  org: { id: string; name: string };
+  org: Org;
   role: "owner" | "manager" | "member";
   currentUserId: string | null;
   members: Member[];
   invites: Invite[];
+};
+type AuditEntry = {
+  id: string;
+  actorEmail: string | null;
+  action: string;
+  target: string | null;
+  createdAt: string;
+};
+
+const ACTION_LABEL: Record<string, string> = {
+  "org.update": "Atualizou a organização",
+  "member.role": "Alterou papel de membro",
+  "member.remove": "Removeu membro",
+  "invite.create": "Convidou",
+  "invite.revoke": "Revogou convite",
+  "ghl.connect": "Conectou o GHL",
+  "ghl.disconnect": "Desconectou o GHL",
 };
 
 const ROLE_LABEL: Record<string, string> = {
@@ -40,6 +64,9 @@ export function OrganizationClient({ multiTenant }: { multiTenant: boolean }) {
   const [savingName, setSavingName] = useState(false);
   const [invite, setInvite] = useState({ email: "", role: "member" });
   const [inviting, setInviting] = useState(false);
+  const [brand, setBrand] = useState({ brandName: "", logoUrl: "", primaryColor: "" });
+  const [savingBrand, setSavingBrand] = useState(false);
+  const [audit, setAudit] = useState<AuditEntry[]>([]);
 
   async function load() {
     const res = await fetch("/api/org");
@@ -47,11 +74,38 @@ export function OrganizationClient({ multiTenant }: { multiTenant: boolean }) {
       const d: Data = await res.json();
       setData(d);
       setName(d.org.name);
+      setBrand({
+        brandName: d.org.brandName ?? "",
+        logoUrl: d.org.logoUrl ?? "",
+        primaryColor: d.org.primaryColor ?? "",
+      });
+      if (d.role !== "member") {
+        fetch("/api/org/audit")
+          .then((r) => (r.ok ? r.json() : { logs: [] }))
+          .then((a) => setAudit(a.logs ?? []))
+          .catch(() => {});
+      }
     }
   }
   useEffect(() => {
     load();
   }, []);
+
+  async function saveBrand() {
+    setSavingBrand(true);
+    const res = await fetch("/api/org", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(brand),
+    });
+    setSavingBrand(false);
+    if (!res.ok) {
+      toast.error("Erro ao salvar a marca");
+      return;
+    }
+    toast.success("Marca atualizada");
+    load();
+  }
 
   const isOwner = data?.role === "owner";
 
@@ -139,6 +193,74 @@ export function OrganizationClient({ multiTenant }: { multiTenant: boolean }) {
               </Button>
             )}
           </div>
+        </CardContent>
+      </Card>
+
+      {/* White-label: marca exibida no ingresso público do convidado */}
+      <Card>
+        <CardContent className="space-y-4 p-5">
+          <div className="flex items-center justify-between">
+            <p className="font-medium">Marca (white-label)</p>
+            <span
+              className="size-6 rounded-md border"
+              style={{ backgroundColor: brand.primaryColor || "#171717" }}
+              aria-hidden
+            />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Aparece no ingresso do convidado (a página do QR Code).
+          </p>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="brandName">Nome da marca</Label>
+              <Input
+                id="brandName"
+                value={brand.brandName}
+                onChange={(e) => setBrand((b) => ({ ...b, brandName: e.target.value }))}
+                placeholder="Ex.: Opta Finance"
+                disabled={!isOwner}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="primaryColor">Cor primária (hex)</Label>
+              <div className="flex items-center gap-2">
+                <Input
+                  id="primaryColor"
+                  value={brand.primaryColor}
+                  onChange={(e) =>
+                    setBrand((b) => ({ ...b, primaryColor: e.target.value }))
+                  }
+                  placeholder="#4f46e5"
+                  disabled={!isOwner}
+                />
+                <input
+                  type="color"
+                  aria-label="Selecionar cor"
+                  value={brand.primaryColor || "#171717"}
+                  onChange={(e) =>
+                    setBrand((b) => ({ ...b, primaryColor: e.target.value }))
+                  }
+                  disabled={!isOwner}
+                  className="size-9 shrink-0 cursor-pointer rounded-md border bg-transparent"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5 sm:col-span-2">
+              <Label htmlFor="logoUrl">URL do logo</Label>
+              <Input
+                id="logoUrl"
+                value={brand.logoUrl}
+                onChange={(e) => setBrand((b) => ({ ...b, logoUrl: e.target.value }))}
+                placeholder="https://…/logo.png"
+                disabled={!isOwner}
+              />
+            </div>
+          </div>
+          {isOwner && (
+            <Button onClick={saveBrand} disabled={savingBrand}>
+              {savingBrand && <Loader2 className="size-4 animate-spin" />} Salvar marca
+            </Button>
+          )}
         </CardContent>
       </Card>
 
@@ -261,6 +383,50 @@ export function OrganizationClient({ multiTenant }: { multiTenant: boolean }) {
                         >
                           Revogar
                         </Button>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {data.role !== "member" && (
+            <Card>
+              <CardContent className="space-y-3 p-5">
+                <p className="font-medium">Atividade recente</p>
+                {audit.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    Nenhuma ação registrada ainda.
+                  </p>
+                ) : (
+                  <ul className="divide-y text-sm">
+                    {audit.map((a) => (
+                      <li
+                        key={a.id}
+                        className="flex items-center justify-between gap-3 py-2"
+                      >
+                        <span className="min-w-0">
+                          <span className="block truncate">
+                            <span className="font-medium">
+                              {ACTION_LABEL[a.action] ?? a.action}
+                            </span>
+                            {a.target ? (
+                              <span className="text-muted-foreground"> · {a.target}</span>
+                            ) : null}
+                          </span>
+                          <span className="block truncate text-xs text-muted-foreground">
+                            {a.actorEmail ?? "sistema"}
+                          </span>
+                        </span>
+                        <time className="shrink-0 text-xs text-muted-foreground">
+                          {new Date(a.createdAt).toLocaleString("pt-BR", {
+                            day: "2-digit",
+                            month: "2-digit",
+                            hour: "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </time>
                       </li>
                     ))}
                   </ul>

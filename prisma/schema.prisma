@@ -21,12 +21,19 @@ model Organization {
   name      String
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
 
+  // White-label por tenant (Fase 5). Aplicado nas superfícies públicas
+  // (ingresso do convidado) e no cabeçalho do app.
+  brandName    String? @map("brand_name")
+  logoUrl      String? @map("logo_url")
+  primaryColor String? @map("primary_color") // hex, ex.: #4f46e5
+
   users           User[]
   events          Event[]
   ghlConnections  GhlConnection[]
   ticketTemplates TicketTemplate[]
   memberships     Membership[]
   invites         Invite[]
+  auditLogs       AuditLog[]
 
   @@map("checkin_organizations")
 }
@@ -276,4 +283,22 @@ model RateLimit {
 
   @@index([windowStart])
   @@map("checkin_rate_limits")
+}
+
+// Auditoria de ações sensíveis (Fase 5 — observabilidade). Registra quem fez o
+// quê em cada organização (papéis, convites, conexão GHL, renomear org).
+model AuditLog {
+  id             String   @id @default(uuid()) @db.Uuid
+  organizationId String   @map("organization_id") @db.Uuid
+  actorId        String?  @map("actor_id")
+  actorEmail     String?  @map("actor_email")
+  action         String
+  target         String?
+  metadata       Json?
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, createdAt])
+  @@map("checkin_audit_logs")
 }

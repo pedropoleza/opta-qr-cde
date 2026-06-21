@@ -5,6 +5,7 @@ import {
   deleteGhlConnection,
   saveGhlConnection,
 } from "@/lib/ghl";
+import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
 
@@ -26,6 +27,7 @@ export async function POST(req: NextRequest) {
     return jsonError(400, "Informe o Location ID e o token.");
   }
   await saveGhlConnection(organizationId, locationId, token);
+  await audit(m, "ghl.connect", locationId);
   return NextResponse.json(await checkGhlConnection(organizationId));
 }
 
@@ -34,5 +36,6 @@ export async function DELETE() {
   const m = await getCurrentMembership();
   if (m.role === "member") return jsonError(403, "Sem permissão para desconectar.");
   await deleteGhlConnection(m.organization.id);
+  await audit(m, "ghl.disconnect", m.organization.id);
   return NextResponse.json({ ok: true });
 }

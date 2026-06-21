@@ -80,6 +80,11 @@ type SendQrFields = {
   eventLocation: string;
   qrLink: string; // página do ingresso /q/{token}
   qrImageUrl: string; // PNG público /api/qr/{token}
+  // Variáveis extras para o workflow do cliente compor o e-mail livremente.
+  guestName?: string;
+  eventTime?: string | null;
+  eventAddress?: string | null;
+  pdfUrl?: string;
 };
 
 export async function enqueueSendQr(
@@ -106,6 +111,10 @@ export async function enqueueSendQr(
           event_qr_link: fields.qrLink,
           event_qr_image: fields.qrImageUrl,
           event_checkin_status: "qrcode_enviado",
+          ...(fields.guestName ? { guest_name: fields.guestName } : {}),
+          ...(fields.eventTime ? { event_time: fields.eventTime } : {}),
+          ...(fields.eventAddress ? { event_address: fields.eventAddress } : {}),
+          ...(fields.pdfUrl ? { event_pdf_link: fields.pdfUrl } : {}),
         },
       },
       {

@@ -147,6 +147,8 @@ export async function enqueueQrDelivery(
         eventLocation: event.location,
         qrLink: ticketPublicQrUrl(token),
         qrImageUrl: ticketQrImageUrl(token),
+        guestName: guest.name,
+        pdfUrl: ticketPdfUrl(token),
       },
     );
     await logQueued(tx, event.id, guest, "ghl");

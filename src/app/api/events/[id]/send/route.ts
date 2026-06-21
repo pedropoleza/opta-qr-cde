@@ -115,6 +115,10 @@ export async function POST(
             eventLocation,
             qrLink: ticketPublicQrUrl(token),
             qrImageUrl: ticketQrImageUrl(token),
+            guestName: guest.name,
+            eventTime: event.startTime,
+            eventAddress: event.address,
+            pdfUrl: ticketPdfUrl(token),
           },
         );
         await tx.emailLog.create({

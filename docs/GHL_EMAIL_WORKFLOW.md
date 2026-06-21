@@ -1,55 +1,61 @@
-# Envio do QR por e-mail via automação do HighLevel (D1 = híbrida C)
+# Envio do QR por e-mail via workflow do Spark/GHL (por cliente)
 
-O Spark Check-in **não dispara o e-mail diretamente**. Quem envia é um workflow
-nativo do HighLevel. O app é responsável apenas por preparar o contato e acionar
-o gatilho. Isto exige a integração GHL conectada (Etapa 4) e o workflow montado
-pelo 👤 Time.
+No modelo "workflow", **quem compõe e envia o e-mail é o workflow dentro do GHL
+de cada cliente** — não o app. Isso torna o e-mail **variável por cliente por
+natureza** (cada subaccount tem seu próprio template, remetente, design e idioma).
+O app só (1) grava variáveis no contato e (2) aciona a tag-gatilho.
 
-## Fluxo
+## Como a personalização por cliente funciona
+- Cada cliente monta **um workflow** no próprio GHL, disparado pela tag
+  `qrcode-enviado-{slug-do-evento}`.
+- O e-mail do workflow usa as **variáveis (custom fields)** que o app grava no
+  contato. Assim o conteúdo é 100% editável por cliente — e até por evento
+  (a tag tem o slug do evento, então dá para ramificar por evento).
 
-1. Organizador clica em **"Enviar QR por e-mail"** na aba QR Delivery.
-2. O app (`POST /api/events/:id/send`) enfileira em `checkin_ghl_sync_jobs`:
-   - `update_fields` no contato: `event_name`, `event_date`, `event_location`,
-     `event_qr_link` (página `/q/{token}`), `event_qr_image` (PNG `/api/qr/{token}`),
-     `event_checkin_status = qrcode_enviado`.
-   - `add_tag`: **`qrcode-enviado-{slug-do-evento}`** (tag-gatilho do workflow).
-   - Grava `EmailLog` (provider `ghl`, status `queued`) e move o convidado para
-     `email_sent`.
-3. O worker da fila (Etapa 4) executa esses jobs contra a API do GHL.
-4. O **workflow do GHL** (montado pelo Time) escuta a tag `qrcode-enviado-{slug}`
-   e envia o e-mail usando os custom fields do contato.
+## Variáveis disponíveis (custom fields gravados pelo app)
+Crie estes campos na location (Settings → Custom Fields) com a **chave** exata:
 
-## 👤 Time — configurar no HighLevel (Etapa 4)
+| Campo (key) | Conteúdo |
+|---|---|
+| `guest_name` | Nome do convidado |
+| `event_name` | Nome do evento |
+| `event_date` | Data (YYYY-MM-DD) |
+| `event_time` | Horário de início |
+| `event_location` | Local |
+| `event_address` | Endereço |
+| `event_qr_link` | Página do ingresso `/q/{token}` (mostra o QR) |
+| `event_qr_image` | PNG público do QR `/api/qr/{token}` (para embutir no e-mail) |
+| `event_pdf_link` | PDF do ingresso `/api/ticket/{token}/pdf` |
+| `event_checkin_status` | `qrcode_enviado` |
 
-1. **Custom fields** (D3): `event_name`, `event_date`, `event_location`,
-   `event_qr_link`, `event_qr_image`, `event_checkin_status`, `event_checked_in_at`.
-2. **Workflow**:
-   - Gatilho: *Contact Tag Added* = `qrcode-enviado-{slug}` (um por evento, ou um
-     genérico por prefixo se a sua conta permitir).
-   - Ação: *Send Email* com o template abaixo.
+No editor de e-mail do GHL, use como merge tag, ex.: `{{contact.event_qr_image}}`,
+`{{contact.guest_name}}`, `{{contact.event_qr_link}}`.
 
-## Template do e-mail (referência — imagem + botão, D2)
+## Exemplo de corpo de e-mail (no workflow do cliente)
+> Olá {{contact.guest_name}}, seu ingresso para **{{contact.event_name}}** está pronto!
+> 📅 {{contact.event_date}} {{contact.event_time}} · 📍 {{contact.event_location}}
+> Apresente o QR na entrada: imagem `{{contact.event_qr_image}}` ou abra
+> {{contact.event_qr_link}}. PDF: {{contact.event_pdf_link}}
 
-```html
-<div style="max-width:480px;margin:auto;font-family:sans-serif;text-align:center">
-  <h1>{{contact.event_name}}</h1>
-  <p>{{contact.event_date}} · {{contact.event_location}}</p>
-  <p>Olá {{contact.first_name}}, aqui está o seu ingresso:</p>
-  <img src="{{contact.event_qr_image}}" alt="QR Code" width="240" height="240" />
-  <p>
-    <a href="{{contact.event_qr_link}}"
-       style="display:inline-block;background:#111;color:#fff;
-              padding:12px 20px;border-radius:8px;text-decoration:none">
-      Ver meu ingresso
-    </a>
-  </p>
-  <p style="font-size:12px;color:#888">
-    Apresente este QR Code na entrada do evento.
-  </p>
-</div>
-```
+## Passo a passo (uma vez por cliente)
+1. Criar os custom fields acima na location.
+2. Criar o workflow: **Trigger** = "Contact Tag" contém `qrcode-enviado-` (ou a tag
+   exata do evento) → **Action** = "Send Email" usando as variáveis.
+3. Conectar o Spark na aba **Conexão** (token da location).
+4. No evento → **Enviar convite** (canal Spark): o app grava as variáveis + a tag,
+   e o workflow do cliente envia o e-mail.
 
-> `event_qr_image` aponta para `/api/qr/{token}` (PNG público) e `event_qr_link`
-> para `/q/{token}` (página do ingresso). Ambos usam o `APP_BASE_URL` configurado
-> na Vercel, então precisam de um domínio público acessível pelo cliente de
-> e-mail do convidado.
+## Escala: distribuir o mesmo workflow para todos os clientes (Snapshot)
+Para não montar manualmente em cada subaccount, use um **Snapshot do GHL**
+(recurso de agência): inclua os custom fields + o workflow no snapshot e
+empurre/instale nos subaccounts. Cada cliente recebe a base pronta e só ajusta
+texto/branding do e-mail. É a forma escalável do modelo workflow.
+
+## Alternativa: configurar os e-mails CENTRALIZADO no app (sem workflow)
+Se você prefere editar os e-mails de cada cliente **dentro do Spark** (no-code,
+com variáveis), use o **envio direto**:
+- **Resend** (e-mail direto) ou **GHL Conversations (OAuth)** — neste, o e-mail é
+  composto pelos nossos **templates (aba Mensagens, por evento/tenant)** e sai
+  pela identidade do próprio GHL do cliente.
+- Vantagem: um só lugar para configurar, variáveis `{{nome}}`, `{{evento}}`,
+  `{{link_qr}}`, `{{link_certificado}}`… por evento e por organização.

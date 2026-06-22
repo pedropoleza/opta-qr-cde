@@ -4,6 +4,8 @@ import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { ticketPublicQrUrl, ticketQrImageUrl, ticketPdfUrl } from "@/lib/ticket";
 import { enqueueSendQr } from "@/lib/ghl-sync";
 import { stevoConfigured, normalizePhone } from "@/lib/stevo";
+import { whatsappTemplateConfigured } from "@/lib/whatsapp-cloud";
+import { ticketWhatsappText } from "@/lib/whatsapp-text";
 import { emailConfigured, ticketEmailHtml } from "@/lib/email";
 
 // Disparo do ingresso por canal:
@@ -34,10 +36,11 @@ export async function POST(
   const wantsWhatsapp = channel === "whatsapp" || channel === "both";
   const wantsEmail = channel === "email" || channel === "both";
 
-  if (wantsWhatsapp && !stevoConfigured()) {
+  const officialWhatsapp = whatsappTemplateConfigured();
+  if (wantsWhatsapp && !stevoConfigured() && !officialWhatsapp) {
     return jsonError(
       400,
-      "WhatsApp (Stevo) não configurado. Defina STEVO_API_URL e STEVO_API_KEY.",
+      "WhatsApp não configurado. Defina o WhatsApp Oficial (WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_TOKEN, WHATSAPP_TEMPLATE_NAME) ou o Stevo (STEVO_API_URL, STEVO_API_KEY).",
     );
   }
 
@@ -145,17 +148,31 @@ export async function POST(
       }
 
       if (wantsWhatsapp && guest.phone) {
+        // WhatsApp Oficial (PDF anexado via template) quando configurado; senão Stevo.
         await tx.ghlSyncJob.create({
           data: {
             eventId: id,
             guestId: guest.id,
             ghlContactId: guest.ghlContactId,
-            action: "send_whatsapp",
+            action: officialWhatsapp ? "whatsapp_cloud" : "send_whatsapp",
             payload: {
               to: normalizePhone(guest.phone),
               url: ticketPdfUrl(token),
               filename: `ingresso-${event.slug}.pdf`,
-              caption: `Olá! Aqui está o seu ingresso para ${event.name} (${eventDate}). Apresente o QR Code na entrada.`,
+              ...(officialWhatsapp
+                ? { bodyParams: [guest.name, event.name, eventDate] }
+                : {
+                    caption: ticketWhatsappText({
+                      guestName: guest.name,
+                      eventName: event.name,
+                      eventDate,
+                      eventTime,
+                      eventLocation,
+                      ticketUrl: ticketPublicQrUrl(token),
+                      brandName: org?.brandName,
+                      vip: guest.vip || guest.tier === "vip",
+                    }),
+                  }),
             },
           },
         });
@@ -164,7 +181,7 @@ export async function POST(
             eventId: id,
             guestId: guest.id,
             ticketId: guest.ticket!.id,
-            provider: "stevo-whatsapp",
+            provider: officialWhatsapp ? "whatsapp-cloud" : "stevo-whatsapp",
             status: "queued",
           },
         });

@@ -7,6 +7,8 @@ import {
   ticketPdfUrl,
 } from "@/lib/ticket";
 import { normalizePhone } from "@/lib/stevo";
+import { whatsappTemplateConfigured } from "@/lib/whatsapp-cloud";
+import { ticketWhatsappText } from "@/lib/whatsapp-text";
 import { emailConfigured, ticketEmailHtml } from "@/lib/email";
 
 type Tx = Prisma.TransactionClient;
@@ -98,24 +100,41 @@ export async function enqueueQrDelivery(
   };
 
   if (channel === "whatsapp" && guest.phone) {
+    // WhatsApp OFICIAL (Meta Cloud) quando há template aprovado: o PDF chega
+    // como documento anexado. Senão, cai no Stevo (não-oficial), que envia o
+    // PDF anexado (POST /send/media, type document) + a legenda profissional.
+    const official = whatsappTemplateConfigured();
+    if (!branding) branding = await resolveEmailBranding(tx, event.organizationId);
+    const caption =
+      opts?.caption ??
+      ticketWhatsappText({
+        guestName: guest.name,
+        eventName: event.name,
+        eventDate: event.date,
+        eventTime: event.time,
+        eventLocation: event.location,
+        ticketUrl: ticketPublicQrUrl(token),
+        brandName: branding.brandName,
+        vip: guest.vip,
+      });
     await tx.ghlSyncJob.create({
       data: {
         eventId: event.id,
         guestId: guest.id,
         ghlContactId: guest.ghlContactId,
-        action: "send_whatsapp",
+        action: official ? "whatsapp_cloud" : "send_whatsapp",
         payload: {
           to: normalizePhone(guest.phone),
           url: ticketPdfUrl(token),
           filename: `ingresso-${event.slug}.pdf`,
-          caption:
-            opts?.caption ??
-            `Olá! Aqui está o seu ingresso para ${event.name} (${event.date}). Apresente o QR Code na entrada.`,
+          ...(official
+            ? { bodyParams: [guest.name, event.name, event.date] }
+            : { caption }),
         },
       },
     });
-    await logQueued(tx, event.id, guest, "stevo-whatsapp");
-    return { queued: true, via: "whatsapp" };
+    await logQueued(tx, event.id, guest, official ? "whatsapp-cloud" : "stevo-whatsapp");
+    return { queued: true, via: official ? "whatsapp-cloud" : "whatsapp" };
   }
 
   if (channel === "email" && emailConfigured() && guest.email) {

@@ -8,6 +8,10 @@ import {
   ghlUpdateContactFields,
 } from "@/lib/ghl";
 import { stevoConfigured, stevoSendDocument, stevoSendText } from "@/lib/stevo";
+import {
+  sendWhatsappTemplateDocument,
+  sendWhatsappDocument,
+} from "@/lib/whatsapp-cloud";
 import { emailConfigured, sendEmail } from "@/lib/email";
 
 // Worker da fila de sincronização GHL (Etapa 4 / D7). Consome
@@ -66,6 +70,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
   for (const job of jobs) {
     try {
       if (job.action === "send_whatsapp") await runWhatsappJob(job);
+      else if (job.action === "whatsapp_cloud") await runWhatsappCloudJob(job);
       else if (job.action === "send_whatsapp_text") await runWhatsappTextJob(job);
       else if (job.action === "send_email") await runEmailJob(job);
       else await runJob(job, job.event?.organizationId ?? null);
@@ -228,6 +233,37 @@ async function runWhatsappJob(job: SyncJob) {
         provider: "stevo-whatsapp",
         status: "queued",
       },
+      data: { status: "sent", sentAt: new Date() },
+    });
+  }
+}
+
+// WhatsApp OFICIAL (Meta Cloud API): envia o PDF como documento anexado.
+// `template:false` força documento livre (só vale na janela de 24h).
+async function runWhatsappCloudJob(job: SyncJob) {
+  const payload = (job.payload ?? {}) as Record<string, unknown>;
+  const to = String(payload.to ?? "");
+  const url = String(payload.url ?? "");
+  if (!to || !url) throw new GhlError("WhatsApp Cloud sem número ou URL no payload");
+  const filename = String(payload.filename ?? "ingresso.pdf");
+  const bodyParams = Array.isArray(payload.bodyParams)
+    ? (payload.bodyParams as unknown[]).map((v) => String(v))
+    : [];
+
+  if (payload.template === false) {
+    await sendWhatsappDocument({
+      to,
+      pdfUrl: url,
+      filename,
+      caption: payload.caption ? String(payload.caption) : undefined,
+    });
+  } else {
+    await sendWhatsappTemplateDocument({ to, pdfUrl: url, filename, bodyParams });
+  }
+
+  if (job.guestId) {
+    await prisma.emailLog.updateMany({
+      where: { guestId: job.guestId, provider: "whatsapp-cloud", status: "queued" },
       data: { status: "sent", sentAt: new Date() },
     });
   }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { supabaseConfigured } from "@/lib/supabase/config";
+import { authEnabled } from "@/lib/supabase/config";
 import { createSupabaseServer } from "@/lib/supabase/server";
 
 export function jsonError(status: number, error: string) {
@@ -19,12 +19,13 @@ function orgNameFromEmail(email?: string | null): string {
 //   acesso: o primeiro usuário do sistema herda a organização existente (Opta);
 //   os demais ganham uma organização nova. Multi-tenant para várias contas.
 export async function getCurrentOrg() {
-  if (!supabaseConfigured()) {
+  // Login desativado → single-tenant: resolve a organização única (Opta).
+  if (!authEnabled()) {
     const existing = await prisma.organization.findFirst({
       orderBy: { createdAt: "asc" },
     });
     if (existing) return existing;
-    return prisma.organization.create({ data: { name: "SparkLeads" } });
+    return prisma.organization.create({ data: { name: "Opta Finance" } });
   }
 
   const supabase = await createSupabaseServer();
@@ -90,7 +91,7 @@ export async function getCurrentOrg() {
 // Membership da sessão (organização + papel). Em modo single-tenant (sem
 // Supabase) devolve a org padrão com papel "owner".
 export async function getCurrentMembership() {
-  if (!supabaseConfigured()) {
+  if (!authEnabled()) {
     const org = await getCurrentOrg();
     return { organization: org, role: "owner" as const, userId: null, email: null };
   }

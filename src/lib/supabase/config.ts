@@ -13,3 +13,11 @@ export const SUPABASE_ANON_KEY =
 export function supabaseConfigured(): boolean {
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
+
+// Login (Supabase Auth) habilitado? DESLIGADO por padrão enquanto a tela de
+// login está sendo retrabalhada: o app entra direto, sem exigir login, e
+// resolve a organização única (Opta) — ideal para embutir no iframe do CRM.
+// Religue depois definindo AUTH_ENABLED="true" no ambiente.
+export function authEnabled(): boolean {
+  return supabaseConfigured() && process.env.AUTH_ENABLED === "true";
+}

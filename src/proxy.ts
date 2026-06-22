@@ -1,10 +1,22 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createServerClient } from "@supabase/ssr";
-import { SUPABASE_ANON_KEY, SUPABASE_URL } from "@/lib/supabase/config";
+import { SUPABASE_ANON_KEY, SUPABASE_URL, authEnabled } from "@/lib/supabase/config";
 
 // Proxy (antigo "middleware", renomeado no Next 16). Renova a sessão e protege
 // as rotas do organizador. Multi-tenant ligado via chaves do Supabase.
 export async function proxy(req: NextRequest) {
+  // Login desativado (em retrabalho): entra direto, sem redirecionar para
+  // /login. Mantém o iframe do CRM funcionando sem tela de login.
+  if (!authEnabled()) {
+    if (req.nextUrl.pathname === "/login") {
+      const to = req.nextUrl.clone();
+      to.pathname = "/";
+      to.search = "";
+      return NextResponse.redirect(to);
+    }
+    return NextResponse.next();
+  }
+
   const url = SUPABASE_URL;
   const key = SUPABASE_ANON_KEY;
   if (!url || !key) return NextResponse.next();

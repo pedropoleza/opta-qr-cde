@@ -1,7 +1,7 @@
 import { MainNav } from "@/components/layout/main-nav";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { SignOutButton } from "@/components/auth/sign-out-button";
-import { supabaseConfigured } from "@/lib/supabase/config";
+import { authEnabled } from "@/lib/supabase/config";
 import { getCurrentOrg } from "@/lib/api";
 
 // Navegação por abas superiores (sem sidebar). White-label "Spark" + nome da
@@ -40,7 +40,7 @@ export default async function AppLayout({
             <MainNav />
           </div>
           <ThemeToggle />
-          {supabaseConfigured() && <SignOutButton />}
+          {authEnabled() && <SignOutButton />}
         </div>
       </header>
       <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-8">

@@ -1,17 +1,7 @@
-<!-- ============================================================
-  TEMPLATE DE E-MAIL DO INGRESSO — para colar no GHL (workflow > Send Email > Edit > Code/HTML)
-  Campos (custom fields do contato) usados:
-    {{contact.guest_name}}      -> nome do convidado
-    {{contact.event_name}}      -> nome do evento
-    {{contact.event_date}}      -> data
-    {{contact.event_time}}      -> horario
-    {{contact.event_location}}  -> local
-    {{contact.event_qr_image}}  -> URL da imagem do QR (unica por contato)
-    {{contact.event_qr_link}}   -> link do ingresso online
-    {{contact.event_pdf_link}}  -> link do PDF do ingresso
-  Troque 'Sua Marca' e a cor #0EA5E9 pela identidade do cliente.
-  Os campos sao criados automaticamente pelo botao 'Preparar campos no Spark'.
-============================================================ -->
+<!-- TEMPLATE GHL: cole no workflow > Send Email > editor HTML.
+  Campos: {{contact.guest_name}} {{contact.event_name}} {{contact.event_date}} {{contact.event_time}}
+          {{contact.event_location}} {{contact.event_qr_image}} {{contact.event_qr_link}} {{contact.event_pdf_link}}
+  Logos servidos pelo app em /opta-finance-logo.png e /spark-logo.png (ajuste o dominio se necessario). -->
 <!doctype html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -24,7 +14,9 @@
 
         <!-- HERO -->
         <tr><td style="background:#0EA5E9;background-image:linear-gradient(135deg,#0EA5E9 0%,#0b81b6 100%);padding:34px 30px 30px;text-align:center;">
-          <div style="color:#FFFFFF;font-size:18px;font-weight:800;letter-spacing:.4px;text-align:center;">Sua Marca</div>
+          <table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td style="background:#ffffff;border-radius:14px;padding:12px 20px;">
+            <img src="https://spark-qrcode-checker.vercel.app/opta-finance-logo.png" alt="Opta Finance" height="38" style="display:block;height:38px;width:auto;">
+          </td></tr></table>
           <div style="margin:18px auto 0;display:inline-block;background:rgba(255,255,255,0.16);color:#FFFFFF;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">Ingresso</div>
           <h1 style="margin:16px 0 0;font-size:26px;line-height:1.2;color:#FFFFFF;font-weight:800;">{{contact.event_name}}</h1>
           <p style="margin:8px 0 0;color:rgba(255,255,255,0.78);font-size:14px;">{{contact.event_date}} · {{contact.event_time}}</p>
@@ -102,14 +94,18 @@
         <tr><td style="padding:24px 32px 28px;">
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0"><tr><td style="border-top:1px solid #eef2f6;padding-top:18px;">
             <p style="margin:0;color:#94a3b8;font-size:12px;line-height:1.6;text-align:center;">
-              Este e-mail foi enviado por <strong style="color:#64748b;">Sua Marca</strong>.<br>
+              Este e-mail foi enviado por <strong style="color:#64748b;">Opta Finance</strong>.<br>
               Guarde-o para apresentar na entrada do evento.
             </p>
           </td></tr></table>
         </td></tr>
       </table>
 
-      <p style="margin:16px 0 0;color:#b6c0cf;font-size:11px;letter-spacing:.5px;">feito com Spark</p>
+      <!-- Selo "feito com Spark" -->
+      <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:18px auto 0;"><tr>
+        <td style="vertical-align:middle;padding-right:6px;line-height:0;"><img src="https://spark-qrcode-checker.vercel.app/spark-logo.png" alt="Spark" width="16" height="16" style="display:block;width:16px;height:16px;border-radius:50%;"></td>
+        <td style="vertical-align:middle;color:#b6c0cf;font-size:11px;letter-spacing:.5px;">feito com Spark</td>
+      </tr></table>
     </td></tr>
   </table>
 </body></html>

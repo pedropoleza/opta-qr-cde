@@ -58,14 +58,26 @@ export type TicketEmailData = {
   vip?: boolean;
 };
 
+// Base do app para montar URLs absolutas de imagens (logos) no e-mail.
+const APP_BASE = (
+  process.env.APP_BASE_URL || "https://spark-qrcode-checker.vercel.app"
+).replace(/\/+$/, "");
+const assetUrl = (path: string) => `${APP_BASE}${path}`;
+
+// Marca padrão do produto (white-label): Opta Finance + logo deles.
+const DEFAULT_BRAND_NAME = "Opta Finance";
+const DEFAULT_LOGO_URL = assetUrl("/opta-finance-logo.png");
+// Selo discreto "feito com Spark" no rodapé.
+const SPARK_LOGO_URL = assetUrl("/spark-logo.png");
+
 // Template PROFISSIONAL e fixo do e-mail do ingresso (tabelas + estilos inline,
 // compatível com Outlook/Gmail). Identidade por tenant: cor, logo e marca.
 // Só mudam o QR e as variáveis — o desenho é sempre o mesmo.
 export function ticketEmailHtml(p: TicketEmailData): string {
   const vip = !!p.vip;
   const brand = (p.brandColor || "#0EA5E9").trim();
-  const brandName = esc(p.brandName || "Spark Check-in");
-  const logoUrl = p.logoUrl?.trim() || null;
+  const brandName = esc(p.brandName || DEFAULT_BRAND_NAME);
+  const logoUrl = p.logoUrl?.trim() || DEFAULT_LOGO_URL;
 
   // Hero: VIP usa tema escuro + dourado; senão, gradiente da cor da marca.
   const heroBg = vip ? "#15171C" : brand;
@@ -100,9 +112,10 @@ export function ticketEmailHtml(p: TicketEmailData): string {
           </tr>`
       : "";
 
-  const brandHead = logoUrl
-    ? `<img src="${logoUrl}" alt="${brandName}" height="40" style="display:block;margin:0 auto;max-height:40px;width:auto;">`
-    : `<div style="color:${onHero};font-size:18px;font-weight:800;letter-spacing:.4px;text-align:center;">${brandName}</div>`;
+  // Logo dentro de um "chip" branco para ficar legível sobre qualquer cor de hero.
+  const brandHead = `<table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td style="background:#ffffff;border-radius:14px;padding:12px 20px;">
+            <img src="${logoUrl}" alt="${brandName}" height="38" style="display:block;height:38px;width:auto;">
+          </td></tr></table>`;
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -177,7 +190,11 @@ export function ticketEmailHtml(p: TicketEmailData): string {
         </td></tr>
       </table>
 
-      <p style="margin:16px 0 0;color:#b6c0cf;font-size:11px;letter-spacing:.5px;">feito com Spark</p>
+      <!-- Selo "feito com Spark" -->
+      <table role="presentation" cellpadding="0" cellspacing="0" align="center" style="margin:18px auto 0;"><tr>
+        <td style="vertical-align:middle;padding-right:6px;line-height:0;"><img src="${SPARK_LOGO_URL}" alt="Spark" width="16" height="16" style="display:block;width:16px;height:16px;border-radius:50%;"></td>
+        <td style="vertical-align:middle;color:#b6c0cf;font-size:11px;letter-spacing:.5px;">feito com Spark</td>
+      </tr></table>
     </td></tr>
   </table>
 </body></html>`;

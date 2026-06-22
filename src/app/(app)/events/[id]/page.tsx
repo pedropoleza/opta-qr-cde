@@ -150,6 +150,11 @@ export default async function EventDetailPage({
         vipNotifyChannel: event.vipNotifyChannel,
         vipNotifyTarget: event.vipNotifyTarget,
         ghlTag: event.ghlTag,
+        whatsappMessages:
+          (event.whatsappMessages as {
+            default: string;
+            langs: Record<string, string>;
+          } | null) ?? null,
       }}
       guests={guests.map((g) => ({
         id: g.id,
@@ -158,6 +163,7 @@ export default async function EventDetailPage({
         phone: g.phone,
         tier: g.tier,
         rsvp: g.rsvp,
+        language: g.language,
         groupSize: g.groupId ? (groupCount.get(g.groupId) ?? 1) : 1,
         groupId: g.groupId,
         sessionId: g.sessionId,

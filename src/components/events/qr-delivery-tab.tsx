@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Copy, Eye, Loader2, Palette, Send } from "lucide-react";
+import { Copy, Eye, Loader2, MessageCircle, Palette, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -34,6 +34,8 @@ import {
   GUEST_STATUS_VARIANT,
 } from "@/components/events/status";
 import { TicketTemplateEditor } from "@/components/events/ticket-template-editor";
+import { WhatsappMessageEditor } from "@/components/events/whatsapp-message-editor";
+import { WHATSAPP_LANGUAGES, languageLabel } from "@/lib/languages";
 import { toast } from "sonner";
 
 type Channel = "email" | "whatsapp" | "both";
@@ -55,6 +57,46 @@ export function QrDeliveryTab({
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [detail, setDetail] = useState<GuestRow | null>(null);
   const [channel, setChannel] = useState<Channel>("email");
+  const [sendingWaId, setSendingWaId] = useState<string | null>(null);
+  // Override local do idioma por convidado (reflete antes do refresh do server).
+  const [langMap, setLangMap] = useState<Record<string, string>>({});
+  const guestLang = (g: GuestRow) => langMap[g.id] ?? g.language ?? "pt_BR";
+
+  async function changeLang(guest: GuestRow, language: string) {
+    setLangMap((m) => ({ ...m, [guest.id]: language }));
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ language }),
+    });
+    if (!res.ok) {
+      toast.error("Erro ao mudar o idioma");
+      return;
+    }
+    toast.success(`Idioma de ${guest.name}: ${languageLabel(language)}`);
+  }
+
+  // Envio dedicado SÓ por WhatsApp (usa a lógica de disparo do PDF anexado).
+  async function sendWhatsapp(guest: GuestRow) {
+    setSendingWaId(guest.id);
+    const res = await fetch(`/api/events/${event.id}/send`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ guestIds: [guest.id], channel: "whatsapp" }),
+    });
+    setSendingWaId(null);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao enviar pelo WhatsApp");
+      return;
+    }
+    if (data.withoutPhone > 0) {
+      toast.warning(`${guest.name} está sem telefone`);
+      return;
+    }
+    toast.success(`WhatsApp de ${guest.name} disparado`);
+    onChange();
+  }
 
   const active = guests.filter((g) => g.status !== "canceled");
   const pending = active.filter((g) => !g.ticketToken).length;
@@ -266,6 +308,11 @@ export function QrDeliveryTab({
                   : "Convites enviados ✓"}
             </Button>
             <PreviewDialog event={event} appBaseUrl={appBaseUrl} />
+            <WhatsappMessageEditor
+              eventId={event.id}
+              initial={event.whatsappMessages}
+              onSaved={onChange}
+            />
           </div>
         </CardContent>
       </Card>
@@ -290,31 +337,69 @@ export function QrDeliveryTab({
                     {guest.name}
                   </p>
                   <QrStatusBadge status={guest.status} />
-                  <div className="flex w-full gap-2 pt-1">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="flex-1"
-                      onClick={() => setDetail(guest)}
+                  <div className="w-full space-y-2 pt-1">
+                    {/* Idioma da mensagem deste contato (decide o texto enviado) */}
+                    <Select
+                      value={guestLang(guest)}
+                      onValueChange={(v) => changeLang(guest, v)}
                     >
-                      <Eye /> Ver
-                    </Button>
-                    {guest.status !== "checked_in" && (
+                      <SelectTrigger className="h-8 w-full text-xs" aria-label="Idioma">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {WHATSAPP_LANGUAGES.map((l) => (
+                          <SelectItem key={l.code} value={l.code}>
+                            {l.flag} {l.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <div className="flex gap-2">
                       <Button
                         size="sm"
-                        variant={guest.status === "email_sent" ? "secondary" : "default"}
+                        variant="outline"
                         className="flex-1"
-                        disabled={sendingId === guest.id}
-                        onClick={() => sendOne(guest)}
+                        onClick={() => setDetail(guest)}
                       >
-                        {sendingId === guest.id ? (
-                          <Loader2 className="animate-spin" />
-                        ) : (
-                          <Send />
-                        )}
-                        {guest.status === "email_sent" ? "Reenviar" : "Enviar"}
+                        <Eye /> Ver
                       </Button>
-                    )}
+                      {guest.status !== "checked_in" && (
+                        <>
+                          <Button
+                            size="sm"
+                            variant={guest.status === "email_sent" ? "secondary" : "default"}
+                            className="flex-1"
+                            disabled={sendingId === guest.id}
+                            onClick={() => sendOne(guest)}
+                          >
+                            {sendingId === guest.id ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <Send />
+                            )}
+                            {guest.status === "email_sent" ? "Reenviar" : "Enviar"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            aria-label="Enviar por WhatsApp"
+                            title={
+                              guest.phone
+                                ? "Enviar só por WhatsApp (PDF anexado)"
+                                : "Convidado sem telefone"
+                            }
+                            className="bg-[#25D366] px-2.5 text-white hover:bg-[#1ebe5d]"
+                            disabled={sendingWaId === guest.id || !guest.phone}
+                            onClick={() => sendWhatsapp(guest)}
+                          >
+                            {sendingWaId === guest.id ? (
+                              <Loader2 className="animate-spin" />
+                            ) : (
+                              <MessageCircle />
+                            )}
+                          </Button>
+                        </>
+                      )}
+                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -375,6 +460,26 @@ export function QrDeliveryTab({
                     </Button>
                   </div>
                 </div>
+                <div className="space-y-1">
+                  <p className="text-xs text-muted-foreground">
+                    Idioma da mensagem
+                  </p>
+                  <Select
+                    value={guestLang(detail)}
+                    onValueChange={(v) => changeLang(detail, v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {WHATSAPP_LANGUAGES.map((l) => (
+                        <SelectItem key={l.code} value={l.code}>
+                          {l.flag} {l.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </>
             )}
           </DrawerBody>
@@ -413,6 +518,21 @@ export function QrDeliveryTab({
                 {detail.status === "email_sent"
                   ? "Reenviar convite"
                   : "Enviar convite"}
+              </Button>
+            )}
+            {detail && detail.status !== "checked_in" && (
+              <Button
+                className="bg-[#25D366] text-white hover:bg-[#1ebe5d]"
+                disabled={sendingWaId === detail.id || !detail.phone}
+                onClick={() => sendWhatsapp(detail)}
+                title={detail.phone ? undefined : "Convidado sem telefone"}
+              >
+                {sendingWaId === detail.id ? (
+                  <Loader2 className="animate-spin" />
+                ) : (
+                  <MessageCircle />
+                )}
+                Enviar por WhatsApp
               </Button>
             )}
           </DrawerFooter>

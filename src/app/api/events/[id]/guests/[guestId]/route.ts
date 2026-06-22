@@ -22,7 +22,11 @@ export async function PATCH(
     sessionId?: string | null;
     name?: string;
     vip?: boolean;
+    language?: string;
   } = {};
+  if ("language" in body) {
+    data.language = String(body.language || "pt_BR");
+  }
   if ("tier" in body) {
     data.tier = body.tier ? String(body.tier).trim() : null;
   }
@@ -48,6 +52,7 @@ export async function PATCH(
     tier: updated.tier,
     sessionId: updated.sessionId,
     vip: updated.vip,
+    language: updated.language,
   });
 }
 

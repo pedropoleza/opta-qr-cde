@@ -94,6 +94,8 @@ model Event {
   capacity       Int?
   status         String   @default("draft") // draft|active|completed|canceled
   ghlTag         String?  @map("ghl_tag") // tag do Spark que identifica o público do evento
+  // Mensagem do WhatsApp por idioma (configurável): { default, langs: { code: texto } }.
+  whatsappMessages Json?  @map("whatsapp_messages")
   // #8 Protocolo VIP: ao VIP chegar, notifica o anfitrião por este canal/alvo.
   vipNotifyChannel String? @map("vip_notify_channel") // whatsapp|email
   vipNotifyTarget  String? @map("vip_notify_target") // telefone ou e-mail do anfitrião
@@ -216,6 +218,7 @@ model Guest {
   phone        String?
   tier         String? // categoria do ingresso: VIP|Geral|Imprensa|... (livre)
   rsvp         String? // confirmação do convidado: yes|no (#10)
+  language     String   @default("pt_BR") // idioma da mensagem do WhatsApp deste contato
   groupId      String?  @map("group_id") @db.Uuid // grupo/acompanhantes (#4)
   sessionId    String?  @map("session_id") @db.Uuid // sessão/horário (#8)
   waitlisted   Boolean  @default(false) // lista de espera quando o evento lota

@@ -6,6 +6,8 @@ import { enqueueSendQr } from "@/lib/ghl-sync";
 import { stevoConfigured, normalizePhone } from "@/lib/stevo";
 import { whatsappTemplateConfigured } from "@/lib/whatsapp-cloud";
 import { ticketWhatsappText } from "@/lib/whatsapp-text";
+import { pickWhatsappMessage, type WhatsappMessages } from "@/lib/languages";
+import { renderTemplate, buildContext } from "@/lib/templates";
 import { emailConfigured, ticketEmailHtml } from "@/lib/email";
 
 // Disparo do ingresso por canal:
@@ -67,6 +69,40 @@ export async function POST(
     where: { id: organizationId },
     select: { brandName: true, primaryColor: true, logoUrl: true },
   });
+
+  // Legenda do WhatsApp: usa a mensagem configurável do evento no idioma do
+  // convidado (variáveis {{nome}}, {{evento}}…); se não houver, cai no padrão.
+  const waMessages = event.whatsappMessages as WhatsappMessages | null;
+  function buildWhatsappCaption(
+    guest: (typeof guests)[number],
+    token: string,
+  ): string {
+    const tpl = pickWhatsappMessage(waMessages, guest.language);
+    if (tpl) {
+      return renderTemplate(
+        tpl,
+        buildContext({
+          guestName: guest.name,
+          eventName: event!.name,
+          eventDate,
+          startTime: eventTime || event!.startTime,
+          locationName: event!.locationName,
+          address: event!.address,
+          token,
+        }),
+      );
+    }
+    return ticketWhatsappText({
+      guestName: guest.name,
+      eventName: event!.name,
+      eventDate,
+      eventTime,
+      eventLocation,
+      ticketUrl: ticketPublicQrUrl(token),
+      brandName: org?.brandName,
+      vip: guest.vip || guest.tier === "vip",
+    });
+  }
 
   let sent = 0;
   let withoutContact = 0;
@@ -161,18 +197,7 @@ export async function POST(
               filename: `ingresso-${event.slug}.pdf`,
               ...(officialWhatsapp
                 ? { bodyParams: [guest.name, event.name, eventDate] }
-                : {
-                    caption: ticketWhatsappText({
-                      guestName: guest.name,
-                      eventName: event.name,
-                      eventDate,
-                      eventTime,
-                      eventLocation,
-                      ticketUrl: ticketPublicQrUrl(token),
-                      brandName: org?.brandName,
-                      vip: guest.vip || guest.tier === "vip",
-                    }),
-                  }),
+                : { caption: buildWhatsappCaption(guest, token) }),
             },
           },
         });

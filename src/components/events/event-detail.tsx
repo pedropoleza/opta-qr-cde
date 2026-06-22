@@ -106,6 +106,7 @@ export type EventData = {
   vipNotifyChannel: string | null;
   vipNotifyTarget: string | null;
   ghlTag: string | null;
+  whatsappMessages: { default: string; langs: Record<string, string> } | null;
 };
 
 export type GuestRow = {
@@ -115,6 +116,7 @@ export type GuestRow = {
   phone: string | null;
   tier: string | null;
   rsvp: string | null;
+  language: string;
   groupSize: number;
   groupId: string | null;
   sessionId: string | null;

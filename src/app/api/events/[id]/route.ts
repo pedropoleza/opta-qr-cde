@@ -3,6 +3,7 @@ import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
 import { slugify } from "@/lib/slug";
 import { enqueueNoShowBatch } from "@/lib/ghl-sync";
+import { normalizeWhatsappMessages } from "@/lib/languages";
 
 const EVENT_STATUSES = ["draft", "active", "completed", "canceled"];
 
@@ -48,6 +49,10 @@ export async function PATCH(
     data.vipNotifyTarget = body.vipNotifyTarget ? String(body.vipNotifyTarget).trim() : null;
   if ("ghlTag" in body)
     data.ghlTag = body.ghlTag ? String(body.ghlTag).trim() : null;
+  if ("whatsappMessages" in body)
+    data.whatsappMessages = body.whatsappMessages
+      ? normalizeWhatsappMessages(body.whatsappMessages)
+      : null;
   if (body.status) {
     if (!EVENT_STATUSES.includes(body.status)) return jsonError(400, "Status inválido");
     data.status = body.status;

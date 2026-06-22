@@ -53,6 +53,7 @@ import {
 } from "@/components/ui/select";
 import { ImportGhlDialog } from "@/components/events/import-ghl-dialog";
 import { TierBadge } from "@/components/events/tier-badge";
+import { CategorySelect } from "@/components/events/category-select";
 import { toast } from "sonner";
 import type {
   EventData,
@@ -204,6 +205,17 @@ export function GuestsTab({
   const [query, setQuery] = useState("");
   const [filter, setFilter] = useState("all");
   const closed = ["completed", "canceled"].includes(event.status);
+
+  // Categorias disponíveis: padrões + as já usadas pelos convidados (VIP é
+  // tratado à parte pelo sinalizador VIP, então fica fora da lista).
+  const categoryOptions = useMemo(() => {
+    const set = new Set<string>(["Geral", "Imprensa", "Staff"]);
+    for (const g of guests) {
+      const t = g.tier?.trim();
+      if (t && t.toLowerCase() !== "vip") set.add(t);
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [guests]);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -514,18 +526,13 @@ export function GuestsTab({
               onChange={(e) => setManual((m) => ({ ...m, phone: e.target.value }))}
               className="w-36"
             />
-            <Input
-              placeholder="Categoria (Geral…)"
-              list="tier-suggestions"
+            <CategorySelect
               value={manual.tier}
-              onChange={(e) => setManual((m) => ({ ...m, tier: e.target.value }))}
-              className="w-36"
+              onChange={(v) => setManual((m) => ({ ...m, tier: v }))}
+              options={categoryOptions}
+              placeholder="Categoria (Geral…)"
+              className="w-40"
             />
-            <datalist id="tier-suggestions">
-              <option value="Geral" />
-              <option value="Imprensa" />
-              <option value="Staff" />
-            </datalist>
             <Input
               type="number"
               min={0}
@@ -749,27 +756,16 @@ export function GuestsTab({
                   <label className="text-xs text-muted-foreground">
                     Categoria
                   </label>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      list="tier-suggestions"
-                      value={detail.tier ?? ""}
-                      onChange={(e) =>
-                        setDetail((d) =>
-                          d ? { ...d, tier: e.target.value } : d,
-                        )
-                      }
-                      placeholder="VIP, Geral, Imprensa…"
-                      className="flex-1"
-                    />
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      disabled={savingTier}
-                      onClick={() => saveTier(detail, detail.tier ?? "")}
-                    >
-                      Salvar
-                    </Button>
-                  </div>
+                  <CategorySelect
+                    value={detail.tier ?? ""}
+                    onChange={(v) => saveTier(detail, v)}
+                    options={categoryOptions}
+                    placeholder="Geral, Imprensa…"
+                    className="w-full"
+                  />
+                  {savingTier && (
+                    <p className="text-xs text-muted-foreground">Salvando…</p>
+                  )}
                 </div>
 
                 {sessions.length > 0 && (

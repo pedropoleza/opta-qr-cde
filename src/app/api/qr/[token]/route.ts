@@ -26,8 +26,10 @@ export async function GET(
   return new NextResponse(new Uint8Array(png), {
     headers: {
       "Content-Type": "image/png",
-      // O conteúdo do QR é imutável por token → cacheável no CDN.
-      "Cache-Control": "public, max-age=300, s-maxage=86400, stale-while-revalidate=604800",
+      // O QR embute a URL de validação ({APP_BASE_URL}/checkin/validate). Cache
+      // moderado para que uma troca de domínio/base propague rápido (sem janela
+      // longa de "stale" servindo o domínio antigo).
+      "Cache-Control": "public, max-age=300, s-maxage=3600, stale-while-revalidate=3600",
       "Content-Disposition": `inline; filename="qr-${token.slice(0, 8)}.png"`,
     },
   });

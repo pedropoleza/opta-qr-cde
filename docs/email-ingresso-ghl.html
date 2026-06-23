@@ -1,4 +1,4 @@
-<!-- TEMPLATE GHL: campos {{contact.*}}; logos servidos em /opta-finance-logo*.png -->
+<!-- TEMPLATE GHL: campos {{contact.*}}; logos em /opta-finance-logo*.png -->
 <!doctype html>
 <html lang="pt-BR">
 <head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
@@ -9,16 +9,20 @@
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-        <!-- HERO -->
-        <tr><td style="background:#0EA5E9;background-image:linear-gradient(135deg,#0EA5E9 0%,#0b81b6 100%);padding:34px 30px 30px;text-align:center;">
-          <img src="https://eventos.optafinance.com/opta-finance-logo-white.png" alt="Opta Finance" height="46" style="display:block;margin:0 auto;height:46px;width:auto;">
-          <div style="margin:18px auto 0;display:inline-block;background:rgba(255,255,255,0.16);color:#FFFFFF;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">Ingresso</div>
-          <h1 style="margin:16px 0 0;font-size:26px;line-height:1.2;color:#FFFFFF;font-weight:800;">{{contact.event_name}}</h1>
-          <p style="margin:8px 0 0;color:rgba(255,255,255,0.78);font-size:14px;">{{contact.event_date}} · {{contact.event_time}}</p>
+        <!-- HEADER: barra da marca, só com a logo -->
+        <tr><td style="background:#0EA5E9;background-image:linear-gradient(135deg,#0EA5E9 0%,#0b81b6 100%);padding:24px 30px;text-align:center;">
+          <img src="https://eventos.optafinance.com/opta-finance-logo-white.png" alt="Opta Finance" height="40" style="display:block;margin:0 auto;height:40px;width:auto;">
+        </td></tr>
+
+        <!-- Título do evento (conteúdo branco) -->
+        <tr><td style="padding:30px 32px 4px;text-align:center;">
+          <span style="display:inline-block;background:#0EA5E9;color:#FFFFFF;font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">Ingresso</span>
+          <h1 style="margin:14px 0 0;font-size:25px;line-height:1.25;color:#0f172a;font-weight:800;">{{contact.event_name}}</h1>
+          <p style="margin:8px 0 0;color:#64748b;font-size:14px;">{{contact.event_date}} · {{contact.event_time}}</p>
         </td></tr>
 
         <!-- Saudação -->
-        <tr><td style="padding:28px 32px 4px;">
+        <tr><td style="padding:18px 32px 4px;">
           <p style="margin:0;color:#334155;font-size:16px;line-height:1.55;">
             Olá <strong style="color:#0f172a;">{{contact.guest_name}}</strong>, seu ingresso está confirmado.
             Apresente o QR Code abaixo na entrada do evento.

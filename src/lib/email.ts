@@ -84,19 +84,14 @@ export function ticketEmailHtml(p: TicketEmailData): string {
   const heroIsLight = !vip && readableOn(brand) === "#101828";
   const logoUrl = p.logoUrl?.trim() || (heroIsLight ? LOGO_DARK : LOGO_WHITE);
 
-  // Hero: VIP usa tema escuro + dourado; senão, gradiente da cor da marca.
+  // Header: barra da marca (gradiente) ou tema VIP escuro — só leva a logo.
   const heroBg = vip ? "#15171C" : brand;
   const heroBg2 = vip ? "#2A2410" : shade(brand, -22);
-  const onHero = vip ? "#F5E6B3" : readableOn(brand);
-  const onHeroMuted = vip
-    ? "rgba(245,230,179,0.72)"
-    : onHero === "#FFFFFF"
-      ? "rgba(255,255,255,0.78)"
-      : "rgba(16,24,40,0.62)";
   const accent = vip ? "#C9A227" : brand;
   const onAccent = vip ? "#1A1407" : readableOn(brand);
-  const pillBg = vip ? "rgba(201,162,39,0.18)" : "rgba(255,255,255,0.16)";
-  const pillTxt = vip ? "#E9CF73" : onHero;
+  // Pill "Ingresso" sólido, exibido sobre o conteúdo branco.
+  const pillBg = vip ? "#15171C" : accent;
+  const pillTxt = vip ? "#E9CF73" : onAccent;
   const label = vip ? "★ Ingresso VIP" : "Ingresso";
 
   const when = [esc(p.eventDate), p.eventTime ? esc(p.eventTime) : ""]
@@ -117,8 +112,8 @@ export function ticketEmailHtml(p: TicketEmailData): string {
           </tr>`
       : "";
 
-  // Logo direto na faixa superior do hero (variante por contraste, sem fundo).
-  const brandHead = `<img src="${logoUrl}" alt="${brandName}" height="46" style="display:block;margin:0 auto;height:46px;width:auto;">`;
+  // Logo branca (ou escura, por contraste) centralizada no header.
+  const brandHead = `<img src="${logoUrl}" alt="${brandName}" height="40" style="display:block;margin:0 auto;height:40px;width:auto;">`;
 
   return `<!doctype html>
 <html lang="pt-BR">
@@ -130,16 +125,20 @@ export function ticketEmailHtml(p: TicketEmailData): string {
     <tr><td align="center">
       <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;border:1px solid #e2e8f0;font-family:'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-        <!-- HERO -->
-        <tr><td style="background:${heroBg};background-image:linear-gradient(135deg,${heroBg} 0%,${heroBg2} 100%);padding:34px 30px 30px;text-align:center;">
+        <!-- HEADER: barra da marca, só com a logo -->
+        <tr><td style="background:${heroBg};background-image:linear-gradient(135deg,${heroBg} 0%,${heroBg2} 100%);padding:24px 30px;text-align:center;">
           ${brandHead}
-          <div style="margin:18px auto 0;display:inline-block;background:${pillBg};color:${pillTxt};font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">${label}</div>
-          <h1 style="margin:16px 0 0;font-size:26px;line-height:1.2;color:${onHero};font-weight:800;">${esc(p.eventName)}</h1>
-          ${when ? `<p style="margin:8px 0 0;color:${onHeroMuted};font-size:14px;">${when}</p>` : ""}
+        </td></tr>
+
+        <!-- Título do evento (conteúdo branco) -->
+        <tr><td style="padding:30px 32px 4px;text-align:center;">
+          <span style="display:inline-block;background:${pillBg};color:${pillTxt};font-size:11px;font-weight:700;letter-spacing:2px;text-transform:uppercase;padding:6px 14px;border-radius:999px;">${label}</span>
+          <h1 style="margin:14px 0 0;font-size:25px;line-height:1.25;color:#0f172a;font-weight:800;">${esc(p.eventName)}</h1>
+          ${when ? `<p style="margin:8px 0 0;color:#64748b;font-size:14px;">${when}</p>` : ""}
         </td></tr>
 
         <!-- Saudação -->
-        <tr><td style="padding:28px 32px 4px;">
+        <tr><td style="padding:18px 32px 4px;">
           <p style="margin:0;color:#334155;font-size:16px;line-height:1.55;">
             Olá <strong style="color:#0f172a;">${esc(p.guestName)}</strong>, seu ingresso está confirmado.
             Apresente o QR Code abaixo na entrada do evento.

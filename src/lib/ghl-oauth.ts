@@ -32,7 +32,7 @@ export function ghlOAuthConfigured(): boolean {
 }
 export function oauthRedirectUri(): string {
   const base =
-    cleanEnv(process.env.APP_BASE_URL) || "https://spark-qrcode-checker.vercel.app";
+    cleanEnv(process.env.APP_BASE_URL) || "https://eventos.optafinance.com";
   return `${base.replace(/\/$/, "")}/api/ghl/oauth/callback`;
 }
 

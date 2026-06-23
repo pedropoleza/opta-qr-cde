@@ -24,7 +24,7 @@ export async function getOrCreateIntegration(eventId: string) {
 export function appBaseUrl(): string {
   return (
     process.env.APP_BASE_URL?.replace(/\/$/, "") ||
-    "https://spark-qrcode-checker.vercel.app"
+    "https://eventos.optafinance.com"
   );
 }
 

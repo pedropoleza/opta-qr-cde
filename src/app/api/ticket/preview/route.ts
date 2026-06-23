@@ -31,7 +31,7 @@ export async function POST(req: NextRequest) {
   const vip = Boolean(body.vip);
 
   const qrDataUrl = await QRCode.toDataURL(
-    "https://spark-qrcode-checker.vercel.app/checkin/validate?token=exemplo&sig=exemplo",
+    "https://eventos.optafinance.com/checkin/validate?token=exemplo&sig=exemplo",
     { width: 512, margin: kind === "badge" ? 0 : 1, errorCorrectionLevel: "M" },
   );
 
@@ -53,7 +53,7 @@ export async function POST(req: NextRequest) {
           {
             ...SAMPLE,
             qrDataUrl,
-            ticketUrl: "https://spark-qrcode-checker.vercel.app/q/exemplo",
+            ticketUrl: "https://eventos.optafinance.com/q/exemplo",
             vip,
           },
           config,

@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
+import { APP_BASE_URL } from "@/lib/ticket";
 import { EventDetail } from "@/components/events/event-detail";
 
 export const dynamic = "force-dynamic";
@@ -203,7 +204,7 @@ export default async function EventDetailPage({
       }}
       sessions={sessionData}
       flow={flow}
-      appBaseUrl={process.env.APP_BASE_URL ?? "http://localhost:3000"}
+      appBaseUrl={APP_BASE_URL}
     />
   );
 }

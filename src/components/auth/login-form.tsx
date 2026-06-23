@@ -48,11 +48,17 @@ export function LoginForm() {
       <div className="flex flex-col items-center gap-2 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/spark-logo.png"
-          alt="Spark"
-          className="size-14 rounded-2xl object-contain"
+          src="/opta-finance-logo.png"
+          alt="Opta Finance"
+          className="h-10 w-auto object-contain dark:hidden"
         />
-        <h1 className="text-xl font-bold">Spark Check-in</h1>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/opta-finance-logo-white.png"
+          alt="Opta Finance"
+          className="hidden h-10 w-auto object-contain dark:block"
+        />
+        <h1 className="text-xl font-bold">Opta Finance</h1>
         <p className="text-sm text-muted-foreground">
           {mode === "in" ? "Entre na sua conta" : "Crie sua organização"}
         </p>

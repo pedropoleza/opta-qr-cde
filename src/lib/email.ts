@@ -60,13 +60,15 @@ export type TicketEmailData = {
 
 // Base do app para montar URLs absolutas de imagens (logos) no e-mail.
 const APP_BASE = (
-  process.env.APP_BASE_URL || "https://spark-qrcode-checker.vercel.app"
+  process.env.APP_BASE_URL || "https://eventos.optafinance.com"
 ).replace(/\/+$/, "");
 const assetUrl = (path: string) => `${APP_BASE}${path}`;
 
 // Marca padrão do produto (white-label): Opta Finance + logo deles.
 const DEFAULT_BRAND_NAME = "Opta Finance";
-const DEFAULT_LOGO_URL = assetUrl("/opta-finance-logo.png");
+// Duas variantes: branca para fundos escuros/coloridos, escura para fundos claros.
+const LOGO_WHITE = assetUrl("/opta-finance-logo-white.png");
+const LOGO_DARK = assetUrl("/opta-finance-logo.png");
 // Selo discreto "feito com Spark" no rodapé.
 const SPARK_LOGO_URL = assetUrl("/spark-logo.png");
 
@@ -77,7 +79,10 @@ export function ticketEmailHtml(p: TicketEmailData): string {
   const vip = !!p.vip;
   const brand = (p.brandColor || "#0EA5E9").trim();
   const brandName = esc(p.brandName || DEFAULT_BRAND_NAME);
-  const logoUrl = p.logoUrl?.trim() || DEFAULT_LOGO_URL;
+  // Logo encaixa por contraste no hero: branca no escuro/colorido (caso do azul
+  // padrão e do VIP), escura quando a cor da marca é clara.
+  const heroIsLight = !vip && readableOn(brand) === "#101828";
+  const logoUrl = p.logoUrl?.trim() || (heroIsLight ? LOGO_DARK : LOGO_WHITE);
 
   // Hero: VIP usa tema escuro + dourado; senão, gradiente da cor da marca.
   const heroBg = vip ? "#15171C" : brand;
@@ -112,10 +117,8 @@ export function ticketEmailHtml(p: TicketEmailData): string {
           </tr>`
       : "";
 
-  // Logo dentro de um "chip" branco para ficar legível sobre qualquer cor de hero.
-  const brandHead = `<table role="presentation" cellpadding="0" cellspacing="0" align="center"><tr><td style="background:#ffffff;border-radius:14px;padding:12px 20px;">
-            <img src="${logoUrl}" alt="${brandName}" height="38" style="display:block;height:38px;width:auto;">
-          </td></tr></table>`;
+  // Logo direto na faixa superior do hero (variante por contraste, sem fundo).
+  const brandHead = `<img src="${logoUrl}" alt="${brandName}" height="46" style="display:block;margin:0 auto;height:46px;width:auto;">`;
 
   return `<!doctype html>
 <html lang="pt-BR">

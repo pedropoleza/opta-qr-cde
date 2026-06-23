@@ -10,6 +10,7 @@ import {
 import { HeaderDecoration, type HeaderEffect } from "@/lib/pdf-effects";
 import { readableOn } from "@/lib/color";
 import { pdfText } from "@/lib/pdf-safe";
+import { optaLogoUrl } from "@/lib/ticket";
 
 // Crachá/etiqueta de credenciamento on-site (#4). A6 retrato, com a marca do
 // tenant (cor/logo). Inclui um QR pequeno para sub-estações de scan.
@@ -126,17 +127,16 @@ function BadgeDoc({ data }: { data: BadgeData }) {
   const s = styles(brand, vip);
   const effect = vip ? "halftone" : data.effect ?? "none";
   const effectColor = vip ? GOLD : readableOn(brand);
+  // Faixa escura (VIP) ou cor da marca → logo Opta na variante por contraste.
+  const bandIsLight = !vip && readableOn(brand) === "#101828";
+  const logoSrc = data.logoUrl || optaLogoUrl(bandIsLight);
   return (
     <Document title={`Crachá — ${data.guestName}`}>
       <Page size="A6" style={s.page}>
         <View style={s.band}>
           <HeaderDecoration effect={effect} color={effectColor} />
-          {data.logoUrl ? (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <Image src={data.logoUrl} style={s.logo} />
-          ) : (
-            <Text style={s.brandText}>{data.brandName || "Spark Check-in"}</Text>
-          )}
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={logoSrc} style={s.logo} />
           <Text style={s.eventText}>{pdfText(data.eventName)}</Text>
         </View>
 

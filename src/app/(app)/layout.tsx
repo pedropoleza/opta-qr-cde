@@ -23,18 +23,19 @@ export default async function AppLayout({
       <header className="sticky top-0 z-30 border-b bg-card/80 backdrop-blur supports-[backdrop-filter]:bg-card/60">
         <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center gap-3 px-4 sm:gap-4 sm:px-6">
           <div className="flex shrink-0 items-center gap-2 font-semibold">
+            {/* Logo da Opta — variante por tema (escura no claro, branca no escuro) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/spark-logo.png"
-              alt="Spark"
-              className="size-7 rounded-md object-contain"
+              src="/opta-finance-logo.png"
+              alt={orgName || "Opta Finance"}
+              className="h-6 w-auto object-contain dark:hidden"
             />
-            <span className="hidden sm:inline">Spark</span>
-            {orgName && (
-              <span className="hidden truncate text-sm font-normal text-muted-foreground md:inline">
-                · {orgName}
-              </span>
-            )}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/opta-finance-logo-white.png"
+              alt={orgName || "Opta Finance"}
+              className="hidden h-6 w-auto object-contain dark:block"
+            />
           </div>
           <div className="min-w-0 flex-1 overflow-x-auto">
             <MainNav />

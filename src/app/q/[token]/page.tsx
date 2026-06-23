@@ -90,9 +90,7 @@ export default async function GuestQrPage({
 
   // White-label por tenant (Fase 5): marca, logo e cor primária da organização.
   const org = ticket.event.organization;
-  const brand = org?.brandName?.trim() || "Spark Check-in";
-  // Logo do design (herda a da organização por padrão).
-  const logoUrl = config.logoUrl || org?.logoUrl || null;
+  const brand = org?.brandName?.trim() || "Opta Finance";
   const vip = isVipGuest(ticket.guest);
   const headerColor = org?.primaryColor?.trim() || null;
   // VIP (#8): arte especial — fundo escuro + halftone dourado.
@@ -110,6 +108,12 @@ export default async function GuestQrPage({
   const headerClass = vip || headerColor ? "" : "bg-neutral-900";
   // Contraste automático (F4): texto escuro quando a cor da marca é clara.
   const darkText = !vip && !!headerColor && isLightColor(headerColor);
+  // Logo (herda a do design/organização; senão, a logo Opta na variante por
+  // contraste — o cabeçalho é escuro por padrão, então branca).
+  const logoUrl =
+    config.logoUrl ||
+    org?.logoUrl ||
+    (darkText ? "/opta-finance-logo.png" : "/opta-finance-logo-white.png");
   const mainText = darkText ? "text-neutral-900" : "text-white";
   const mutedText = darkText ? "text-neutral-700" : "text-neutral-300";
   // Textura do corpo (F2), exceto no VIP (que tem arte própria).

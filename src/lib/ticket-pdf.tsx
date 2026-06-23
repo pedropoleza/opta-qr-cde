@@ -15,6 +15,7 @@ import {
 import { HeaderDecoration, PageBackground } from "@/lib/pdf-effects";
 import { readableOn } from "@/lib/color";
 import { pdfText } from "@/lib/pdf-safe";
+import { optaLogoUrl } from "@/lib/ticket";
 
 const GOLD = "#C9A227";
 
@@ -159,6 +160,12 @@ function TicketDocument({
   const vip = Boolean(data.vip);
   const s = buildStyles(config, vip);
   const { title, subtitle, instructions } = resolveTexts(data, config);
+  // Logo: usa a do design ou a Opta na variante por contraste (header claro no
+  // preset "classic" ou cor de marca clara → logo escura; senão, branca).
+  const modern = config.preset !== "classic";
+  const headerIsLight =
+    !vip && (!modern || readableOn(config.brandColor || "#2563EB") === "#101828");
+  const logoSrc = config.logoUrl || optaLogoUrl(headerIsLight);
 
   return (
     <Document title={`Ingresso — ${data.event.name}`}>
@@ -169,10 +176,8 @@ function TicketDocument({
             effect={vip ? "halftone" : config.headerEffect}
             color={vip ? GOLD : "#ffffff"}
           />
-          {config.logoUrl ? (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <Image src={config.logoUrl} style={s.logo} />
-          ) : null}
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={logoSrc} style={s.logo} />
           {vip ? <Text style={s.vipPill}>★ VIP</Text> : null}
           <Text style={s.title}>{title}</Text>
           {subtitle ? <Text style={s.subtitle}>{subtitle}</Text> : null}

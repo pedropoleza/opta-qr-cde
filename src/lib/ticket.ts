@@ -11,6 +11,12 @@ function secret(): string {
   return s;
 }
 
+// Domínio público do app — vai impresso no QR Code e nos links do ingresso.
+// Pode ser sobrescrito por APP_BASE_URL; o padrão é o domínio oficial da Opta.
+export const APP_BASE_URL = (
+  process.env.APP_BASE_URL || "https://eventos.optafinance.com"
+).replace(/\/+$/, "");
+
 export function generateTicketToken(): string {
   return Buffer.from(randomUUID()).toString("base64url");
 }
@@ -35,24 +41,24 @@ export function verifyTicketSignature(
 }
 
 export function ticketValidationUrl(token: string, signature: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/checkin/validate?token=${encodeURIComponent(token)}&sig=${encodeURIComponent(signature)}`;
 }
 
 export function ticketPublicQrUrl(token: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/q/${encodeURIComponent(token)}`;
 }
 
 // PNG público do QR — usado como <img src> dentro do e-mail enviado pelo GHL.
 export function ticketQrImageUrl(token: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/api/qr/${encodeURIComponent(token)}`;
 }
 
 // PDF público do ingresso — usado como mídia no envio por WhatsApp (Stevo).
 export function ticketPdfUrl(token: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/api/ticket/${encodeURIComponent(token)}/pdf`;
 }
 
@@ -61,19 +67,25 @@ export function ticketBadgeUrl(token: string): string {
 }
 
 export function ticketCertificateUrl(token: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/api/ticket/${encodeURIComponent(token)}/certificate`;
 }
 
 export function npsUrl(token: string): string {
-  const base = process.env.APP_BASE_URL ?? "http://localhost:3000";
+  const base = APP_BASE_URL;
   return `${base}/nps/${encodeURIComponent(token)}`;
 }
 
 // URL absoluta da logo do Spark — usada como selo "feito com Spark" nos PDFs.
 export function sparkLogoUrl(): string {
-  const base = process.env.APP_BASE_URL ?? "https://spark-qrcode-checker.vercel.app";
+  const base = APP_BASE_URL;
   return `${base}/spark-logo.png`;
+}
+
+// URL absoluta da logo da Opta para os PDFs. `onLight` escolhe a variante
+// escura (fundo claro); por padrão usa a branca (cabeçalhos escuros/coloridos).
+export function optaLogoUrl(onLight = false): string {
+  return `${APP_BASE_URL}/opta-finance-logo${onLight ? "" : "-white"}.png`;
 }
 
 // Fonte única de verdade do VIP: o sinalizador VIP do convidado OU a categoria

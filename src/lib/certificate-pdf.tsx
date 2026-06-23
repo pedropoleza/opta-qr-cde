@@ -14,6 +14,7 @@ import {
   type Background,
 } from "@/lib/pdf-effects";
 import { pdfText } from "@/lib/pdf-safe";
+import { optaLogoUrl } from "@/lib/ticket";
 
 // Certificado de participação (#9). A4 paisagem, com a marca do tenant + tema.
 export type CertificateData = {
@@ -101,12 +102,9 @@ function CertificateDoc({ data }: { data: CertificateData }) {
           <View style={s.topBar}>
             <HeaderDecoration effect={data.headerEffect ?? "none"} color="#ffffff" />
           </View>
-          {data.logoUrl ? (
-            // eslint-disable-next-line jsx-a11y/alt-text
-            <Image src={data.logoUrl} style={s.logo} />
-          ) : (
-            <Text style={s.brand}>{(data.brandName || "SPARK CHECK-IN").toUpperCase()}</Text>
-          )}
+          {/* Logo no corpo branco do certificado → variante escura da Opta. */}
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={data.logoUrl || optaLogoUrl(true)} style={s.logo} />
           <Text style={s.title}>CERTIFICADO DE PARTICIPAÇÃO</Text>
           <Text style={s.intro}>Certificamos que</Text>
           <Text style={s.name}>{pdfText(data.guestName)}</Text>

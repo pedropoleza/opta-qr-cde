@@ -10,7 +10,6 @@ import {
   UserPlus,
   Clock,
   ChevronRight,
-  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -97,25 +96,26 @@ function VarChips({ onPick }: { onPick: (v: string) => void }) {
   );
 }
 
-// Puxa e escolhe um template da conta GoHighLevel; importa o conteúdo no campo.
-function GhlTemplatePicker({
+// Dropdown com os templates da conta GoHighLevel (snippets + templates de
+// e-mail da seção de Marketing). Escolher um preenche o conteúdo.
+type GhlTpl = { id: string; name: string; type: string; body: string | null };
+
+function GhlTemplateDropdown({
   eventId,
-  type,
   onImport,
 }: {
   eventId: string;
-  type: "email" | "sms";
   onImport: (body: string) => void;
 }) {
   const [state, setState] = useState<{
     loading: boolean;
     connected: boolean;
-    templates: { id: string; name: string; body: string | null }[] | null;
+    templates: GhlTpl[] | null;
   }>({ loading: false, connected: true, templates: null });
 
   async function load() {
     setState((s) => ({ ...s, loading: true }));
-    const r = await fetch(`/api/events/${eventId}/ghl-templates?type=${type}`)
+    const r = await fetch(`/api/events/${eventId}/ghl-templates`)
       .then((x) => x.json())
       .catch(() => ({ templates: [], connected: false }));
     setState({
@@ -124,6 +124,8 @@ function GhlTemplatePicker({
       templates: r.templates ?? [],
     });
   }
+
+  const typeLabel = (t: string) => (t === "email" ? "E-mail" : "Snippet");
 
   return (
     <Select
@@ -135,15 +137,14 @@ function GhlTemplatePicker({
         if (!t) return;
         if (t.body && t.body.trim()) {
           onImport(t.body);
-          toast.success(`Template “${t.name}” importado`);
+          toast.success(`Template “${t.name}” carregado`);
         } else {
           toast.info(`“${t.name}” selecionado — sem conteúdo importável (edite aqui).`);
         }
       }}
     >
-      <SelectTrigger className="h-8 w-auto gap-1.5 border-dashed text-xs">
-        <Sparkles className="size-3.5 text-primary" />
-        <span>Puxar do GoHighLevel</span>
+      <SelectTrigger className="h-8 w-56 text-xs">
+        <SelectValue placeholder="Template do GoHighLevel…" />
       </SelectTrigger>
       <SelectContent>
         {state.loading && (
@@ -155,13 +156,16 @@ function GhlTemplatePicker({
           </div>
         )}
         {!state.loading && state.connected && state.templates?.length === 0 && (
-          <div className="px-2 py-2 text-xs text-muted-foreground">
-            Nenhum template {type === "email" ? "de e-mail" : "de SMS"}.
-          </div>
+          <div className="px-2 py-2 text-xs text-muted-foreground">Nenhum template.</div>
         )}
         {state.templates?.map((t) => (
-          <SelectItem key={t.id} value={t.id}>
-            {t.name}
+          <SelectItem key={`${t.type}:${t.id}`} value={t.id}>
+            <span className="flex items-center gap-2">
+              <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] uppercase text-muted-foreground">
+                {typeLabel(t.type)}
+              </span>
+              {t.name}
+            </span>
           </SelectItem>
         ))}
       </SelectContent>
@@ -171,7 +175,6 @@ function GhlTemplatePicker({
 
 function MsgFields({
   eventId,
-  type,
   subject,
   onSubject,
   body,
@@ -180,7 +183,6 @@ function MsgFields({
   placeholder,
 }: {
   eventId: string;
-  type: "email" | "sms";
   subject?: string;
   onSubject?: (v: string) => void;
   body: string;
@@ -190,9 +192,9 @@ function MsgFields({
 }) {
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs font-medium text-muted-foreground">Conteúdo</span>
-        <GhlTemplatePicker eventId={eventId} type={type} onImport={onBody} />
+        <GhlTemplateDropdown eventId={eventId} onImport={onBody} />
       </div>
       {withSubject && (
         <Input
@@ -541,7 +543,6 @@ function TemplateBlock({
       </p>
       <MsgFields
         eventId={eventId}
-        type="email"
         withSubject={withSubject}
         subject={subject}
         onSubject={setSubject}
@@ -654,7 +655,6 @@ function ReminderRow({
         <div className="mt-4 border-t pt-4">
           <MsgFields
             eventId={eventId}
-            type={channel === "email" ? "email" : "sms"}
             withSubject={channel === "email"}
             subject={subject}
             onSubject={setSubject}

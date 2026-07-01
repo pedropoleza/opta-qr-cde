@@ -9,14 +9,19 @@ export const dynamic = "force-dynamic";
 // está conectado (a UI mostra a dica em vez de erro).
 export async function GET(req: NextRequest) {
   const organizationId = await getCurrentOrgId();
-  const type = new URL(req.url).searchParams.get("type") === "sms" ? "sms" : "email";
+  const typeParam = new URL(req.url).searchParams.get("type");
 
   if (!(await ghlConfigured(organizationId))) {
     return NextResponse.json({ connected: false, templates: [] });
   }
   try {
-    const templates = await ghlListTemplates(organizationId, type);
-    return NextResponse.json({ connected: true, templates });
+    // Sem type explícito → traz os dois: snippets (SMS) + templates de e-mail.
+    const types: ("email" | "sms")[] =
+      typeParam === "email" || typeParam === "sms" ? [typeParam] : ["email", "sms"];
+    const lists = await Promise.all(
+      types.map((t) => ghlListTemplates(organizationId, t).catch(() => [])),
+    );
+    return NextResponse.json({ connected: true, templates: lists.flat() });
   } catch (err) {
     const message = err instanceof Error ? err.message : "Erro ao buscar templates";
     return NextResponse.json({ connected: true, templates: [], error: message }, { status: 200 });

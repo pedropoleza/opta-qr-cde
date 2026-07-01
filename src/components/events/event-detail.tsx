@@ -48,6 +48,7 @@ import { CheckerTab } from "@/components/events/checker-tab";
 import { SettingsTab } from "@/components/events/settings-tab";
 import { ActivityTab } from "@/components/events/activity-tab";
 import { FlowTab, type FlowData } from "@/components/events/flow-tab";
+import { CheckinDashboard } from "@/components/events/checkin-dashboard";
 import {
   EVENT_STATUS_LABEL,
   EVENT_STATUS_VARIANT,
@@ -141,6 +142,7 @@ export type LogRow = {
   guestName: string | null;
   scannedAt: string;
   deviceInfo: string | null;
+  gate: string | null;
 };
 
 export type ReportData = {
@@ -187,7 +189,9 @@ export function EventDetail({
   const refresh = () => router.refresh();
   const [duplicating, setDuplicating] = useState(false);
   const [enviosView, setEnviosView] = useState<"qr" | "messages">("qr");
-  const [opView, setOpView] = useState<"checker" | "sessions" | "flow">("checker");
+  const [opView, setOpView] = useState<
+    "dashboard" | "checker" | "sessions" | "flow"
+  >("dashboard");
 
   // #8 Check-in ao vivo: revalida os dados a cada 10s enquanto ligado.
   const [live, setLive] = useState(false);
@@ -548,11 +552,21 @@ export function EventDetail({
             value={opView}
             onChange={setOpView}
             options={[
+              { value: "dashboard", label: "Painel de check-in" },
               { value: "checker", label: "Checker & Totem" },
               { value: "sessions", label: "Sessões" },
               { value: "flow", label: "Fluxo" },
             ]}
           />
+          {opView === "dashboard" && (
+            <CheckinDashboard
+              eventName={event.name}
+              report={report}
+              curve={flow.curve}
+              logs={logs}
+              guests={guests}
+            />
+          )}
           {opView === "checker" && (
             <CheckerTab event={event} appBaseUrl={appBaseUrl} />
           )}

@@ -188,6 +188,7 @@ export default async function EventDetailPage({
         guestName: l.guest?.name ?? null,
         scannedAt: l.scannedAt.toISOString(),
         deviceInfo: l.deviceInfo,
+        gate: l.gate,
       }))}
       report={{
         guests: activeGuests.length,

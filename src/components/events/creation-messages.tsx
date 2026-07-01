@@ -1,7 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Mail, MessageCircle, Plus, Trash2, Copy } from "lucide-react";
+import {
+  Mail,
+  MessageCircle,
+  Plus,
+  Trash2,
+  Copy,
+  UserPlus,
+  CreditCard,
+  Clock,
+  Check,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -58,8 +68,7 @@ function toOffset(r: Reminder) {
   return r.dir === "antes" ? -h : h;
 }
 
-// Persiste o rascunho no evento recém-criado.
-export async function saveMessageDraft(eventId: string, d: MsgDraft) {
+async function saveBase(eventId: string, d: MsgDraft) {
   await fetch(`/api/events/${eventId}/integration`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
@@ -79,42 +88,100 @@ export async function saveMessageDraft(eventId: string, d: MsgDraft) {
       : Promise.resolve();
   await putTpl("registration", d.regSubject, d.regBody);
   await putTpl("qr_delivery", d.paySubject, d.payBody);
-  for (const r of d.reminders) {
-    await fetch(`/api/events/${eventId}/reminders`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        offsetHours: toOffset(r),
-        channel: r.channel,
-        audience: "paid",
-        subject: r.subject,
-        body: r.body,
-      }),
-    }).catch(() => {});
-  }
+}
+
+function postReminder(eventId: string, r: Reminder) {
+  return fetch(`/api/events/${eventId}/reminders`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      offsetHours: toOffset(r),
+      channel: r.channel,
+      audience: "paid",
+      subject: r.subject,
+      body: r.body,
+    }),
+  }).catch(() => {});
+}
+
+// Criação: persiste o rascunho (adiciona todos os lembretes).
+export async function saveMessageDraft(eventId: string, d: MsgDraft) {
+  await saveBase(eventId, d);
+  for (const r of d.reminders) await postReminder(eventId, r);
+}
+
+// Edição de evento existente: substitui os lembretes (evita duplicar ao reeditar).
+export async function replaceMessages(eventId: string, d: MsgDraft) {
+  await saveBase(eventId, d);
+  const cur = await fetch(`/api/events/${eventId}/reminders`)
+    .then((x) => (x.ok ? x.json() : { rules: [] }))
+    .catch(() => ({ rules: [] }));
+  await Promise.all(
+    (cur.rules ?? []).map((rule: { id: string }) =>
+      fetch(`/api/events/${eventId}/reminders/${rule.id}`, { method: "DELETE" }).catch(() => {}),
+    ),
+  );
+  for (const r of d.reminders) await postReminder(eventId, r);
+}
+
+// Carrega a config atual de um evento no formato do rascunho.
+export async function loadDraftFromEvent(srcId: string): Promise<MsgDraft> {
+  const [t, r, i] = await Promise.all([
+    fetch(`/api/events/${srcId}/templates`).then((x) => (x.ok ? x.json() : { templates: [] })),
+    fetch(`/api/events/${srcId}/reminders`).then((x) => (x.ok ? x.json() : { rules: [] })),
+    fetch(`/api/events/${srcId}/integration`).then((x) => (x.ok ? x.json() : null)),
+  ]);
+  const tpl = (k: string) => (t.templates ?? []).find((x: { kind: string }) => x.kind === k);
+  const reg = tpl("registration");
+  const pay = tpl("qr_delivery");
+  return {
+    regOn: i?.sendMsgOnRegistration ?? false,
+    regChannel: (i?.registrationChannel as Ch) ?? "whatsapp",
+    regSubject: reg?.subject ?? "",
+    regBody: reg?.body ?? "",
+    payChannel: (i?.sendChannel === "email" ? "email" : "whatsapp") as Ch,
+    paySubject: pay?.subject ?? "",
+    payBody: pay?.body ?? "",
+    reminders: (r.rules ?? []).map(
+      (rule: { offsetHours: number; channel: string; subject: string | null; body: string | null }, idx: number) => {
+        const abs = Math.abs(rule.offsetHours);
+        return {
+          id: idx + 1,
+          dir: (rule.offsetHours <= 0 ? "antes" : "depois") as "antes" | "depois",
+          amount: abs % 24 === 0 && abs !== 0 ? abs / 24 : abs || 1,
+          unit: (abs % 24 === 0 && abs !== 0 ? "dias" : "horas") as "horas" | "dias",
+          channel: (rule.channel === "email" ? "email" : "whatsapp") as Ch,
+          subject: rule.subject ?? "",
+          body: rule.body ?? "",
+        };
+      },
+    ),
+  };
 }
 
 // ---- UI ----
 function ChannelPills({ value, onChange }: { value: Ch; onChange: (c: Ch) => void }) {
+  const opts = [
+    { v: "email" as Ch, label: "E-mail", icon: <Mail className="size-3.5" />, on: "bg-sky-500 text-white shadow-sm" },
+    { v: "whatsapp" as Ch, label: "WhatsApp / SMS", icon: <MessageCircle className="size-3.5" />, on: "bg-emerald-500 text-white shadow-sm" },
+  ];
   return (
     <div className="inline-flex rounded-lg border bg-muted/40 p-0.5">
-      {(
-        [
-          { v: "email" as Ch, label: "E-mail", icon: <Mail className="size-3.5" /> },
-          { v: "whatsapp" as Ch, label: "WhatsApp / SMS", icon: <MessageCircle className="size-3.5" /> },
-        ]
-      ).map((c) => (
-        <button
-          key={c.v}
-          type="button"
-          onClick={() => onChange(c.v)}
-          className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
-            value === c.v ? "bg-background shadow-sm" : "text-muted-foreground"
-          }`}
-        >
-          {c.icon} {c.label}
-        </button>
-      ))}
+      {opts.map((c) => {
+        const active = value === c.v;
+        return (
+          <button
+            key={c.v}
+            type="button"
+            onClick={() => onChange(c.v)}
+            className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 text-xs font-medium transition ${
+              active ? c.on : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {active ? <Check className="size-3.5" /> : c.icon} {c.label}
+          </button>
+        );
+      })}
     </div>
   );
 }
@@ -122,6 +189,7 @@ function ChannelPills({ value, onChange }: { value: Ch; onChange: (c: Ch) => voi
 function GhlDropdown({ channel, onPick }: { channel: Ch; onPick: (body: string) => void }) {
   const [tpls, setTpls] = useState<{ id: string; name: string; body: string | null }[] | null>(null);
   const [connected, setConnected] = useState(true);
+  const [picked, setPicked] = useState<string | null>(null);
   async function load() {
     const type = channel === "whatsapp" ? "sms" : "email";
     const r = await fetch(`/api/ghl/templates?type=${type}`).then((x) => x.json()).catch(() => ({ templates: [], connected: false }));
@@ -129,22 +197,31 @@ function GhlDropdown({ channel, onPick }: { channel: Ch; onPick: (body: string) 
     setTpls(r.templates ?? []);
   }
   return (
-    <Select
-      onOpenChange={(o) => o && tpls === null && load()}
-      onValueChange={(id) => {
-        const t = tpls?.find((x) => x.id === id);
-        if (t?.body?.trim()) { onPick(t.body); toast.success("Template carregado"); }
-        else if (t) toast.info(`“${t.name}” selecionado (sem texto importável)`);
-      }}
-    >
-      <SelectTrigger className="h-7 w-48 text-xs"><SelectValue placeholder="Template do GHL…" /></SelectTrigger>
-      <SelectContent>
-        {tpls === null && <div className="px-2 py-1.5 text-xs text-muted-foreground">Abrir para carregar…</div>}
-        {tpls && !connected && <div className="px-2 py-1.5 text-xs text-muted-foreground">GHL não conectado.</div>}
-        {tpls && connected && tpls.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum template.</div>}
-        {tpls?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-      </SelectContent>
-    </Select>
+    <div className="flex items-center gap-2">
+      {picked && (
+        <span className="flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-medium text-emerald-700">
+          <Check className="size-3" /> {picked}
+        </span>
+      )}
+      <Select
+        onOpenChange={(o) => o && tpls === null && load()}
+        onValueChange={(id) => {
+          const t = tpls?.find((x) => x.id === id);
+          if (!t) return;
+          setPicked(t.name);
+          if (t.body?.trim()) { onPick(t.body); toast.success(`Template “${t.name}” carregado`); }
+          else toast.info(`“${t.name}” selecionado (sem texto importável)`);
+        }}
+      >
+        <SelectTrigger className="h-7 w-44 text-xs"><SelectValue placeholder="Template do GHL…" /></SelectTrigger>
+        <SelectContent>
+          {tpls === null && <div className="px-2 py-1.5 text-xs text-muted-foreground">Abrir para carregar…</div>}
+          {tpls && !connected && <div className="px-2 py-1.5 text-xs text-muted-foreground">GHL não conectado.</div>}
+          {tpls && connected && tpls.length === 0 && <div className="px-2 py-1.5 text-xs text-muted-foreground">Nenhum template.</div>}
+          {tpls?.map((t) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+        </SelectContent>
+      </Select>
+    </div>
   );
 }
 
@@ -186,12 +263,34 @@ function Content({
   );
 }
 
-function Block({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function Block({
+  icon,
+  tone,
+  title,
+  hint,
+  badge,
+  children,
+}: {
+  icon: React.ReactNode;
+  tone: string;
+  title: string;
+  hint?: string;
+  badge?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
-    <div className="rounded-xl border bg-card p-4">
-      <p className="font-medium">{title}</p>
-      {hint && <p className="mb-3 text-xs text-muted-foreground">{hint}</p>}
-      <div className={hint ? "" : "mt-3"}>{children}</div>
+    <div className="overflow-hidden rounded-xl border bg-card">
+      <div className={`flex items-center gap-3 border-b px-4 py-3 ${tone}`}>
+        <span className="flex size-9 items-center justify-center rounded-lg bg-background/70 shadow-sm">
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="font-semibold leading-tight">{title}</p>
+          {hint && <p className="text-xs opacity-80">{hint}</p>}
+        </div>
+        {badge && <div className="ml-auto">{badge}</div>}
+      </div>
+      <div className="p-4">{children}</div>
     </div>
   );
 }
@@ -214,35 +313,7 @@ export function CreationMessages({
   }, []);
 
   async function copyFrom(srcId: string) {
-    const [t, r, i] = await Promise.all([
-      fetch(`/api/events/${srcId}/templates`).then((x) => (x.ok ? x.json() : { templates: [] })),
-      fetch(`/api/events/${srcId}/reminders`).then((x) => (x.ok ? x.json() : { rules: [] })),
-      fetch(`/api/events/${srcId}/integration`).then((x) => (x.ok ? x.json() : null)),
-    ]);
-    const tpl = (k: string) => (t.templates ?? []).find((x: { kind: string }) => x.kind === k);
-    const reg = tpl("registration");
-    const pay = tpl("qr_delivery");
-    onChange({
-      regOn: i?.sendMsgOnRegistration ?? false,
-      regChannel: (i?.registrationChannel as Ch) ?? "whatsapp",
-      regSubject: reg?.subject ?? "",
-      regBody: reg?.body ?? "",
-      payChannel: (i?.sendChannel === "email" ? "email" : "whatsapp") as Ch,
-      paySubject: pay?.subject ?? "",
-      payBody: pay?.body ?? "",
-      reminders: (r.rules ?? []).map((rule: { offsetHours: number; channel: string; subject: string | null; body: string | null }, idx: number) => {
-        const abs = Math.abs(rule.offsetHours);
-        return {
-          id: idx + 1,
-          dir: rule.offsetHours <= 0 ? "antes" : "depois",
-          amount: abs % 24 === 0 && abs !== 0 ? abs / 24 : abs || 1,
-          unit: abs % 24 === 0 && abs !== 0 ? "dias" : "horas",
-          channel: (rule.channel === "email" ? "email" : "whatsapp") as Ch,
-          subject: rule.subject ?? "",
-          body: rule.body ?? "",
-        };
-      }),
-    });
+    onChange(await loadDraftFromEvent(srcId));
     toast.success("Mensagens copiadas");
   }
 
@@ -277,17 +348,26 @@ export function CreationMessages({
         </div>
       )}
 
-      <Block title="No cadastro" hint="Enviada quando a pessoa se inscreve.">
-        <div className="mb-3">
+      <Block
+        icon={<UserPlus className="size-4 text-sky-600" />}
+        tone="bg-sky-500/10"
+        title="Confirmação no cadastro"
+        hint="Enviada quando a pessoa se inscreve."
+        badge={
           <button
             type="button"
             onClick={() => set({ regOn: !value.regOn })}
-            className={`rounded-md px-3 py-1 text-xs font-medium ${value.regOn ? "bg-primary text-primary-foreground" : "border bg-background text-muted-foreground"}`}
+            className={`flex items-center gap-1 rounded-full px-3 py-1 text-xs font-semibold transition ${
+              value.regOn
+                ? "bg-emerald-500 text-white shadow-sm"
+                : "border bg-background text-muted-foreground"
+            }`}
           >
-            {value.regOn ? "Ativo" : "Desativado"}
+            {value.regOn ? <><Check className="size-3" /> Ativo</> : "Desativado"}
           </button>
-        </div>
-        {value.regOn && (
+        }
+      >
+        {value.regOn ? (
           <Content
             channel={value.regChannel}
             onChannel={(c) => set({ regChannel: c })}
@@ -296,10 +376,17 @@ export function CreationMessages({
             body={value.regBody}
             onBody={(v) => set({ regBody: v })}
           />
+        ) : (
+          <p className="text-sm text-muted-foreground">Ative para configurar a mensagem de confirmação.</p>
         )}
       </Block>
 
-      <Block title="No pagamento" hint="Entrega o ingresso quando o pagamento é confirmado.">
+      <Block
+        icon={<CreditCard className="size-4 text-emerald-600" />}
+        tone="bg-emerald-500/10"
+        title="No pagamento"
+        hint="Entrega o ingresso quando o pagamento é confirmado."
+      >
         <Content
           channel={value.payChannel}
           onChannel={(c) => set({ payChannel: c })}
@@ -310,7 +397,19 @@ export function CreationMessages({
         />
       </Block>
 
-      <Block title="Lembretes" hint="Antes ou depois do evento.">
+      <Block
+        icon={<Clock className="size-4 text-amber-600" />}
+        tone="bg-amber-500/10"
+        title="Lembretes"
+        hint="Antes ou depois do evento."
+        badge={
+          value.reminders.length > 0 ? (
+            <span className="rounded-full bg-background/70 px-2.5 py-1 text-xs font-medium shadow-sm">
+              {value.reminders.length}
+            </span>
+          ) : undefined
+        }
+      >
         <div className="space-y-3">
           {value.reminders.map((r) => (
             <div key={r.id} className="rounded-lg border p-3">

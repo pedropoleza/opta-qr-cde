@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentOrgId } from "@/lib/api";
-import { ghlConfigured, ghlListTemplates } from "@/lib/ghl";
+import { ghlConfigured, ghlListTemplates, ghlTemplatesDebug } from "@/lib/ghl";
 
 export const dynamic = "force-dynamic";
 
@@ -13,6 +13,15 @@ export async function GET(req: NextRequest) {
 
   if (!(await ghlConfigured(organizationId))) {
     return NextResponse.json({ connected: false, templates: [] });
+  }
+
+  // ?debug=1 → mostra status/corpo cru da API do GHL para diagnóstico.
+  if (new URL(req.url).searchParams.get("debug") === "1") {
+    const [email, sms] = await Promise.all([
+      ghlTemplatesDebug(organizationId, "email"),
+      ghlTemplatesDebug(organizationId, "sms"),
+    ]);
+    return NextResponse.json({ debug: { email, sms } });
   }
   try {
     // Sem type explícito → traz os dois: snippets (SMS) + templates de e-mail.

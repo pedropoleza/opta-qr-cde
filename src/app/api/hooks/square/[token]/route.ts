@@ -7,6 +7,7 @@ import { ensureTicket } from "@/lib/checkin";
 import { enqueueQrDelivery } from "@/lib/delivery";
 import { renderTemplate, buildContext, textToHtml } from "@/lib/templates";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { logWebhook } from "@/lib/webhook-log";
 
 export const dynamic = "force-dynamic";
 
@@ -38,7 +39,12 @@ export async function POST(
       },
     },
   });
-  if (!integration || !integration.active) {
+  if (!integration) {
+    await logWebhook("square", token, "no_integration");
+    return NextResponse.json({ error: "Endpoint inválido" }, { status: 404 });
+  }
+  if (!integration.active) {
+    await logWebhook("square", token, "inactive");
     return NextResponse.json({ error: "Endpoint inválido" }, { status: 404 });
   }
 
@@ -61,6 +67,11 @@ export async function POST(
       req.headers.get("x-square-hmacsha256-signature"),
     );
     if (!ok) {
+      await logWebhook("square", token, "bad_signature", {
+        detail: req.headers.get("x-square-hmacsha256-signature")
+          ? "assinatura não confere (chave errada ou URL divergente)"
+          : "sem header de assinatura",
+      });
       return NextResponse.json({ error: "Assinatura inválida" }, { status: 401 });
     }
   }
@@ -69,11 +80,15 @@ export async function POST(
   try {
     body = JSON.parse(raw);
   } catch {
+    await logWebhook("square", token, "invalid_body");
     return NextResponse.json({ error: "Corpo inválido" }, { status: 400 });
   }
 
   const payment = parseSquarePayment(body);
   if (!payment || !payment.externalId) {
+    await logWebhook("square", token, "ignored", {
+      eventType: (body as { type?: string })?.type ?? null,
+    });
     return NextResponse.json({ ok: true, ignored: true });
   }
 
@@ -87,6 +102,7 @@ export async function POST(
       },
     });
   } catch {
+    await logWebhook("square", token, "duplicate", { eventType: payment.type });
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
@@ -105,6 +121,10 @@ export async function POST(
     });
   }
   if (!guest) {
+    await logWebhook("square", token, "no_match", {
+      eventType: payment.type,
+      detail: `sem convidado para ref=${payment.referenceId ?? "-"} email=${payment.email ?? "-"}`,
+    });
     return NextResponse.json({ ok: true, matched: false });
   }
 
@@ -113,10 +133,15 @@ export async function POST(
       where: { id: guest.id },
       data: { paymentStatus: "refunded" },
     });
+    await logWebhook("square", token, "refunded", { eventType: payment.type });
     return NextResponse.json({ ok: true, refunded: true });
   }
 
   if (!PAID_STATUSES.includes(payment.status)) {
+    await logWebhook("square", token, "not_paid", {
+      eventType: payment.type,
+      detail: `status=${payment.status}`,
+    });
     return NextResponse.json({ ok: true, status: payment.status, sent: false });
   }
 
@@ -187,5 +212,9 @@ export async function POST(
     );
   });
 
+  await logWebhook("square", token, result.queued ? "queued" : "off", {
+    eventType: payment.type,
+    detail: `via=${result.via}`,
+  });
   return NextResponse.json({ ok: true, paid: true, delivery: result });
 }

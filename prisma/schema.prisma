@@ -198,6 +198,21 @@ model WebhookEvent {
   @@map("checkin_webhook_events")
 }
 
+// Log de TODA requisição recebida em webhooks (inclusive rejeitadas), com o
+// motivo — para observabilidade/diagnóstico do que o provedor está enviando.
+model WebhookLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  provider  String
+  token     String?
+  outcome   String // no_integration|inactive|bad_signature|invalid_body|ignored|duplicate|no_match|refunded|not_paid|queued|off|error
+  eventType String?  @map("event_type")
+  detail    String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz()
+
+  @@index([provider, createdAt])
+  @@map("checkin_webhook_log")
+}
+
 // Sessão / horário dentro de um evento, com capacidade própria (#8).
 model EventSession {
   id        String   @id @default(uuid()) @db.Uuid

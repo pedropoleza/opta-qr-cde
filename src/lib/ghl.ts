@@ -254,6 +254,67 @@ export async function ghlAddTags(
   });
 }
 
+// Templates de e-mail/SMS da conta GHL (location). Usado para escolher um
+// template já existente no GHL no agendamento de mensagens.
+export type GhlTemplate = { id: string; name: string; type: string; body: string | null };
+
+type RawTemplate = Record<string, unknown>;
+
+function extractTemplateBody(t: RawTemplate): string | null {
+  // Vários formatos possíveis conforme o tipo (sms/email) e a versão da API.
+  const cand =
+    t.body ??
+    t.template ??
+    t.message ??
+    (t.sms as RawTemplate | undefined)?.message ??
+    (t.sms as RawTemplate | undefined)?.body ??
+    (t.email as RawTemplate | undefined)?.html ??
+    (t.email as RawTemplate | undefined)?.body ??
+    null;
+  if (cand == null) return null;
+  const s = String(cand);
+  // Se vier HTML (e-mail), reduz para texto legível como ponto de partida.
+  if (/<[a-z][\s\S]*>/i.test(s)) {
+    return s
+      .replace(/<\s*br\s*\/?>/gi, "\n")
+      .replace(/<\/(p|div|tr|h[1-6])>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .replace(/&nbsp;/gi, " ")
+      .replace(/&amp;/gi, "&")
+      .replace(/\n{3,}/g, "\n\n")
+      .trim();
+  }
+  return s;
+}
+
+export async function ghlListTemplates(
+  organizationId: string,
+  type: "email" | "sms" = "email",
+): Promise<GhlTemplate[]> {
+  const { locationId, token } = await authOrThrow(organizationId);
+  const qs = new URLSearchParams({
+    originId: locationId,
+    deleted: "false",
+    type,
+    limit: "100",
+    skip: "0",
+  });
+  const data = await ghlRequest<{ templates?: RawTemplate[] }>(
+    token,
+    `/locations/${locationId}/templates?${qs.toString()}`,
+    { method: "GET" },
+  );
+  const list = Array.isArray(data.templates) ? data.templates : [];
+  return list
+    .map((t) => ({
+      id: String(t.id ?? t._id ?? ""),
+      name: String(t.name ?? t.templateName ?? "Sem nome"),
+      type: String(t.type ?? type),
+      body: extractTemplateBody(t),
+    }))
+    .filter((t) => t.id);
+}
+
 export async function ghlAddNote(
   organizationId: string,
   contactId: string,

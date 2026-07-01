@@ -10,6 +10,7 @@ import {
   UserPlus,
   Clock,
   ChevronRight,
+  Sparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -96,7 +97,81 @@ function VarChips({ onPick }: { onPick: (v: string) => void }) {
   );
 }
 
+// Puxa e escolhe um template da conta GoHighLevel; importa o conteúdo no campo.
+function GhlTemplatePicker({
+  eventId,
+  type,
+  onImport,
+}: {
+  eventId: string;
+  type: "email" | "sms";
+  onImport: (body: string) => void;
+}) {
+  const [state, setState] = useState<{
+    loading: boolean;
+    connected: boolean;
+    templates: { id: string; name: string; body: string | null }[] | null;
+  }>({ loading: false, connected: true, templates: null });
+
+  async function load() {
+    setState((s) => ({ ...s, loading: true }));
+    const r = await fetch(`/api/events/${eventId}/ghl-templates?type=${type}`)
+      .then((x) => x.json())
+      .catch(() => ({ templates: [], connected: false }));
+    setState({
+      loading: false,
+      connected: r.connected !== false,
+      templates: r.templates ?? [],
+    });
+  }
+
+  return (
+    <Select
+      onOpenChange={(o) => {
+        if (o && state.templates === null) load();
+      }}
+      onValueChange={(id) => {
+        const t = state.templates?.find((x) => x.id === id);
+        if (!t) return;
+        if (t.body && t.body.trim()) {
+          onImport(t.body);
+          toast.success(`Template “${t.name}” importado`);
+        } else {
+          toast.info(`“${t.name}” selecionado — sem conteúdo importável (edite aqui).`);
+        }
+      }}
+    >
+      <SelectTrigger className="h-8 w-auto gap-1.5 border-dashed text-xs">
+        <Sparkles className="size-3.5 text-primary" />
+        <span>Puxar do GoHighLevel</span>
+      </SelectTrigger>
+      <SelectContent>
+        {state.loading && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">Carregando…</div>
+        )}
+        {!state.loading && !state.connected && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">
+            GoHighLevel não conectado.
+          </div>
+        )}
+        {!state.loading && state.connected && state.templates?.length === 0 && (
+          <div className="px-2 py-2 text-xs text-muted-foreground">
+            Nenhum template {type === "email" ? "de e-mail" : "de SMS"}.
+          </div>
+        )}
+        {state.templates?.map((t) => (
+          <SelectItem key={t.id} value={t.id}>
+            {t.name}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function MsgFields({
+  eventId,
+  type,
   subject,
   onSubject,
   body,
@@ -104,6 +179,8 @@ function MsgFields({
   withSubject,
   placeholder,
 }: {
+  eventId: string;
+  type: "email" | "sms";
   subject?: string;
   onSubject?: (v: string) => void;
   body: string;
@@ -113,6 +190,10 @@ function MsgFields({
 }) {
   return (
     <div className="space-y-2">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-xs font-medium text-muted-foreground">Conteúdo</span>
+        <GhlTemplatePicker eventId={eventId} type={type} onImport={onBody} />
+      </div>
       {withSubject && (
         <Input
           value={subject ?? ""}
@@ -459,6 +540,8 @@ function TemplateBlock({
         Conteúdo da mensagem
       </p>
       <MsgFields
+        eventId={eventId}
+        type="email"
         withSubject={withSubject}
         subject={subject}
         onSubject={setSubject}
@@ -570,6 +653,8 @@ function ReminderRow({
       {expanded && (
         <div className="mt-4 border-t pt-4">
           <MsgFields
+            eventId={eventId}
+            type={channel === "email" ? "email" : "sms"}
             withSubject={channel === "email"}
             subject={subject}
             onSubject={setSubject}

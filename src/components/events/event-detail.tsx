@@ -113,6 +113,7 @@ export type LogRow = {
   scannedAt: string;
   deviceInfo: string | null;
   gate: string | null;
+  method: string;
 };
 
 export type ReportData = {
@@ -380,7 +381,7 @@ export function EventDetail({
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
+      <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-7">
         {metrics.map((m) => (
           <MetricCard
             key={m.label}
@@ -397,7 +398,7 @@ export function EventDetail({
           <p className="mb-2 text-sm font-medium text-muted-foreground">
             Inscrições & receita
           </p>
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {paymentMetrics.map((m) => (
               <MetricCard
                 key={m.label}

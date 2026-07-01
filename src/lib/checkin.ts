@@ -34,6 +34,7 @@ type ScanContext = {
   ipAddress?: string;
   gate?: string; // ponto/porta de credenciamento (#6)
   reentry?: boolean; // modo entrada/saída: alterna presença em vez de duplicar
+  method?: string; // qr|manual|kiosk|other — como foi confirmado
 };
 
 async function log(
@@ -49,6 +50,7 @@ async function log(
       guestId: refs.guestId,
       ticketId: refs.ticketId,
       checkerUserId: ctx.checkerUserId,
+      method: ctx.method ?? "qr",
       status,
       message,
       deviceInfo: ctx.deviceInfo,

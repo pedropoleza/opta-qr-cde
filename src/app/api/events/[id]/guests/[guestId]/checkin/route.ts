@@ -24,6 +24,7 @@ export async function POST(
   const result = await performCheckIn(ticket.id, {
     expectedEventId: id,
     deviceInfo: "manual:guest-list",
+    method: "manual",
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
   });
   return NextResponse.json(result);

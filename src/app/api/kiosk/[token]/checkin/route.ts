@@ -37,6 +37,7 @@ export async function POST(
     expectedEventId: event.id,
     checkerUserId: "kiosk",
     deviceInfo: "kiosk:self-checkin",
+    method: "kiosk",
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
   });
   return NextResponse.json(result);

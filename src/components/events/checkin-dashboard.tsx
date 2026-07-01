@@ -52,10 +52,15 @@ function fmtDateTime(iso: string): string {
   });
 }
 function methodOf(l: LogRow): { label: string; icon: React.ReactNode } {
-  // Sem coluna dedicada ainda: logs de scan têm porta/dispositivo → QR Code.
-  if (l.gate || l.deviceInfo)
-    return { label: "QR Code", icon: <QrCode className="size-3.5" /> };
-  return { label: "Manual", icon: <DoorOpen className="size-3.5" /> };
+  switch (l.method) {
+    case "manual":
+      return { label: "Manual", icon: <DoorOpen className="size-3.5" /> };
+    case "kiosk":
+      return { label: "Totem", icon: <DoorOpen className="size-3.5" /> };
+    case "qr":
+    default:
+      return { label: "QR Code", icon: <QrCode className="size-3.5" /> };
+  }
 }
 
 // ---- Métrica ----
@@ -74,12 +79,12 @@ function Metric({
 }) {
   return (
     <Card className="transition hover:shadow-sm">
-      <CardContent className="flex items-start gap-3 p-4">
-        <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+      <CardContent className="flex items-start gap-3.5 p-5">
+        <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${tone}`}>
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="text-2xl font-bold leading-none tracking-tight">{value}</p>
+          <p className="text-[1.7rem] font-bold leading-none tracking-tight">{value}</p>
           <p className="mt-1 text-sm font-medium">{label}</p>
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </div>
@@ -138,9 +143,9 @@ export function CheckinDashboard({
   const detailLogs = detail ? logs.filter((l) => l.guestId === detail) : [];
 
   return (
-    <div className="space-y-5 pt-4">
+    <div className="space-y-6 pt-4">
       {/* Métricas */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <Metric
           icon={<Users className="size-5" />}
           tone="bg-primary/10 text-primary"
@@ -191,7 +196,7 @@ export function CheckinDashboard({
         </CardContent>
       </Card>
 
-      <div className="grid gap-5 lg:grid-cols-[1.5fr_1fr]">
+      <div className="grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         {/* Gráfico de check-ins por horário */}
         <Card>
           <CardContent className="p-5">

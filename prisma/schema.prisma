@@ -298,6 +298,7 @@ model CheckInLog {
   guestId       String?  @map("guest_id") @db.Uuid
   ticketId      String?  @map("ticket_id") @db.Uuid
   checkerUserId String?  @map("checker_user_id")
+  method        String   @default("qr") // qr|manual|kiosk|other — como foi confirmado
   status        String // checked_in|duplicate|invalid|wrong_event
   message       String?
   scannedAt     DateTime @default(now()) @map("scanned_at") @db.Timestamptz()

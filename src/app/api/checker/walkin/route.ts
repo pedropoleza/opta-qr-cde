@@ -40,6 +40,7 @@ export async function POST(req: NextRequest) {
     expectedEventId: checker.eventId,
     checkerUserId: "checker-pin",
     deviceInfo: "checker:walkin",
+    method: "manual",
     ipAddress: req.headers.get("x-forwarded-for") ?? undefined,
     gate: checker.gate,
   });

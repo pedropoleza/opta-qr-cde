@@ -74,12 +74,12 @@ function Metric({
 }) {
   return (
     <Card className="transition hover:shadow-sm">
-      <CardContent className="flex items-start gap-3 p-4">
-        <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+      <CardContent className="flex items-start gap-3.5 p-5">
+        <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${tone}`}>
           {icon}
         </span>
         <div className="min-w-0">
-          <p className="truncate text-2xl font-bold leading-none tracking-tight">{value}</p>
+          <p className="truncate text-[1.7rem] font-bold leading-none tracking-tight">{value}</p>
           <p className="mt-1 text-sm font-medium">{label}</p>
           {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
         </div>
@@ -198,7 +198,7 @@ export function PaymentsTab({
   }
 
   return (
-    <div className="space-y-5 pt-2">
+    <div className="space-y-6 pt-2">
       <Segmented
         value={view}
         onChange={setView}
@@ -211,7 +211,7 @@ export function PaymentsTab({
       {view === "overview" ? (
         <>
           {/* Indicadores */}
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
             <Metric
               icon={<DollarSign className="size-5" />}
               tone="bg-emerald-500/15 text-emerald-600"

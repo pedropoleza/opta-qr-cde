@@ -121,7 +121,7 @@ export function WhatsappMessageEditor({
           <MessageCircle /> Mensagem do WhatsApp
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-2xl">
+      <DialogContent className="max-h-[85vh] w-[96vw] max-w-2xl overflow-y-auto sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Mensagem do WhatsApp</DialogTitle>
           <DialogDescription>

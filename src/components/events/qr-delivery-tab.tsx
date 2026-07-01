@@ -573,7 +573,7 @@ function HowItWorksDialog() {
           Como funciona?
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[85vh] w-[96vw] max-w-lg overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Como o disparo do convite funciona</DialogTitle>
           <DialogDescription>
@@ -635,7 +635,7 @@ function PreviewDialog({
       <DialogTrigger asChild>
         <Button variant="ghost">Ver e-mail do convidado</Button>
       </DialogTrigger>
-      <DialogContent className="max-w-lg">
+      <DialogContent className="max-h-[85vh] w-[96vw] max-w-lg overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Prévia do e-mail</DialogTitle>
           <DialogDescription>

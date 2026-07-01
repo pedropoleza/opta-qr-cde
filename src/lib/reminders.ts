@@ -42,6 +42,10 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
 
   for (const rule of rules) {
     const when = scheduledAt(rule.event.date, rule.event.startTime, rule.offsetHours).getTime();
+    // Segurança: a regra só dispara se o horário agendado for DEPOIS de quando
+    // ela foi criada. Evita blast imediato ao configurar/testar uma regra cujo
+    // horário já passou (não reenvia retroativamente para o evento atual).
+    if (when <= rule.createdAt.getTime()) continue;
     // Vence quando o horário chegou; ignora regras muito antigas (>48h atrás).
     if (when > now || when < now - 48 * 3600_000) continue;
 

@@ -44,9 +44,11 @@ export default async function AppLayout({
           {authEnabled() && <SignOutButton />}
         </div>
       </header>
-      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 py-6 sm:px-6 sm:py-8">
+      <main className="mx-auto w-full max-w-[1600px] flex-1 px-4 pt-6 pb-32 sm:px-6 sm:pt-8 sm:pb-40">
         {children}
       </main>
+      {/* Rodapé estendido: respiro extra ao rolar até o fim dentro do iframe do CRM. */}
+      <div aria-hidden className="h-16 shrink-0" />
     </div>
   );
 }

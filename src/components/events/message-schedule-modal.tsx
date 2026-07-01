@@ -260,10 +260,10 @@ export function MessageScheduleModal({
           <CalendarClock /> Agenda de mensagens
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[90vh] w-[96vw] max-w-6xl gap-0 overflow-hidden p-0">
-        <div className="flex flex-col md:h-[82vh] md:flex-row">
+      <DialogContent className="w-[96vw] max-w-6xl gap-0 overflow-hidden p-0 sm:max-w-6xl">
+        <div className="flex h-[85vh] min-h-0 flex-col md:flex-row">
           {/* Navegação de fases */}
-          <aside className="shrink-0 border-b bg-muted/30 p-4 md:w-72 md:border-b-0 md:border-r">
+          <aside className="shrink-0 overflow-x-auto border-b bg-muted/30 p-4 md:h-full md:w-72 md:overflow-y-auto md:border-b-0 md:border-r">
             <DialogHeader className="mb-4 space-y-1 text-left">
               <DialogTitle className="text-base">Agenda de mensagens</DialogTitle>
               <DialogDescription className="text-xs">
@@ -301,7 +301,7 @@ export function MessageScheduleModal({
           </aside>
 
           {/* Painel da fase */}
-          <div className="flex-1 overflow-y-auto p-5 md:p-7">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-16 md:p-7 md:pb-20">
             {loading ? (
               <div className="flex items-center justify-center py-24 text-muted-foreground">
                 <Loader2 className="mr-2 size-4 animate-spin" /> Carregando…

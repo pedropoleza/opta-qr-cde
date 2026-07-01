@@ -329,10 +329,34 @@ export async function ghlListTemplates(
   type: "email" | "sms" = "email",
 ): Promise<GhlTemplate[]> {
   const { locationId, token } = await authOrThrow(organizationId);
+
+  // E-mail: templates do LC Email Builder (Marketing → Emails).
+  if (type === "email") {
+    const data = await ghlRequest<{ builders?: RawTemplate[] }>(
+      token,
+      `/emails/builder?locationId=${locationId}&limit=100&offset=0`,
+      { method: "GET" },
+    );
+    const list = Array.isArray(data.builders) ? data.builders : [];
+    return list
+      .map((b) => {
+        const preview = String(b.previewUrl ?? "");
+        const fromUrl = preview.split("emails%2F")[1]?.split(/[%?/]/)[0];
+        return {
+          id: String(b.id ?? b._id ?? b.templateId ?? fromUrl ?? ""),
+          name: String(b.name ?? "Sem nome"),
+          type: "email",
+          body: null, // conteúdo é HTML no builder; usado via GHL
+        };
+      })
+      .filter((t) => t.id);
+  }
+
+  // SMS/Snippets: templates de mensagem curta da conta.
   const qs = new URLSearchParams({
     originId: locationId,
     deleted: "false",
-    type,
+    type: "sms",
     limit: "100",
     skip: "0",
   });
@@ -346,7 +370,7 @@ export async function ghlListTemplates(
     .map((t) => ({
       id: String(t.id ?? t._id ?? ""),
       name: String(t.name ?? t.templateName ?? "Sem nome"),
-      type: String(t.type ?? type),
+      type: "sms",
       body: extractTemplateBody(t),
     }))
     .filter((t) => t.id);

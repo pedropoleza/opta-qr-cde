@@ -316,7 +316,7 @@ export async function ghlTemplatesDebug(
         cache: "no-store",
       });
       const text = await res.text().catch(() => "");
-      out.push({ path, status: res.status, bodyPreview: text.slice(0, 500) });
+      out.push({ path, status: res.status, bodyPreview: text.slice(0, 2500) });
     } catch (e) {
       out.push({ path, fetchError: e instanceof Error ? e.message : String(e) });
     }

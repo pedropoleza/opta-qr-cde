@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
+import { getCurrentOrgId, jsonError, findOrgEvent, getCurrentMembership } from "@/lib/api";
 import { slugify } from "@/lib/slug";
 import { enqueueNoShowBatch } from "@/lib/ghl-sync";
 import { normalizeWhatsappMessages } from "@/lib/languages";
@@ -83,4 +83,34 @@ export async function PATCH(
   });
 
   return NextResponse.json({ event: updated });
+}
+
+// Exclusão DEFINITIVA do evento e de todos os dados relacionados.
+export async function DELETE(
+  _req: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const m = await getCurrentMembership();
+  if (m.role === "member") return jsonError(403, "Sem permissão para excluir.");
+  const { id } = await params;
+
+  const event = await findOrgEvent(id, m.organization.id);
+  if (!event) return jsonError(404, "Evento não encontrado");
+
+  await prisma.$transaction([
+    prisma.checkInLog.deleteMany({ where: { eventId: id } }),
+    prisma.emailLog.deleteMany({ where: { eventId: id } }),
+    prisma.ghlSyncJob.deleteMany({ where: { eventId: id } }),
+    prisma.ticket.deleteMany({ where: { eventId: id } }),
+    prisma.reminderRule.deleteMany({ where: { eventId: id } }),
+    prisma.messageTemplate.deleteMany({ where: { eventId: id } }),
+    prisma.eventSession.deleteMany({ where: { eventId: id } }),
+    prisma.eventIntegration.deleteMany({ where: { eventId: id } }),
+    prisma.ticketTemplate.deleteMany({ where: { eventId: id } }),
+    prisma.webhookEvent.deleteMany({ where: { eventId: id } }),
+    prisma.guest.deleteMany({ where: { eventId: id } }),
+    prisma.event.delete({ where: { id } }),
+  ]);
+
+  return NextResponse.json({ ok: true, deleted: id });
 }

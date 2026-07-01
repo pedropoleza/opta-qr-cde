@@ -1,8 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Calendar, ChevronRight, Clock, MapPin } from "lucide-react";
+import { Calendar, ChevronRight, Clock, MapPin, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   Table,
   TableBody,
@@ -42,9 +46,26 @@ function formatDate(iso: string) {
 // acessibilidade: role=link, foco por teclado e Enter/Espaço navegam.
 export function EventsTable({ events }: { events: EventListItem[] }) {
   const router = useRouter();
+  const [toDelete, setToDelete] = useState<EventListItem | null>(null);
+  const [deleting, setDeleting] = useState(false);
 
   function open(id: string) {
     router.push(`/events/${id}`);
+  }
+
+  async function confirmDelete() {
+    if (!toDelete) return;
+    setDeleting(true);
+    const res = await fetch(`/api/events/${toDelete.id}`, { method: "DELETE" });
+    setDeleting(false);
+    if (!res.ok) {
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error ?? "Erro ao excluir");
+      return;
+    }
+    toast.success("Evento excluído");
+    setToDelete(null);
+    router.refresh();
   }
 
   if (events.length === 0) {
@@ -139,13 +160,44 @@ export function EventsTable({ events }: { events: EventListItem[] }) {
                   </Badge>
                 </TableCell>
                 <TableCell>
-                  <ChevronRight className="size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+                  <div className="flex items-center justify-end gap-1">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Excluir evento"
+                      className="text-muted-foreground opacity-0 transition hover:text-destructive group-hover:opacity-100"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setToDelete(event);
+                      }}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                    <ChevronRight className="size-4 text-muted-foreground/50 transition-transform group-hover:translate-x-0.5 group-hover:text-muted-foreground" />
+                  </div>
                 </TableCell>
               </TableRow>
             );
           })}
         </TableBody>
       </Table>
+
+      <ConfirmDialog
+        open={toDelete !== null}
+        onOpenChange={(o) => !o && setToDelete(null)}
+        title="Excluir este evento?"
+        description={
+          <>
+            <strong>{toDelete?.name}</strong> e todos os dados relacionados
+            (convidados, ingressos, check-ins, mensagens) serão apagados
+            permanentemente. Isso não pode ser desfeito.
+          </>
+        }
+        confirmLabel="Excluir definitivamente"
+        destructive
+        loading={deleting}
+        onConfirm={confirmDelete}
+      />
     </div>
   );
 }

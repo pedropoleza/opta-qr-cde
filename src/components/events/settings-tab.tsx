@@ -1,7 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Star } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { Loader2, Star, Trash2, AlertTriangle } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -62,9 +64,26 @@ export function SettingsTab({
     ghlTag: event.ghlTag ?? "",
   });
   const [saving, setSaving] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const router = useRouter();
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  async function deleteEvent() {
+    setDeleting(true);
+    const res = await fetch(`/api/events/${event.id}`, { method: "DELETE" });
+    if (!res.ok) {
+      setDeleting(false);
+      const d = await res.json().catch(() => ({}));
+      toast.error(d.error ?? "Erro ao excluir o evento");
+      return;
+    }
+    toast.success("Evento excluído");
+    router.push("/events");
+    router.refresh();
   }
 
   async function save(e: React.FormEvent) {
@@ -260,6 +279,48 @@ export function SettingsTab({
         </div>
       </Section>
       </div>
+
+      {/* Zona de perigo */}
+      <Card className="border-destructive/30">
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex items-start gap-3">
+            <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-destructive/10 text-destructive">
+              <AlertTriangle className="size-5" />
+            </span>
+            <div>
+              <p className="font-medium">Excluir evento</p>
+              <p className="text-sm text-muted-foreground">
+                Remove o evento e <strong>todos os dados</strong> (convidados,
+                ingressos, check-ins, mensagens, pagamentos). Ação irreversível.
+              </p>
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="destructive"
+            className="shrink-0"
+            onClick={() => setConfirmDelete(true)}
+          >
+            <Trash2 /> Excluir evento
+          </Button>
+        </CardContent>
+      </Card>
+
+      <ConfirmDialog
+        open={confirmDelete}
+        onOpenChange={setConfirmDelete}
+        title="Excluir este evento?"
+        description={
+          <>
+            <strong>{event.name}</strong> e todos os dados relacionados serão
+            apagados permanentemente. Isso não pode ser desfeito.
+          </>
+        }
+        confirmLabel="Excluir definitivamente"
+        destructive
+        loading={deleting}
+        onConfirm={deleteEvent}
+      />
 
       {/* Barra de ação fixa */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/90 backdrop-blur">

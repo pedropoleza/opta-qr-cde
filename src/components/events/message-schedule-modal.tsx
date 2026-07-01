@@ -19,8 +19,6 @@ import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
-  DialogHeader,
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
@@ -33,6 +31,23 @@ import {
 } from "@/components/ui/select";
 
 const VARIABLES = ["nome", "evento", "data", "hora", "local", "link_qr", "link_certificado", "link_nps", "valor"];
+
+// Merge fields do GoHighLevel (usados quando a mensagem é enviada pelo GHL).
+const GHL_VARIABLES: { t: string; l: string }[] = [
+  { t: "{{contact.first_name}}", l: "Primeiro nome" },
+  { t: "{{contact.full_name}}", l: "Nome completo" },
+  { t: "{{contact.email}}", l: "E-mail" },
+  { t: "{{contact.phone}}", l: "Telefone" },
+  { t: "{{contact.event_name}}", l: "Evento" },
+  { t: "{{contact.event_date}}", l: "Data" },
+  { t: "{{contact.event_time}}", l: "Horário" },
+  { t: "{{contact.event_location}}", l: "Local" },
+  { t: "{{contact.event_qr_image}}", l: "Imagem do QR" },
+  { t: "{{contact.event_qr_link}}", l: "Link do ingresso" },
+  { t: "{{contact.event_pdf_link}}", l: "PDF do ingresso" },
+  { t: "{{location.name}}", l: "Conta" },
+  { t: "{{location.full_address}}", l: "Endereço da conta" },
+];
 const CHANNELS = [
   { v: "whatsapp", label: "WhatsApp" },
   { v: "email", label: "E-mail" },
@@ -211,7 +226,26 @@ function MsgFields({
         placeholder={placeholder ?? "Escreva a mensagem… use as variáveis abaixo."}
         className="text-sm"
       />
-      <VarChips onPick={(v) => onBody(`${body}${body && !body.endsWith(" ") ? " " : ""}{{${v}}}`)} />
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Variáveis do app</p>
+        <VarChips onPick={(v) => onBody(`${body}${body && !body.endsWith(" ") ? " " : ""}{{${v}}}`)} />
+      </div>
+      <div className="space-y-1.5">
+        <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Variáveis do GoHighLevel</p>
+        <div className="flex flex-wrap gap-1.5">
+          {GHL_VARIABLES.map((v) => (
+            <button
+              key={v.t}
+              type="button"
+              title={v.t}
+              onClick={() => onBody(`${body}${body && !body.endsWith(" ") ? " " : ""}${v.t}`)}
+              className="rounded-md border border-primary/30 bg-primary/5 px-2 py-0.5 text-xs text-primary transition hover:bg-primary/10"
+            >
+              {v.l}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -244,14 +278,16 @@ function PaneHeader({
   );
 }
 
-export function MessageScheduleModal({
+// Conteúdo da agenda (usado dentro do modal e no fluxo de criação de evento).
+export function MessageScheduleContent({
   eventId,
   eventName,
+  heightClass = "h-[85vh]",
 }: {
   eventId: string;
   eventName?: string;
+  heightClass?: string;
 }) {
-  const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [phase, setPhase] = useState<PhaseKey>("registration");
   const [templates, setTemplates] = useState<Tpl[]>([]);
@@ -272,8 +308,8 @@ export function MessageScheduleModal({
   }, [eventId]);
 
   useEffect(() => {
-    if (open) load();
-  }, [open, load]);
+    load();
+  }, [load]);
 
   const before = rules.filter((r) => r.offsetHours <= 0).sort((a, b) => a.offsetHours - b.offsetHours);
   const after = rules.filter((r) => r.offsetHours > 0).sort((a, b) => a.offsetHours - b.offsetHours);
@@ -337,22 +373,15 @@ export function MessageScheduleModal({
   ];
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger asChild>
-        <Button>
-          <CalendarClock /> Agenda de mensagens
-        </Button>
-      </DialogTrigger>
-      <DialogContent className="w-[96vw] max-w-6xl gap-0 overflow-hidden p-0 sm:max-w-6xl">
-        <div className="flex h-[85vh] min-h-0 flex-col md:flex-row">
+    <div className={`flex ${heightClass} min-h-0 flex-col md:flex-row`}>
           {/* Navegação de fases */}
           <aside className="shrink-0 overflow-x-auto border-b bg-muted/30 p-4 md:h-full md:w-72 md:overflow-y-auto md:border-b-0 md:border-r">
-            <DialogHeader className="mb-4 space-y-1 text-left">
-              <DialogTitle className="text-base">Agenda de mensagens</DialogTitle>
-              <DialogDescription className="text-xs">
+            <div className="mb-4 space-y-1 text-left">
+              <h2 className="text-base font-medium">Agenda de mensagens</h2>
+              <p className="text-xs text-muted-foreground">
                 {eventName ? eventName : "Jornada de comunicação do convidado."}
-              </DialogDescription>
-            </DialogHeader>
+              </p>
+            </div>
             <nav className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible">
               {NAV.map((n) => {
                 const active = phase === n.key;
@@ -502,6 +531,27 @@ export function MessageScheduleModal({
             )}
           </div>
         </div>
+  );
+}
+
+// Modal: botão "Agenda de mensagens" que abre o conteúdo acima.
+export function MessageScheduleModal({
+  eventId,
+  eventName,
+}: {
+  eventId: string;
+  eventName?: string;
+}) {
+  return (
+    <Dialog>
+      <DialogTrigger asChild>
+        <Button>
+          <CalendarClock /> Agenda de mensagens
+        </Button>
+      </DialogTrigger>
+      <DialogContent className="w-[96vw] max-w-6xl gap-0 overflow-hidden p-0 sm:max-w-6xl">
+        <DialogTitle className="sr-only">Agenda de mensagens</DialogTitle>
+        <MessageScheduleContent eventId={eventId} eventName={eventName} />
       </DialogContent>
     </Dialog>
   );

@@ -23,9 +23,18 @@ export async function PATCH(
     name?: string;
     vip?: boolean;
     language?: string;
+    paymentStatus?: string;
+    paidAt?: Date | null;
   } = {};
   if ("language" in body) {
     data.language = String(body.language || "pt_BR");
+  }
+  if ("paymentStatus" in body) {
+    const ps = String(body.paymentStatus);
+    if (["none", "pending", "paid", "refunded", "failed"].includes(ps)) {
+      data.paymentStatus = ps;
+      if (ps === "paid") data.paidAt = new Date();
+    }
   }
   if ("tier" in body) {
     data.tier = body.tier ? String(body.tier).trim() : null;
@@ -53,6 +62,7 @@ export async function PATCH(
     sessionId: updated.sessionId,
     vip: updated.vip,
     language: updated.language,
+    paymentStatus: updated.paymentStatus,
   });
 }
 

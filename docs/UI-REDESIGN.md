@@ -126,11 +126,16 @@ data + hora + segundos.
 
 - [x] **Fase 1 — Check-in**: painel com métricas, gráfico, últimos, histórico
       detalhado e drill-down por contato.
-- [ ] Migração `checkin_method` + gravar método (qr/manual/kiosk) nas rotas.
-- [ ] **Fase 2 — Pagamentos**: cards de indicadores + lista de pendentes + ações.
-- [ ] **Fase 3 — Atividades**: timeline com filtros.
-- [ ] **Fase 4 — Configurações**: blocos/accordions.
-- [ ] **Fase 5 — Envio de QR**: motion e microinterações + estados completos.
-- [ ] Padronizar `DataTable`, `StatusBadge`, skeletons de loading.
+- [x] **Fase 2 — Pagamentos**: indicadores (recebido/pendente/atraso/recusado) +
+      lista de pendentes com ação "marcar como pago" + tabela de confirmados +
+      configuração de recebimento (segmented).
+- [x] **Fase 3 — Atividades**: linha do tempo com filtros (tudo/check-ins/problemas) e busca.
+- [x] **Fase 4 — Configurações**: blocos objetivos (Section cards) + intro orientando onde ficam QR/mensagens/pagamento.
+- [x] **Fase 5 — Envio de QR**: microinterações (elevação no hover dos cards, scale do QR,
+      loading e confirmação por toast). Empty state já presente.
+- [x] `Segmented` extraído para `components/ui/segmented.tsx` (reuso).
+- [ ] Migração `checkin_method` + gravar método (qr/manual/kiosk) nas rotas (pendente de DB estável).
+- [ ] Padronizar `DataTable`/skeletons de loading e ampliar a timeline de Atividades
+      com eventos de QR enviado/aberto e pagamento (multi-fonte).
 
-_Fase 1 entregue neste ciclo; as demais seguem incrementais para manter qualidade e estabilidade._
+_Fases 1–5 entregues; itens pendentes dependem de migração/estabilidade de DB._

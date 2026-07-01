@@ -100,6 +100,14 @@ export function SettingsTab({
 
   return (
     <form onSubmit={save} className="max-w-3xl space-y-5 pb-20 pt-2">
+      <div className="rounded-xl border bg-muted/20 p-4">
+        <p className="text-sm font-medium">Configurações do evento</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          Blocos organizados: detalhes, data & local, capacidade, público (tag) e
+          avisos VIP. Design do QR, mensagens e recebimento ficam nas abas Envios,
+          Mensagens e Pagamentos.
+        </p>
+      </div>
       <Section title="Detalhes" description="Nome do evento exibido aos convidados.">
         <div className="space-y-2">
           <Label htmlFor="s-name">Nome</Label>

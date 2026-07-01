@@ -1,13 +1,25 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Check, Copy, CreditCard, Link2, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import {
+  Check,
+  Copy,
+  CreditCard,
+  Link2,
+  Loader2,
+  DollarSign,
+  Clock,
+  AlertTriangle,
+  XCircle,
+  Search,
+} from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Segmented } from "@/components/ui/segmented";
 import {
   Select,
   SelectContent,
@@ -15,6 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import type { GuestRow } from "@/components/events/event-detail";
 
 type Config = {
   registrationUrl: string;
@@ -24,6 +37,56 @@ type Config = {
   sendChannel: string;
   active: boolean;
 };
+
+const PAY_LABEL: Record<string, string> = {
+  paid: "Pago",
+  pending: "Pendente",
+  failed: "Recusado",
+  refunded: "Reembolsado",
+  none: "Sem cobrança",
+};
+const PAY_TONE: Record<string, string> = {
+  paid: "bg-emerald-500/15 text-emerald-700",
+  pending: "bg-amber-500/15 text-amber-700",
+  failed: "bg-rose-500/15 text-rose-700",
+  refunded: "bg-sky-500/15 text-sky-700",
+  none: "bg-muted text-muted-foreground",
+};
+
+function money(cents: number, currency: string) {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(
+    cents / 100,
+  );
+}
+
+function Metric({
+  icon,
+  tone,
+  label,
+  value,
+  hint,
+}: {
+  icon: React.ReactNode;
+  tone: string;
+  label: string;
+  value: string | number;
+  hint?: string;
+}) {
+  return (
+    <Card className="transition hover:shadow-sm">
+      <CardContent className="flex items-start gap-3 p-4">
+        <span className={`flex size-10 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+          {icon}
+        </span>
+        <div className="min-w-0">
+          <p className="truncate text-2xl font-bold leading-none tracking-tight">{value}</p>
+          <p className="mt-1 text-sm font-medium">{label}</p>
+          {hint && <p className="text-xs text-muted-foreground">{hint}</p>}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function CopyField({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -51,10 +114,23 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PaymentsTab({ eventId }: { eventId: string }) {
+export function PaymentsTab({
+  eventId,
+  guests,
+  eventDate,
+  onChange,
+}: {
+  eventId: string;
+  guests: GuestRow[];
+  eventDate: string;
+  onChange: () => void;
+}) {
+  const [view, setView] = useState("overview");
   const [cfg, setCfg] = useState<Config | null>(null);
   const [sigKey, setSigKey] = useState("");
   const [saving, setSaving] = useState(false);
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
 
   async function load() {
     const res = await fetch(`/api/events/${eventId}/integration`);
@@ -73,30 +149,232 @@ export function PaymentsTab({ eventId }: { eventId: string }) {
       body: JSON.stringify(body),
     });
     setSaving(false);
-    if (!res.ok) {
-      const d = await res.json().catch(() => ({}));
-      toast.error(d.error ?? "Erro ao salvar");
-      return;
-    }
+    if (!res.ok) return toast.error("Erro ao salvar");
     if (msg) toast.success(msg);
     load();
   }
 
-  if (!cfg) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  const active = guests.filter((g) => g.status !== "canceled");
+  const eventPassed = new Date(eventDate) < new Date(new Date().toDateString());
+
+  const stats = useMemo(() => {
+    const paid = active.filter((g) => g.paymentStatus === "paid");
+    const pending = active.filter((g) => g.paymentStatus === "pending");
+    const failed = active.filter((g) => g.paymentStatus === "failed");
+    const refunded = active.filter((g) => g.paymentStatus === "refunded");
+    const received = paid.reduce((s, g) => s + (g.amountPaid ?? 0), 0);
+    const currency = paid.find((g) => g.currency)?.currency ?? "BRL";
+    const overdue = eventPassed ? pending.length : 0;
+    return { paid, pending, failed, refunded, received, currency, overdue };
+  }, [active, eventPassed]);
+
+  const currency = stats.currency;
+
+  const pendingList = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    const list = active.filter((g) =>
+      ["pending", "failed"].includes(g.paymentStatus),
+    );
+    if (!q) return list;
+    return list.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        (g.email ?? "").toLowerCase().includes(q) ||
+        (g.phone ?? "").toLowerCase().includes(q),
+    );
+  }, [active, query]);
+
+  async function markPaid(g: GuestRow) {
+    setBusyId(g.id);
+    const res = await fetch(`/api/events/${eventId}/guests/${g.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus: "paid" }),
+    });
+    setBusyId(null);
+    if (!res.ok) return toast.error("Erro ao marcar");
+    toast.success(`${g.name} marcado como pago`);
+    onChange();
+  }
 
   return (
-    <div className="max-w-2xl space-y-5 pt-2">
+    <div className="space-y-5 pt-2">
+      <Segmented
+        value={view}
+        onChange={setView}
+        options={[
+          { value: "overview", label: "Visão geral" },
+          { value: "config", label: "Configuração de recebimento" },
+        ]}
+      />
+
+      {view === "overview" ? (
+        <>
+          {/* Indicadores */}
+          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <Metric
+              icon={<DollarSign className="size-5" />}
+              tone="bg-emerald-500/15 text-emerald-600"
+              label="Total recebido"
+              value={money(stats.received, currency)}
+              hint={`${stats.paid.length} pagamento(s)`}
+            />
+            <Metric
+              icon={<Clock className="size-5" />}
+              tone="bg-amber-500/15 text-amber-600"
+              label="Pendentes"
+              value={stats.pending.length}
+              hint="aguardando pagamento"
+            />
+            <Metric
+              icon={<AlertTriangle className="size-5" />}
+              tone="bg-orange-500/15 text-orange-600"
+              label="Em atraso"
+              value={stats.overdue}
+              hint={eventPassed ? "evento já ocorreu" : "evento futuro"}
+            />
+            <Metric
+              icon={<XCircle className="size-5" />}
+              tone="bg-rose-500/15 text-rose-600"
+              label="Recusados"
+              value={stats.failed.length}
+              hint={stats.refunded.length ? `${stats.refunded.length} reembolsado(s)` : undefined}
+            />
+          </div>
+
+          {/* Lista de pendentes / recusados */}
+          <Card>
+            <CardContent className="p-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b p-4">
+                <div>
+                  <p className="text-sm font-medium">Pagamentos a resolver</p>
+                  <p className="text-xs text-muted-foreground">
+                    Pendentes e recusados — marque como pago ou veja o status.
+                  </p>
+                </div>
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    placeholder="Buscar pessoa"
+                    className="h-9 w-56 pl-8 text-sm"
+                  />
+                </div>
+              </div>
+
+              {pendingList.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 py-14 text-center">
+                  <Check className="size-7 text-emerald-500" />
+                  <p className="text-sm font-medium">Nada pendente 🎉</p>
+                  <p className="text-xs text-muted-foreground">
+                    {query ? "Nada encontrado para a busca." : "Todos os pagamentos estão em dia."}
+                  </p>
+                </div>
+              ) : (
+                <ul className="divide-y">
+                  {pendingList.map((g) => (
+                    <li
+                      key={g.id}
+                      className="flex flex-wrap items-center gap-3 p-4 transition hover:bg-muted/40"
+                    >
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-medium">{g.name}</span>
+                        <span className="block truncate text-xs text-muted-foreground">
+                          {g.email ?? g.phone ?? "sem contato"}
+                        </span>
+                      </span>
+                      <Badge className={`border-transparent ${PAY_TONE[g.paymentStatus] ?? PAY_TONE.none}`}>
+                        {PAY_LABEL[g.paymentStatus] ?? g.paymentStatus}
+                      </Badge>
+                      <Button
+                        size="sm"
+                        disabled={busyId === g.id}
+                        onClick={() => markPaid(g)}
+                      >
+                        {busyId === g.id ? <Loader2 className="size-4 animate-spin" /> : <Check />}
+                        Marcar como pago
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </CardContent>
+          </Card>
+
+          {/* Pagamentos confirmados */}
+          {stats.paid.length > 0 && (
+            <Card>
+              <CardContent className="p-0">
+                <div className="border-b p-4">
+                  <p className="text-sm font-medium">Pagamentos confirmados</p>
+                </div>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-left text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="px-4 py-2.5 font-medium">Pessoa</th>
+                        <th className="px-4 py-2.5 font-medium">Valor</th>
+                        <th className="px-4 py-2.5 font-medium">Pago em</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.paid.map((g) => (
+                        <tr key={g.id} className="border-b transition last:border-0 hover:bg-muted/40">
+                          <td className="px-4 py-2.5">
+                            <span className="block font-medium">{g.name}</span>
+                            {g.email && <span className="block text-xs text-muted-foreground">{g.email}</span>}
+                          </td>
+                          <td className="px-4 py-2.5 tabular-nums font-medium">
+                            {g.amountPaid != null ? money(g.amountPaid, g.currency ?? currency) : "—"}
+                          </td>
+                          <td className="px-4 py-2.5 text-muted-foreground">
+                            <Badge className="border-transparent bg-emerald-500/15 text-emerald-700">Pago</Badge>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </>
+      ) : (
+        <ConfigView
+          cfg={cfg}
+          saving={saving}
+          sigKey={sigKey}
+          setSigKey={setSigKey}
+          patch={patch}
+        />
+      )}
+    </div>
+  );
+}
+
+function ConfigView({
+  cfg,
+  saving,
+  sigKey,
+  setSigKey,
+  patch,
+}: {
+  cfg: Config | null;
+  saving: boolean;
+  sigKey: string;
+  setSigKey: (v: string) => void;
+  patch: (body: Record<string, unknown>, msg?: string) => void;
+}) {
+  if (!cfg) return <p className="text-sm text-muted-foreground">Carregando…</p>;
+  return (
+    <div className="max-w-2xl space-y-5">
       <Card>
         <CardContent className="space-y-4 p-5">
           <div className="flex items-center gap-2">
             <Link2 className="size-4 text-muted-foreground" />
             <p className="font-medium">Webhooks de entrada</p>
           </div>
-          <p className="text-sm text-muted-foreground">
-            Aponte seu formulário para a URL de inscrição e configure a URL de
-            pagamento como webhook no Square. O app cria o convidado na inscrição
-            e dispara o QR quando o pagamento é confirmado.
-          </p>
           <CopyField label="URL de inscrição (formulário)" value={cfg.registrationUrl} />
           <CopyField label="URL de pagamento (Square webhook)" value={cfg.squareUrl} />
         </CardContent>
@@ -131,10 +409,6 @@ export function PaymentsTab({ eventId }: { eventId: string }) {
                 {saving && <Loader2 className="size-4 animate-spin" />} Salvar
               </Button>
             </div>
-            <p className="text-xs text-muted-foreground">
-              No painel do Square (Developer → Webhooks), use a URL de pagamento
-              acima e assine os eventos de pagamento. A chave valida cada webhook.
-            </p>
           </div>
         </CardContent>
       </Card>
@@ -142,37 +416,23 @@ export function PaymentsTab({ eventId }: { eventId: string }) {
       <Card>
         <CardContent className="space-y-4 p-5">
           <p className="font-medium">Automação</p>
-
           <div className="flex items-center justify-between gap-3">
             <div>
               <p className="text-sm font-medium">Enviar QR ao confirmar pagamento</p>
-              <p className="text-xs text-muted-foreground">
-                Assim que o Square confirmar, o ingresso sai automaticamente.
-              </p>
+              <p className="text-xs text-muted-foreground">Ingresso sai automaticamente ao pagar.</p>
             </div>
             <Button
               variant={cfg.autoSendQrOnPaid ? "default" : "outline"}
               size="sm"
-              onClick={() =>
-                patch(
-                  { autoSendQrOnPaid: !cfg.autoSendQrOnPaid },
-                  cfg.autoSendQrOnPaid ? "Desligado" : "Ligado",
-                )
-              }
+              onClick={() => patch({ autoSendQrOnPaid: !cfg.autoSendQrOnPaid }, cfg.autoSendQrOnPaid ? "Desligado" : "Ligado")}
             >
               {cfg.autoSendQrOnPaid ? "Ligado" : "Desligado"}
             </Button>
           </div>
-
           <div className="space-y-1.5">
             <Label>Canal de envio do QR</Label>
-            <Select
-              value={cfg.sendChannel}
-              onValueChange={(v) => patch({ sendChannel: v }, "Canal atualizado")}
-            >
-              <SelectTrigger className="w-56">
-                <SelectValue />
-              </SelectTrigger>
+            <Select value={cfg.sendChannel} onValueChange={(v) => patch({ sendChannel: v }, "Canal atualizado")}>
+              <SelectTrigger className="w-56"><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="ghl">Workflow do Spark (tag)</SelectItem>
                 <SelectItem value="whatsapp">WhatsApp (Stevo)</SelectItem>
@@ -180,15 +440,12 @@ export function PaymentsTab({ eventId }: { eventId: string }) {
               </SelectContent>
             </Select>
           </div>
-
           <div className="flex items-center justify-between gap-3 border-t pt-3">
             <p className="text-sm">Integração ativa</p>
             <Button
               variant={cfg.active ? "default" : "outline"}
               size="sm"
-              onClick={() =>
-                patch({ active: !cfg.active }, cfg.active ? "Pausada" : "Ativada")
-              }
+              onClick={() => patch({ active: !cfg.active }, cfg.active ? "Pausada" : "Ativada")}
             >
               {cfg.active ? "Ativa" : "Pausada"}
             </Button>

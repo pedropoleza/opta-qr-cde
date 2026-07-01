@@ -325,13 +325,16 @@ export function QrDeliveryTab({
           </h3>
           <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
             {withTicket.map((guest) => (
-              <Card key={guest.id}>
+              <Card
+                key={guest.id}
+                className="group transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-md"
+              >
                 <CardContent className="flex flex-col items-center gap-2 p-4">
                   {/* eslint-disable-next-line @next/next/no-img-element */}
                   <img
                     src={`/api/qr/${guest.ticketToken}`}
                     alt={`QR de ${guest.name}`}
-                    className="h-32 w-32 rounded-md border bg-white p-1.5"
+                    className="h-32 w-32 rounded-md border bg-white p-1.5 transition-transform duration-200 group-hover:scale-[1.03]"
                   />
                   <p className="w-full truncate text-center text-sm font-medium">
                     {guest.name}

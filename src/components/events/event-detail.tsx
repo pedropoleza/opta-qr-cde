@@ -49,6 +49,7 @@ import { SettingsTab } from "@/components/events/settings-tab";
 import { ActivityTab } from "@/components/events/activity-tab";
 import { FlowTab, type FlowData } from "@/components/events/flow-tab";
 import { CheckinDashboard } from "@/components/events/checkin-dashboard";
+import { Segmented } from "@/components/ui/segmented";
 import {
   EVENT_STATUS_LABEL,
   EVENT_STATUS_VARIANT,
@@ -58,37 +59,6 @@ import {
 function csvCell(value: string) {
   const s = String(value ?? "");
   return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-}
-
-// Sub-navegação segmentada dentro de uma aba (reduz o número de abas no topo).
-function Segmented<T extends string>({
-  value,
-  onChange,
-  options,
-}: {
-  value: T;
-  onChange: (v: T) => void;
-  options: { value: T; label: string }[];
-}) {
-  return (
-    <div className="mb-5 inline-flex rounded-lg border bg-muted/40 p-1 text-sm">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "rounded-md px-3.5 py-1.5 font-medium transition-colors",
-            value === o.value
-              ? "bg-background text-foreground shadow-sm"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
 }
 
 export type EventData = {
@@ -544,7 +514,12 @@ export function EventDetail({
         </TabsContent>
 
         <TabsContent value="payments">
-          <PaymentsTab eventId={event.id} />
+          <PaymentsTab
+            eventId={event.id}
+            guests={guests}
+            eventDate={event.date}
+            onChange={refresh}
+          />
         </TabsContent>
 
         <TabsContent value="operacao">

@@ -39,7 +39,7 @@ export function MessagesTab({
   eventName?: string;
 }) {
   return (
-    <div className="max-w-4xl space-y-5 pt-2">
+    <div className="space-y-5 pt-2">
       <Card>
         <CardContent className="flex flex-col gap-4 p-6 sm:flex-row sm:items-center sm:justify-between">
           <div>
@@ -53,7 +53,7 @@ export function MessagesTab({
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         {PHASES.map((p) => {
           const Icon = p.icon;
           return (

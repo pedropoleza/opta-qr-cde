@@ -27,8 +27,8 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Card>
-      <CardContent className="grid gap-5 p-5 md:grid-cols-[220px_1fr]">
+    <Card className="h-full transition hover:shadow-sm">
+      <CardContent className="flex h-full flex-col gap-4 p-5">
         <div>
           <p className="font-medium">{title}</p>
           {description && (
@@ -99,7 +99,7 @@ export function SettingsTab({
   }
 
   return (
-    <form onSubmit={save} className="max-w-3xl space-y-5 pb-20 pt-2">
+    <form onSubmit={save} className="mx-auto max-w-6xl space-y-4 pb-24 pt-2">
       <div className="rounded-xl border bg-muted/20 p-4">
         <p className="text-sm font-medium">Configurações do evento</p>
         <p className="mt-0.5 text-xs text-muted-foreground">
@@ -108,6 +108,7 @@ export function SettingsTab({
           Mensagens e Pagamentos.
         </p>
       </div>
+      <div className="grid items-start gap-4 lg:grid-cols-2">
       <Section title="Detalhes" description="Nome do evento exibido aos convidados.">
         <div className="space-y-2">
           <Label htmlFor="s-name">Nome</Label>
@@ -258,10 +259,11 @@ export function SettingsTab({
           </div>
         </div>
       </Section>
+      </div>
 
       {/* Barra de ação fixa */}
       <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-card/90 backdrop-blur">
-        <div className="mx-auto flex max-w-3xl items-center justify-end gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-6xl items-center justify-end gap-3 px-4 py-3">
           <p className="mr-auto text-sm text-muted-foreground">
             Alterações são aplicadas ao salvar.
           </p>

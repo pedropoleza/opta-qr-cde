@@ -368,19 +368,21 @@ function ConfigView({
 }) {
   if (!cfg) return <p className="text-sm text-muted-foreground">Carregando…</p>;
   return (
-    <div className="max-w-2xl space-y-5">
-      <Card>
+    <div className="grid items-start gap-4 lg:grid-cols-2">
+      <Card className="lg:col-span-2">
         <CardContent className="space-y-4 p-5">
           <div className="flex items-center gap-2">
             <Link2 className="size-4 text-muted-foreground" />
             <p className="font-medium">Webhooks de entrada</p>
           </div>
-          <CopyField label="URL de inscrição (formulário)" value={cfg.registrationUrl} />
-          <CopyField label="URL de pagamento (Square webhook)" value={cfg.squareUrl} />
+          <div className="grid gap-4 md:grid-cols-2">
+            <CopyField label="URL de inscrição (formulário)" value={cfg.registrationUrl} />
+            <CopyField label="URL de pagamento (Square webhook)" value={cfg.squareUrl} />
+          </div>
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="h-full">
         <CardContent className="space-y-4 p-5">
           <div className="flex items-center gap-2">
             <CreditCard className="size-4 text-muted-foreground" />
@@ -413,7 +415,7 @@ function ConfigView({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="h-full">
         <CardContent className="space-y-4 p-5">
           <p className="font-medium">Automação</p>
           <div className="flex items-center justify-between gap-3">

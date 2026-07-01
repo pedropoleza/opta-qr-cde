@@ -51,8 +51,8 @@ export function CheckerTab({
   const kioskUrl = kioskToken ? `${appBaseUrl}/kiosk/${kioskToken}` : "";
 
   return (
-    <div className="max-w-xl space-y-4 pt-4">
-      <Card>
+    <div className="grid items-start gap-4 pt-4 lg:grid-cols-2">
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Modo Checker</CardTitle>
           <CardDescription>
@@ -105,7 +105,7 @@ export function CheckerTab({
         </CardContent>
       </Card>
 
-      <Card>
+      <Card className="h-full">
         <CardHeader>
           <CardTitle>Totem de auto-checkin</CardTitle>
           <CardDescription>

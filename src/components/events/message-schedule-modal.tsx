@@ -9,12 +9,12 @@ import {
   Trash2,
   UserPlus,
   Clock,
+  ChevronRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Dialog,
@@ -32,7 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 
-const VARIABLES = ["nome", "evento", "data", "hora", "local", "link_qr", "valor"];
+const VARIABLES = ["nome", "evento", "data", "hora", "local", "link_qr", "link_certificado", "link_nps", "valor"];
 const CHANNELS = [
   { v: "whatsapp", label: "WhatsApp" },
   { v: "email", label: "E-mail" },
@@ -79,6 +79,8 @@ type Integ = {
   registrationChannel: string;
 } | null;
 
+type PhaseKey = "registration" | "payment" | "before" | "after";
+
 function VarChips({ onPick }: { onPick: (v: string) => void }) {
   return (
     <div className="flex flex-wrap gap-1.5">
@@ -87,49 +89,13 @@ function VarChips({ onPick }: { onPick: (v: string) => void }) {
           key={v}
           type="button"
           onClick={() => onPick(v)}
-          className="rounded-md border bg-muted/40 px-2 py-0.5 text-xs font-mono hover:bg-muted"
+          className="rounded-md border bg-muted/40 px-2 py-0.5 text-xs font-mono transition hover:bg-muted"
         >{`{{${v}}}`}</button>
       ))}
     </div>
   );
 }
 
-// Nó da timeline: bolinha + linha + conteúdo.
-function Node({
-  icon,
-  tone,
-  title,
-  meta,
-  children,
-  last,
-}: {
-  icon: React.ReactNode;
-  tone: string;
-  title: string;
-  meta?: React.ReactNode;
-  children: React.ReactNode;
-  last?: boolean;
-}) {
-  return (
-    <div className="relative flex gap-4">
-      <div className="flex flex-col items-center">
-        <span className={`flex size-9 shrink-0 items-center justify-center rounded-full ${tone}`}>
-          {icon}
-        </span>
-        {!last && <span className="mt-1 w-px flex-1 bg-border" />}
-      </div>
-      <div className="flex-1 pb-6">
-        <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold">{title}</h3>
-          {meta}
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-// Editor de assunto+corpo com variáveis.
 function MsgFields({
   subject,
   onSubject,
@@ -156,13 +122,41 @@ function MsgFields({
         />
       )}
       <Textarea
-        rows={3}
+        rows={4}
         value={body}
         onChange={(e) => onBody(e.target.value)}
         placeholder={placeholder ?? "Escreva a mensagem… use as variáveis abaixo."}
         className="text-sm"
       />
       <VarChips onPick={(v) => onBody(`${body}${body && !body.endsWith(" ") ? " " : ""}{{${v}}}`)} />
+    </div>
+  );
+}
+
+// Cabeçalho de painel (lado direito).
+function PaneHeader({
+  icon,
+  tone,
+  title,
+  desc,
+  right,
+}: {
+  icon: React.ReactNode;
+  tone: string;
+  title: string;
+  desc: string;
+  right?: React.ReactNode;
+}) {
+  return (
+    <div className="mb-5 flex items-start gap-3">
+      <span className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${tone}`}>
+        {icon}
+      </span>
+      <div className="min-w-0 flex-1">
+        <h3 className="text-lg font-semibold leading-tight">{title}</h3>
+        <p className="mt-0.5 text-sm text-muted-foreground">{desc}</p>
+      </div>
+      {right}
     </div>
   );
 }
@@ -176,6 +170,7 @@ export function MessageScheduleModal({
 }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [phase, setPhase] = useState<PhaseKey>("registration");
   const [templates, setTemplates] = useState<Tpl[]>([]);
   const [integ, setInteg] = useState<Integ>(null);
   const [rules, setRules] = useState<Rule[]>([]);
@@ -221,6 +216,43 @@ export function MessageScheduleModal({
     load();
   }
 
+  const NAV: {
+    key: PhaseKey;
+    icon: React.ReactNode;
+    tone: string;
+    title: string;
+    sub: string;
+  }[] = [
+    {
+      key: "registration",
+      icon: <UserPlus className="size-4" />,
+      tone: "bg-sky-500/15 text-sky-600",
+      title: "No cadastro",
+      sub: integ?.sendMsgOnRegistration ? "Ativo" : "Desativado",
+    },
+    {
+      key: "payment",
+      icon: <CreditCard className="size-4" />,
+      tone: "bg-emerald-500/15 text-emerald-600",
+      title: "No pagamento",
+      sub: integ?.autoSendQrOnPaid ? "Automático" : "Manual",
+    },
+    {
+      key: "before",
+      icon: <Clock className="size-4" />,
+      tone: "bg-amber-500/15 text-amber-600",
+      title: "Antes do evento",
+      sub: `${before.length} lembrete(s)`,
+    },
+    {
+      key: "after",
+      icon: <CalendarClock className="size-4" />,
+      tone: "bg-violet-500/15 text-violet-600",
+      title: "Depois do evento",
+      sub: `${after.length} mensagem(ns)`,
+    },
+  ];
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -228,129 +260,170 @@ export function MessageScheduleModal({
           <CalendarClock /> Agenda de mensagens
         </Button>
       </DialogTrigger>
-      <DialogContent className="max-h-[88vh] max-w-4xl overflow-y-auto">
-        <DialogHeader>
-          <DialogTitle>Agenda de mensagens{eventName ? ` — ${eventName}` : ""}</DialogTitle>
-          <DialogDescription>
-            Toda a jornada de comunicação do convidado, do cadastro ao pós-evento.
-            As variáveis ({`{{nome}}`}, {`{{link_qr}}`}…) são preenchidas no envio.
-          </DialogDescription>
-        </DialogHeader>
+      <DialogContent className="max-h-[90vh] w-[96vw] max-w-6xl gap-0 overflow-hidden p-0">
+        <div className="flex flex-col md:h-[82vh] md:flex-row">
+          {/* Navegação de fases */}
+          <aside className="shrink-0 border-b bg-muted/30 p-4 md:w-72 md:border-b-0 md:border-r">
+            <DialogHeader className="mb-4 space-y-1 text-left">
+              <DialogTitle className="text-base">Agenda de mensagens</DialogTitle>
+              <DialogDescription className="text-xs">
+                {eventName ? eventName : "Jornada de comunicação do convidado."}
+              </DialogDescription>
+            </DialogHeader>
+            <nav className="flex gap-2 overflow-x-auto md:flex-col md:overflow-visible">
+              {NAV.map((n) => {
+                const active = phase === n.key;
+                return (
+                  <button
+                    key={n.key}
+                    type="button"
+                    onClick={() => setPhase(n.key)}
+                    className={`flex shrink-0 items-center gap-3 rounded-xl px-3 py-2.5 text-left transition ${
+                      active
+                        ? "bg-background shadow-sm ring-1 ring-border"
+                        : "hover:bg-background/60"
+                    }`}
+                  >
+                    <span className={`flex size-8 items-center justify-center rounded-lg ${n.tone}`}>
+                      {n.icon}
+                    </span>
+                    <span className="min-w-0">
+                      <span className="block text-sm font-medium leading-tight">{n.title}</span>
+                      <span className="block text-xs text-muted-foreground">{n.sub}</span>
+                    </span>
+                    <ChevronRight
+                      className={`ml-auto hidden size-4 text-muted-foreground md:block ${active ? "opacity-100" : "opacity-0"}`}
+                    />
+                  </button>
+                );
+              })}
+            </nav>
+          </aside>
 
-        {loading ? (
-          <div className="flex items-center justify-center py-16 text-muted-foreground">
-            <Loader2 className="mr-2 size-4 animate-spin" /> Carregando…
+          {/* Painel da fase */}
+          <div className="flex-1 overflow-y-auto p-5 md:p-7">
+            {loading ? (
+              <div className="flex items-center justify-center py-24 text-muted-foreground">
+                <Loader2 className="mr-2 size-4 animate-spin" /> Carregando…
+              </div>
+            ) : phase === "registration" ? (
+              <div>
+                <PaneHeader
+                  icon={<UserPlus className="size-5" />}
+                  tone="bg-sky-500/15 text-sky-600"
+                  title="No cadastro"
+                  desc="Enviada assim que a pessoa se inscreve, antes do pagamento."
+                  right={
+                    <Badge variant={integ?.sendMsgOnRegistration ? "default" : "outline"}>
+                      {integ?.sendMsgOnRegistration ? "Ativo" : "Desativado"}
+                    </Badge>
+                  }
+                />
+                <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-muted/20 p-3">
+                  <span className="text-sm font-medium">Enviar ao se inscrever</span>
+                  <Button
+                    size="sm"
+                    variant={integ?.sendMsgOnRegistration ? "default" : "outline"}
+                    onClick={() => patchInteg({ sendMsgOnRegistration: !integ?.sendMsgOnRegistration })}
+                  >
+                    {integ?.sendMsgOnRegistration ? "Ligado" : "Desligado"}
+                  </Button>
+                  <span className="ml-auto text-sm text-muted-foreground">Canal</span>
+                  <Select
+                    value={integ?.registrationChannel ?? "whatsapp"}
+                    onValueChange={(v) => patchInteg({ registrationChannel: v })}
+                  >
+                    <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="whatsapp">WhatsApp</SelectItem>
+                      <SelectItem value="email">E-mail</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <TemplateBlock eventId={eventId} kind="registration" templates={templates} withSubject />
+              </div>
+            ) : phase === "payment" ? (
+              <div>
+                <PaneHeader
+                  icon={<CreditCard className="size-5" />}
+                  tone="bg-emerald-500/15 text-emerald-600"
+                  title="No pagamento"
+                  desc="Entrega o ingresso (PDF + QR) automaticamente quando o pagamento é confirmado."
+                  right={
+                    <Badge variant={integ?.autoSendQrOnPaid ? "default" : "outline"}>
+                      {integ?.autoSendQrOnPaid ? "Automático" : "Manual"}
+                    </Badge>
+                  }
+                />
+                <div className="mb-4 flex flex-wrap items-center gap-2 rounded-xl border bg-muted/20 p-3">
+                  <span className="text-sm font-medium">Envio automático ao pagar</span>
+                  <Button
+                    size="sm"
+                    variant={integ?.autoSendQrOnPaid ? "default" : "outline"}
+                    onClick={() => patchInteg({ autoSendQrOnPaid: !integ?.autoSendQrOnPaid })}
+                  >
+                    {integ?.autoSendQrOnPaid ? "Ligado" : "Desligado"}
+                  </Button>
+                  <span className="ml-auto rounded-md bg-muted px-2 py-1 text-xs text-muted-foreground">
+                    Canal: {CHANNELS.find((c) => c.v === integ?.sendChannel)?.label ?? integ?.sendChannel}
+                  </span>
+                </div>
+                <TemplateBlock eventId={eventId} kind="qr_delivery" templates={templates} withSubject />
+              </div>
+            ) : phase === "before" ? (
+              <div>
+                <PaneHeader
+                  icon={<Clock className="size-5" />}
+                  tone="bg-amber-500/15 text-amber-600"
+                  title="Antes do evento"
+                  desc="Lembretes agendados relativos ao início do evento (dias/horas antes)."
+                  right={<Badge variant="secondary">{before.length}</Badge>}
+                />
+                <div className="space-y-3">
+                  {before.map((r) => (
+                    <ReminderRow key={r.id} eventId={eventId} rule={r} onChange={load} />
+                  ))}
+                  {before.length === 0 && (
+                    <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                      Nenhum lembrete antes do evento ainda.
+                    </p>
+                  )}
+                  <Button variant="outline" onClick={() => addRule("antes")}>
+                    <Plus /> Adicionar lembrete antes
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <div>
+                <PaneHeader
+                  icon={<CalendarClock className="size-5" />}
+                  tone="bg-violet-500/15 text-violet-600"
+                  title="Depois do evento"
+                  desc="Follow-up pós-evento: agradecimento, pesquisa/NPS, certificado, próximos eventos."
+                  right={<Badge variant="secondary">{after.length}</Badge>}
+                />
+                <div className="space-y-3">
+                  {after.map((r) => (
+                    <ReminderRow key={r.id} eventId={eventId} rule={r} onChange={load} />
+                  ))}
+                  {after.length === 0 && (
+                    <p className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+                      Nenhuma mensagem depois do evento ainda.
+                    </p>
+                  )}
+                  <Button variant="outline" onClick={() => addRule("depois")}>
+                    <Plus /> Adicionar mensagem depois
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
-        ) : (
-          <div className="pt-2">
-            {/* 1. No cadastro */}
-            <Node
-              icon={<UserPlus className="size-4" />}
-              tone="bg-sky-500/15 text-sky-600"
-              title="No cadastro"
-              meta={
-                <Badge variant={integ?.sendMsgOnRegistration ? "default" : "outline"}>
-                  {integ?.sendMsgOnRegistration ? "Ativo" : "Desativado"}
-                </Badge>
-              }
-            >
-              <p className="mb-2 text-sm text-muted-foreground">
-                Enviada assim que a pessoa se inscreve (antes do pagamento).
-              </p>
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={integ?.sendMsgOnRegistration ? "default" : "outline"}
-                  onClick={() => patchInteg({ sendMsgOnRegistration: !integ?.sendMsgOnRegistration })}
-                >
-                  {integ?.sendMsgOnRegistration ? "Ligado" : "Desligado"}
-                </Button>
-                <Select
-                  value={integ?.registrationChannel ?? "whatsapp"}
-                  onValueChange={(v) => patchInteg({ registrationChannel: v })}
-                >
-                  <SelectTrigger className="h-8 w-36 text-xs"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="whatsapp">WhatsApp</SelectItem>
-                    <SelectItem value="email">E-mail</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <TemplateBlock eventId={eventId} kind="registration" templates={templates} withSubject />
-            </Node>
-
-            {/* 2. No pagamento */}
-            <Node
-              icon={<CreditCard className="size-4" />}
-              tone="bg-emerald-500/15 text-emerald-600"
-              title="No pagamento (entrega do ingresso)"
-              meta={
-                <Badge variant={integ?.autoSendQrOnPaid ? "default" : "outline"}>
-                  {integ?.autoSendQrOnPaid ? "Automático" : "Manual"}
-                </Badge>
-              }
-            >
-              <p className="mb-2 text-sm text-muted-foreground">
-                Dispara o ingresso (PDF + QR) automaticamente quando o pagamento é confirmado.
-              </p>
-              <div className="mb-3 flex flex-wrap items-center gap-2">
-                <Button
-                  size="sm"
-                  variant={integ?.autoSendQrOnPaid ? "default" : "outline"}
-                  onClick={() => patchInteg({ autoSendQrOnPaid: !integ?.autoSendQrOnPaid })}
-                >
-                  {integ?.autoSendQrOnPaid ? "Envio automático ligado" : "Desligado"}
-                </Button>
-              </div>
-              <TemplateBlock eventId={eventId} kind="qr_delivery" templates={templates} withSubject />
-            </Node>
-
-            {/* 3. Antes do evento */}
-            <Node
-              icon={<Clock className="size-4" />}
-              tone="bg-amber-500/15 text-amber-600"
-              title="Antes do evento"
-              meta={<Badge variant="secondary">{before.length} lembrete(s)</Badge>}
-            >
-              <div className="space-y-2">
-                {before.map((r) => (
-                  <ReminderRow key={r.id} eventId={eventId} rule={r} onChange={load} />
-                ))}
-                <Button variant="outline" size="sm" onClick={() => addRule("antes")}>
-                  <Plus /> Adicionar lembrete antes
-                </Button>
-              </div>
-            </Node>
-
-            {/* 4. Depois do evento */}
-            <Node
-              icon={<CalendarClock className="size-4" />}
-              tone="bg-violet-500/15 text-violet-600"
-              title="Depois do evento"
-              meta={<Badge variant="secondary">{after.length} mensagem(ns)</Badge>}
-              last
-            >
-              <p className="mb-2 text-sm text-muted-foreground">
-                Follow-up pós-evento: agradecimento, pesquisa/NPS ({`{{link_nps}}`}),
-                certificado ({`{{link_certificado}}`}), próximos eventos…
-              </p>
-              <div className="space-y-2">
-                {after.map((r) => (
-                  <ReminderRow key={r.id} eventId={eventId} rule={r} onChange={load} />
-                ))}
-                <Button variant="outline" size="sm" onClick={() => addRule("depois")}>
-                  <Plus /> Adicionar mensagem depois
-                </Button>
-              </div>
-            </Node>
-          </div>
-        )}
+        </div>
       </DialogContent>
     </Dialog>
   );
 }
 
-// Bloco de template fixo (registration / qr_delivery).
 function TemplateBlock({
   eventId,
   kind,
@@ -381,7 +454,10 @@ function TemplateBlock({
   }
 
   return (
-    <div className="rounded-lg border bg-card p-3">
+    <div className="rounded-xl border bg-card p-4">
+      <p className="mb-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        Conteúdo da mensagem
+      </p>
       <MsgFields
         withSubject={withSubject}
         subject={subject}
@@ -389,7 +465,7 @@ function TemplateBlock({
         body={body}
         onBody={setBody}
       />
-      <div className="mt-2 flex justify-end">
+      <div className="mt-3 flex justify-end">
         <Button size="sm" onClick={save} disabled={saving || !dirty || !body.trim()}>
           {saving && <Loader2 className="size-4 animate-spin" />} Salvar
         </Button>
@@ -398,7 +474,6 @@ function TemplateBlock({
   );
 }
 
-// Linha editável de um lembrete/mensagem agendada.
 function ReminderRow({
   eventId,
   rule,
@@ -443,42 +518,45 @@ function ReminderRow({
   }
 
   return (
-    <div className="rounded-lg border bg-card p-3">
+    <div className="rounded-xl border bg-card p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Input
           type="number"
           min={1}
           value={amount}
           onChange={(e) => setAmount(Math.max(1, Number(e.target.value) || 1))}
-          className="h-8 w-16 text-sm"
+          className="h-9 w-16 text-sm"
         />
         <Select value={unit} onValueChange={(v) => setUnit(v as "horas" | "dias")}>
-          <SelectTrigger className="h-8 w-24 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-24 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="horas">horas</SelectItem>
             <SelectItem value="dias">dias</SelectItem>
           </SelectContent>
         </Select>
         <Select value={dir} onValueChange={(v) => setDir(v as "antes" | "depois")}>
-          <SelectTrigger className="h-8 w-28 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-28 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             <SelectItem value="antes">antes</SelectItem>
             <SelectItem value="depois">depois</SelectItem>
           </SelectContent>
         </Select>
+        <span className="mx-1 hidden text-xs text-muted-foreground sm:inline">·</span>
         <Select value={channel} onValueChange={setChannel}>
-          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {CHANNELS.map((c) => <SelectItem key={c.v} value={c.v}>{c.label}</SelectItem>)}
           </SelectContent>
         </Select>
         <Select value={audience} onValueChange={setAudience}>
-          <SelectTrigger className="h-8 w-32 text-xs"><SelectValue /></SelectTrigger>
+          <SelectTrigger className="h-9 w-32 text-xs"><SelectValue /></SelectTrigger>
           <SelectContent>
             {AUDIENCES.map((a) => <SelectItem key={a.v} value={a.v}>{a.label}</SelectItem>)}
           </SelectContent>
         </Select>
-        {rule.lastRunAt && <span className="text-xs text-success">enviado</span>}
+        {rule.lastRunAt && (
+          <Badge className="border-transparent bg-success text-success-foreground">enviado</Badge>
+        )}
         <div className="ml-auto flex items-center gap-1">
           <Button size="sm" variant="ghost" onClick={() => setExpanded((e) => !e)}>
             {expanded ? "Ocultar texto" : "Editar texto"}
@@ -490,7 +568,7 @@ function ReminderRow({
       </div>
 
       {expanded && (
-        <div className="mt-3">
+        <div className="mt-4 border-t pt-4">
           <MsgFields
             withSubject={channel === "email"}
             subject={subject}
@@ -502,8 +580,10 @@ function ReminderRow({
         </div>
       )}
 
-      <div className="mt-2 flex items-center justify-between">
-        <span className="text-xs text-muted-foreground">{timingLabel(partsToOffset(dir, amount, unit))} do início</span>
+      <div className="mt-3 flex items-center justify-between">
+        <span className="text-xs text-muted-foreground">
+          {timingLabel(partsToOffset(dir, amount, unit))} do início do evento
+        </span>
         <Button size="sm" onClick={save} disabled={saving}>
           {saving && <Loader2 className="size-4 animate-spin" />} Salvar
         </Button>

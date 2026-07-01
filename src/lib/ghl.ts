@@ -287,37 +287,41 @@ function extractTemplateBody(t: RawTemplate): string | null {
   return s;
 }
 
-// Diagnóstico: retorna status/corpo cru da chamada de templates do GHL, sem
-// lançar — para descobrir o endpoint/escopo/shape corretos da conta.
+// Diagnóstico: sonda vários endpoints candidatos do GHL (email builder,
+// templates, snippets) e retorna status/corpo cru — para achar onde a conta
+// guarda os templates de marketing e os snippets.
 export async function ghlTemplatesDebug(
   organizationId: string,
-  type: "email" | "sms",
 ): Promise<Record<string, unknown>> {
   const { locationId, token } = await resolveGhlAuth(organizationId);
   if (!locationId || !token)
     return { hasLocation: !!locationId, hasToken: !!token, reason: "sem auth" };
-  const qs = new URLSearchParams({
-    originId: locationId,
-    deleted: "false",
-    type,
-    limit: "100",
-    skip: "0",
-  });
-  const path = `/locations/${locationId}/templates?${qs.toString()}`;
-  try {
-    const res = await fetch(`${GHL_API_BASE}${path}`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-        Version: GHL_API_VERSION,
-        Accept: "application/json",
-      },
-      cache: "no-store",
-    });
-    const text = await res.text().catch(() => "");
-    return { type, status: res.status, path, bodyPreview: text.slice(0, 900) };
-  } catch (e) {
-    return { type, path, fetchError: e instanceof Error ? e.message : String(e) };
+
+  const candidates = [
+    `/emails/builder?locationId=${locationId}&limit=100&offset=0`,
+    `/locations/${locationId}/templates?originId=${locationId}&deleted=false&type=email&limit=100&skip=0`,
+    `/locations/${locationId}/templates?originId=${locationId}&deleted=false&type=sms&limit=100&skip=0`,
+    `/locations/${locationId}/snippets`,
+    `/snippets/?locationId=${locationId}`,
+  ];
+  const out: Record<string, unknown>[] = [];
+  for (const path of candidates) {
+    try {
+      const res = await fetch(`${GHL_API_BASE}${path}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Version: GHL_API_VERSION,
+          Accept: "application/json",
+        },
+        cache: "no-store",
+      });
+      const text = await res.text().catch(() => "");
+      out.push({ path, status: res.status, bodyPreview: text.slice(0, 500) });
+    } catch (e) {
+      out.push({ path, fetchError: e instanceof Error ? e.message : String(e) });
+    }
   }
+  return { locationId, probes: out };
 }
 
 export async function ghlListTemplates(

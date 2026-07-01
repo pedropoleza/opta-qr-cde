@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { decryptSecret } from "@/lib/crypto";
-import { verifySquareSignature, parseSquarePayment } from "@/lib/square";
+import { verifySquareSignatureAny, parseSquarePayment } from "@/lib/square";
 import { squareWebhookUrl } from "@/lib/integration";
 import { ensureTicket } from "@/lib/checkin";
 import { enqueueQrDelivery } from "@/lib/delivery";
@@ -44,12 +44,19 @@ export async function POST(
 
   const raw = await req.text();
 
-  // Verificação de assinatura (quando a chave já foi configurada).
+  // Verificação de assinatura (quando a chave já foi configurada). Resiliente a
+  // troca de domínio: valida contra a URL do app E a URL real da requisição.
   if (integration.squareSignatureKey) {
     const key = decryptSecret(integration.squareSignatureKey);
-    const ok = verifySquareSignature(
+    const proto = req.headers.get("x-forwarded-proto") ?? "https";
+    const host =
+      req.headers.get("x-forwarded-host") ?? req.headers.get("host") ?? "";
+    const requestUrl = host
+      ? `${proto}://${host}/api/hooks/square/${token}`
+      : null;
+    const ok = verifySquareSignatureAny(
       key,
-      squareWebhookUrl(token),
+      [squareWebhookUrl(token), requestUrl],
       raw,
       req.headers.get("x-square-hmacsha256-signature"),
     );

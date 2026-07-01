@@ -23,6 +23,22 @@ export function verifySquareSignature(
   }
 }
 
+// O Square assina com a EXATA notification URL cadastrada no painel dele. Se o
+// domínio do app mudar (ex.: vercel.app → domínio próprio), a URL configurada
+// e a esperada divergem e a assinatura falha. Validar contra várias URLs
+// candidatas (URL do app + URL real da requisição) mantém o webhook resiliente.
+export function verifySquareSignatureAny(
+  signatureKey: string,
+  notificationUrls: (string | null | undefined)[],
+  rawBody: string,
+  signatureHeader: string | null,
+): boolean {
+  const urls = [...new Set(notificationUrls.filter(Boolean) as string[])];
+  return urls.some((u) =>
+    verifySquareSignature(signatureKey, u, rawBody, signatureHeader),
+  );
+}
+
 export type SquarePayment = {
   externalId: string; // id do evento Square (idempotência)
   type: string;

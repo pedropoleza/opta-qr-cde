@@ -49,13 +49,17 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
       where: { eventId_kind: { eventId: rule.event.id, kind: "reminder" } },
     });
 
+    // Conteúdo: texto próprio da regra; senão, o template "reminder".
+    const bodyTpl = rule.body?.trim() || (tpl?.active ? tpl.body : null);
+    const subjectTpl = rule.subject?.trim() || (tpl?.active ? tpl.subject : null);
+
     // Marca como executada já (idempotência mesmo se o envio falhar parcialmente).
     await prisma.reminderRule.update({
       where: { id: rule.id },
       data: { lastRunAt: new Date() },
     });
     rulesFired++;
-    if (!tpl || !tpl.active) continue;
+    if (!bodyTpl) continue;
 
     const where = audienceFilter(rule.event.id, rule.audience);
     const guests = await prisma.guest.findMany({
@@ -76,7 +80,7 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
         currency: g.currency,
         token: g.ticket?.token ?? null,
       });
-      const body = renderTemplate(tpl.body, ctx);
+      const body = renderTemplate(bodyTpl, ctx);
 
       await prisma.$transaction(async (tx) => {
         if (rule.channel === "ghl") {
@@ -94,7 +98,9 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
           }
         } else {
           const r = await enqueueMessage(tx, g, rule.channel, {
-            subject: tpl.subject ? renderTemplate(tpl.subject, ctx) : `Lembrete — ${rule.event.name}`,
+            subject: subjectTpl
+              ? renderTemplate(subjectTpl, ctx)
+              : `Lembrete — ${rule.event.name}`,
             body,
             html: textToHtml(body),
           });

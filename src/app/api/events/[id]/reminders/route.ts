@@ -31,6 +31,9 @@ export async function GET(
       offsetHours: true,
       channel: true,
       audience: true,
+      label: true,
+      subject: true,
+      body: true,
       active: true,
       lastRunAt: true,
     },
@@ -52,9 +55,21 @@ export async function POST(
   if (!Number.isFinite(offsetHours)) return jsonError(400, "Offset inválido.");
   const channel = CHANNELS.includes(body.channel) ? body.channel : "whatsapp";
   const audience = AUDIENCES.includes(body.audience) ? body.audience : "paid";
+  const str = (v: unknown) => {
+    const s = typeof v === "string" ? v.trim() : "";
+    return s ? s : null;
+  };
 
   const rule = await prisma.reminderRule.create({
-    data: { eventId: id, offsetHours: Math.round(offsetHours), channel, audience },
+    data: {
+      eventId: id,
+      offsetHours: Math.round(offsetHours),
+      channel,
+      audience,
+      label: str(body.label),
+      subject: str(body.subject),
+      body: str(body.body),
+    },
   });
   return NextResponse.json({ rule }, { status: 201 });
 }

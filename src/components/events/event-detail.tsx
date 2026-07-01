@@ -535,7 +535,7 @@ export function EventDetail({
               onChange={refresh}
             />
           ) : (
-            <MessagesTab eventId={event.id} />
+            <MessagesTab eventId={event.id} eventName={event.name} />
           )}
         </TabsContent>
 

@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, Star, Trash2, AlertTriangle } from "lucide-react";
+import { Loader2, Star, Trash2, AlertTriangle, Check } from "lucide-react";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -66,10 +66,42 @@ export function SettingsTab({
   const [saving, setSaving] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [confirmComplete, setConfirmComplete] = useState(false);
   const router = useRouter();
 
   function set(field: string, value: string) {
     setForm((f) => ({ ...f, [field]: value }));
+  }
+
+  // Muda o status e salva na hora (sem depender do botão "Salvar"), com
+  // confirmação dedicada ao encerrar. Botões inline funcionam de forma
+  // confiável dentro do iframe (sem portal/dropdown).
+  async function changeStatus(next: string) {
+    if (next === form.status) return;
+    if (next === "completed" && event.status !== "completed") {
+      setConfirmComplete(true);
+      return;
+    }
+    set("status", next);
+    await patchEvent({ status: next }, "Status atualizado");
+  }
+
+  async function patchEvent(payload: Record<string, unknown>, okMsg: string) {
+    setSaving(true);
+    const res = await fetch(`/api/events/${event.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setSaving(false);
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(data.error ?? "Erro ao salvar");
+      return false;
+    }
+    toast.success(okMsg);
+    onChange();
+    return true;
   }
 
   async function deleteEvent() {
@@ -88,33 +120,16 @@ export function SettingsTab({
 
   async function save(e: React.FormEvent) {
     e.preventDefault();
-    if (
-      form.status === "completed" &&
-      event.status !== "completed" &&
-      !confirm(
-        "Encerrar o evento marca todos os convidados sem check-in como ausentes (no-show). Continuar?",
-      )
-    ) {
+    // Encerrar exige confirmação dedicada (window.confirm é bloqueado no iframe).
+    if (form.status === "completed" && event.status !== "completed") {
+      setConfirmComplete(true);
       return;
     }
-    setSaving(true);
     const payload = {
       ...form,
       vipNotifyChannel: form.vipNotifyChannel === "none" ? "" : form.vipNotifyChannel,
     };
-    const res = await fetch(`/api/events/${event.id}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    setSaving(false);
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      toast.error(data.error ?? "Erro ao salvar");
-      return;
-    }
-    toast.success("Evento atualizado");
-    onChange();
+    await patchEvent(payload, "Evento atualizado");
   }
 
   return (
@@ -203,18 +218,24 @@ export function SettingsTab({
           </div>
           <div className="space-y-2">
             <Label>Status</Label>
-            <Select value={form.status} onValueChange={(v) => set("status", v)}>
-              <SelectTrigger>
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {Object.entries(EVENT_STATUS_LABEL).map(([value, label]) => (
-                  <SelectItem key={value} value={value}>
-                    {label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex flex-wrap gap-2">
+              {Object.entries(EVENT_STATUS_LABEL).map(([value, label]) => (
+                <Button
+                  key={value}
+                  type="button"
+                  size="sm"
+                  variant={form.status === value ? "default" : "outline"}
+                  disabled={saving}
+                  onClick={() => changeStatus(value)}
+                >
+                  {form.status === value && <Check className="size-3.5" />}
+                  {label}
+                </Button>
+              ))}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              O status é salvo na hora ao clicar.
+            </p>
           </div>
         </div>
         <p className="text-xs text-muted-foreground">
@@ -305,6 +326,20 @@ export function SettingsTab({
           </Button>
         </CardContent>
       </Card>
+
+      <ConfirmDialog
+        open={confirmComplete}
+        onOpenChange={setConfirmComplete}
+        title="Encerrar este evento?"
+        description="Encerrar marca todos os convidados sem check-in como ausentes (no-show) e dispara a automação de falta. Esta ação fecha o evento."
+        confirmLabel="Encerrar evento"
+        loading={saving}
+        onConfirm={async () => {
+          set("status", "completed");
+          const ok = await patchEvent({ status: "completed" }, "Evento encerrado");
+          if (ok) setConfirmComplete(false);
+        }}
+      />
 
       <ConfirmDialog
         open={confirmDelete}

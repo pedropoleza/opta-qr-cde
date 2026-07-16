@@ -427,6 +427,7 @@ export type GhlContact = {
   email: string | null;
   phone: string | null;
   tags: string[];
+  dateAdded?: string | null;
 };
 
 type RawContact = {
@@ -437,6 +438,7 @@ type RawContact = {
   email?: string | null;
   phone?: string | null;
   tags?: string[];
+  dateAdded?: string | null;
 };
 
 function mapContact(c: RawContact): GhlContact {
@@ -450,6 +452,7 @@ function mapContact(c: RawContact): GhlContact {
     email: c.email ?? null,
     phone: c.phone ?? null,
     tags: Array.isArray(c.tags) ? c.tags : [],
+    dateAdded: c.dateAdded ?? null,
   };
 }
 
@@ -499,6 +502,41 @@ export async function ghlListContacts(
       data.meta?.startAfter != null ? String(data.meta.startAfter) : undefined,
     startAfterId: data.meta?.startAfterId,
   };
+}
+
+// Contatos mais recentes do Spark (por data de criação, desc). Usa o endpoint
+// de busca v2, que aceita ordenação; útil para importar leads que acabaram de
+// preencher o formulário.
+export async function ghlRecentContacts(
+  organizationId: string,
+  limit = 20,
+): Promise<GhlContact[]> {
+  const { locationId, token } = await authOrThrow(organizationId);
+  try {
+    const data = await ghlRequest<{ contacts?: RawContact[] }>(
+      token,
+      `/contacts/search`,
+      {
+        method: "POST",
+        body: JSON.stringify({
+          locationId,
+          pageLimit: limit,
+          sort: [{ field: "dateAdded", direction: "desc" }],
+        }),
+      },
+    );
+    const list = (data.contacts ?? []).map(mapContact);
+    if (list.length) return list;
+  } catch {
+    /* cai no fallback do GET abaixo */
+  }
+  // Fallback: GET simples + ordenação local por dateAdded.
+  const { contacts } = await ghlListContacts(organizationId, { limit });
+  return [...contacts].sort((a, b) => {
+    const ta = a.dateAdded ? Date.parse(a.dateAdded) : 0;
+    const tb = b.dateAdded ? Date.parse(b.dateAdded) : 0;
+    return tb - ta;
+  });
 }
 
 // Mapa nome-do-campo → id, cacheado por org.

@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import { mapLeadForm, pickEventForAgenda } from "@/lib/integration";
+import {
+  mapLeadForm,
+  pickEventForAgenda,
+  pickEventForTags,
+  extractTags,
+} from "@/lib/integration";
 import { logWebhook } from "@/lib/webhook-log";
 import { enforceRateLimit } from "@/lib/rate-limit";
+import { ghlConfigured, ghlListContacts } from "@/lib/ghl";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +40,7 @@ export async function POST(
 
   const body = await readBody(req);
   const fields = mapLeadForm(body);
+  const tags = extractTags(body);
 
   if (!fields.name && !fields.email && !fields.phone) {
     await logWebhook("lead", token, "invalid_body", {
@@ -44,26 +51,27 @@ export async function POST(
       { status: 400 },
     );
   }
-  if (!fields.agenda) {
-    await logWebhook("lead", token, "no_match", { detail: "campo Agenda ausente" });
-    return NextResponse.json(
-      { error: "Campo 'agenda' ausente" },
-      { status: 400 },
-    );
-  }
 
-  // Eventos da organização — resolve pelo texto da "Agenda".
+  // Eventos da organização — resolve o destino por AGENDA (campo do form) ou,
+  // como alternativa, pela TAG do contato (o GHL manda as tags no payload).
   const events = await prisma.event.findMany({
     where: { organizationId },
-    select: { id: true, name: true, date: true, status: true },
+    select: { id: true, name: true, date: true, status: true, ghlTag: true },
   });
-  const event = pickEventForAgenda(events, fields.agenda);
+  const event =
+    (fields.agenda && pickEventForAgenda(events, fields.agenda)) ||
+    pickEventForTags(events, tags);
+
   if (!event) {
     await logWebhook("lead", token, "no_match", {
-      detail: `Agenda "${fields.agenda}" não corresponde a nenhum evento`,
+      detail: `sem correspondência · agenda="${fields.agenda ?? ""}" tags=[${tags.join(", ")}]`,
     });
     return NextResponse.json(
-      { error: "Nenhum evento corresponde à agenda", agenda: fields.agenda },
+      {
+        error: "Nenhum evento corresponde (nem por agenda, nem por tag)",
+        agenda: fields.agenda,
+        tags,
+      },
       { status: 404 },
     );
   }
@@ -75,6 +83,27 @@ export async function POST(
   }
 
   const eventId = event.id;
+
+  // Enriquecimento: se o payload não trouxe o contactId do Spark, procura o
+  // contato por e-mail/telefone para vincular (best-effort, não bloqueia).
+  let ghlContactId = fields.ghlContactId;
+  if (!ghlContactId && (fields.email || fields.phone)) {
+    try {
+      if (await ghlConfigured(organizationId)) {
+        const q = fields.email ?? fields.phone ?? "";
+        const { contacts } = await ghlListContacts(organizationId, { query: q, limit: 5 });
+        const digits = (s: string | null) => (s ?? "").replace(/\D/g, "");
+        const found = contacts.find(
+          (c) =>
+            (fields.email && c.email?.toLowerCase() === fields.email.toLowerCase()) ||
+            (fields.phone && digits(c.phone) === digits(fields.phone)),
+        );
+        if (found) ghlContactId = found.id;
+      }
+    } catch {
+      /* segue sem o contactId */
+    }
+  }
 
   // Deduplica por e-mail e, na falta dele, por telefone dentro do evento.
   const existing = await prisma.guest.findFirst({
@@ -96,7 +125,7 @@ export async function POST(
         name: fields.name ?? existing.name,
         email: fields.email ?? existing.email,
         phone: fields.phone ?? existing.phone,
-        ghlContactId: fields.ghlContactId ?? existing.ghlContactId,
+        ghlContactId: ghlContactId ?? existing.ghlContactId,
         registrationRef: fields.ref ?? existing.registrationRef,
         // Não rebaixa quem já pagou; caso contrário, deixa "aguardando".
         paymentStatus: existing.paymentStatus === "paid" ? "paid" : "pending",
@@ -119,7 +148,7 @@ export async function POST(
       name: fields.name ?? fields.email?.split("@")[0] ?? "Convidado",
       email: fields.email,
       phone: fields.phone,
-      ghlContactId: fields.ghlContactId,
+      ghlContactId,
       source: "ghl",
       status: "pending_qr",
       paymentStatus: "pending", // "Aguardando pagamento" até o Square confirmar

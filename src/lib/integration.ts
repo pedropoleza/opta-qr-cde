@@ -88,6 +88,35 @@ export function pickEventForAgenda<
   return scored[0].e;
 }
 
+// Casa um evento pelas TAGS recebidas no payload (o GHL inclui as tags do
+// contato no webhook). Retorna o evento cujo ghlTag bate (match tolerante).
+export function pickEventForTags<
+  E extends { id: string; name: string; date: Date; status: string; ghlTag: string | null },
+>(events: E[], tags: string[]): E | null {
+  const norm = tags.map(normalizeAgenda).filter(Boolean);
+  if (norm.length === 0) return null;
+  const candidates = events.filter(
+    (e) => e.ghlTag && norm.includes(normalizeAgenda(e.ghlTag)),
+  );
+  if (candidates.length === 0) return null;
+  candidates.sort((a, b) => {
+    const openA = ["canceled", "completed"].includes(a.status) ? 0 : 1;
+    const openB = ["canceled", "completed"].includes(b.status) ? 0 : 1;
+    if (openA !== openB) return openB - openA;
+    return b.date.getTime() - a.date.getTime();
+  });
+  return candidates[0];
+}
+
+// Extrai a lista de tags de um payload do GHL (aceita array ou string CSV).
+export function extractTags(body: Record<string, unknown>): string[] {
+  const raw = body.tags ?? body.tag ?? body.contact_tags;
+  if (Array.isArray(raw)) return raw.map((t) => String(t).trim()).filter(Boolean);
+  if (typeof raw === "string")
+    return raw.split(",").map((t) => t.trim()).filter(Boolean);
+  return [];
+}
+
 // Mapeia o corpo do formulário de LEAD do GHL nos campos do convidado. O GHL
 // envia { name, email, phone, agenda, address, date, time, ... }.
 export function mapLeadForm(body: Record<string, unknown>): {

@@ -62,6 +62,12 @@ import type {
   SessionInfo,
 } from "@/components/events/event-detail";
 import { GUEST_STATUS_LABEL, GUEST_STATUS_VARIANT } from "@/components/events/status";
+import {
+  PAYMENT_STATUSES,
+  PAYMENT_STATUS_LABEL,
+  PAYMENT_STATUS_SHORT,
+  PAYMENT_STATUS_TONE,
+} from "@/lib/payment-status";
 
 type CsvRow = Record<string, string>;
 
@@ -402,6 +408,21 @@ export function GuestsTab({
     onChange();
   }
 
+  async function savePayment(guest: GuestRow, paymentStatus: string) {
+    const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentStatus }),
+    });
+    if (!res.ok) {
+      toast.error("Erro ao atualizar pagamento");
+      return;
+    }
+    toast.success("Pagamento atualizado");
+    setDetail((d) => (d && d.id === guest.id ? { ...d, paymentStatus } : d));
+    onChange();
+  }
+
   async function manualCheckIn(guest: GuestRow) {
     setBusyId(guest.id);
     const res = await fetch(`/api/events/${event.id}/guests/${guest.id}/checkin`, {
@@ -653,19 +674,15 @@ export function GuestsTab({
                         {GUEST_STATUS_LABEL[guest.status] ?? guest.status}
                       </Badge>
                     )}
-                    {guest.paymentStatus === "paid" && (
-                      <Badge className="border-transparent bg-success text-xs text-success-foreground">
-                        Pago
-                      </Badge>
-                    )}
-                    {guest.paymentStatus === "pending" && (
-                      <Badge variant="outline" className="text-xs">
-                        A pagar
-                      </Badge>
-                    )}
-                    {guest.paymentStatus === "refunded" && (
-                      <Badge variant="outline" className="text-xs">
-                        Reembolsado
+                    {guest.paymentStatus !== "none" && (
+                      <Badge
+                        className={`border-transparent text-xs ${
+                          PAYMENT_STATUS_TONE[guest.paymentStatus] ??
+                          PAYMENT_STATUS_TONE.none
+                        }`}
+                      >
+                        {PAYMENT_STATUS_SHORT[guest.paymentStatus] ??
+                          guest.paymentStatus}
                       </Badge>
                     )}
                   </div>
@@ -740,6 +757,17 @@ export function GuestsTab({
                     sentAt={detail.emailSentAt}
                   />
                   <TierBadge tier={detail.tier} />
+                  {detail.paymentStatus !== "none" && (
+                    <Badge
+                      className={`border-transparent text-xs ${
+                        PAYMENT_STATUS_TONE[detail.paymentStatus] ??
+                        PAYMENT_STATUS_TONE.none
+                      }`}
+                    >
+                      {PAYMENT_STATUS_LABEL[detail.paymentStatus] ??
+                        detail.paymentStatus}
+                    </Badge>
+                  )}
                   {detail.rsvp === "yes" && (
                     <Badge className="border-transparent bg-success text-xs text-success-foreground">
                       Confirmou presença
@@ -766,6 +794,31 @@ export function GuestsTab({
                   {savingTier && (
                     <p className="text-xs text-muted-foreground">Salvando…</p>
                   )}
+                </div>
+
+                <div className="space-y-1.5">
+                  <label className="text-xs text-muted-foreground">
+                    Status do pagamento
+                  </label>
+                  <Select
+                    value={detail.paymentStatus}
+                    onValueChange={(v) => savePayment(detail, v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PAYMENT_STATUSES.map((s) => (
+                        <SelectItem key={s} value={s}>
+                          {PAYMENT_STATUS_LABEL[s]}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Atualiza automaticamente para{" "}
+                    <strong>Pagamento realizado</strong> quando o Square confirmar.
+                  </p>
                 </div>
 
                 {sessions.length > 0 && (

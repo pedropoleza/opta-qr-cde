@@ -7,6 +7,7 @@ import {
   getOrCreateIntegration,
   registrationWebhookUrl,
   squareWebhookUrl,
+  leadWebhookUrl,
 } from "@/lib/integration";
 
 export const dynamic = "force-dynamic";
@@ -22,19 +23,33 @@ async function scopedEvent(eventId: string) {
   return { m, event };
 }
 
+// locationId do GHL para montar a URL do webhook de leads (org-level). Prefere
+// o env single-tenant; senão, a conexão GHL da organização.
+async function ghlLocationId(organizationId: string): Promise<string | null> {
+  const env = process.env.GHL_LOCATION_ID?.trim();
+  if (env) return env;
+  const conn = await prisma.ghlConnection.findFirst({
+    where: { organizationId },
+    select: { locationId: true },
+  });
+  return conn?.locationId ?? null;
+}
+
 // Config da integração de inscrições/pagamentos do evento (F1).
 export async function GET(
   _req: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
   const { id } = await params;
-  const { event } = await scopedEvent(id);
+  const { m, event } = await scopedEvent(id);
   if (!event) return jsonError(404, "Evento não encontrado");
 
   const integ = await getOrCreateIntegration(id);
+  const locId = await ghlLocationId(m.organization.id);
   return NextResponse.json({
     registrationUrl: registrationWebhookUrl(integ.registrationToken),
     squareUrl: squareWebhookUrl(integ.paymentToken),
+    leadUrl: locId ? leadWebhookUrl(locId) : null,
     hasSignatureKey: Boolean(integ.squareSignatureKey),
     autoSendQrOnPaid: integ.autoSendQrOnPaid,
     sendChannel: integ.sendChannel,

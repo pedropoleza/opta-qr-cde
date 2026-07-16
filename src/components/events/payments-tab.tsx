@@ -28,30 +28,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import type { GuestRow } from "@/components/events/event-detail";
+import {
+  PAYMENT_STATUS_SHORT,
+  PAYMENT_STATUS_TONE,
+} from "@/lib/payment-status";
 
 type Config = {
   registrationUrl: string;
   squareUrl: string;
+  leadUrl: string | null;
   hasSignatureKey: boolean;
   autoSendQrOnPaid: boolean;
   sendChannel: string;
   active: boolean;
 };
 
-const PAY_LABEL: Record<string, string> = {
-  paid: "Pago",
-  pending: "Pendente",
-  failed: "Recusado",
-  refunded: "Reembolsado",
-  none: "Sem cobrança",
-};
-const PAY_TONE: Record<string, string> = {
-  paid: "bg-emerald-500/15 text-emerald-700",
-  pending: "bg-amber-500/15 text-amber-700",
-  failed: "bg-rose-500/15 text-rose-700",
-  refunded: "bg-sky-500/15 text-sky-700",
-  none: "bg-muted text-muted-foreground",
-};
+const PAY_LABEL = PAYMENT_STATUS_SHORT;
+const PAY_TONE = PAYMENT_STATUS_TONE;
 
 function money(cents: number, currency: string) {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(
@@ -379,6 +372,22 @@ function ConfigView({
             <CopyField label="URL de inscrição (formulário)" value={cfg.registrationUrl} />
             <CopyField label="URL de pagamento (Square webhook)" value={cfg.squareUrl} />
           </div>
+          {cfg.leadUrl && (
+            <div className="space-y-1.5 rounded-lg border border-dashed bg-muted/30 p-3">
+              <CopyField
+                label="URL de leads do Spark (formulário → cria o convidado)"
+                value={cfg.leadUrl}
+              />
+              <p className="text-xs text-muted-foreground">
+                Configure esta URL numa ação <strong>Webhook</strong> do workflow do
+                Spark que roda quando o formulário é enviado. O convidado é criado
+                automaticamente no evento indicado pelo campo{" "}
+                <strong>Agenda</strong>, com status{" "}
+                <strong>Aguardando pagamento</strong>. É a mesma URL para todos os
+                eventos.
+              </p>
+            </div>
+          )}
         </CardContent>
       </Card>
 

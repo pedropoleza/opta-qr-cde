@@ -204,6 +204,7 @@ export function GuestsTab({
     companions: "",
   });
   const [savingTier, setSavingTier] = useState(false);
+  const [syncingLeads, setSyncingLeads] = useState(false);
   const [pendingRemove, setPendingRemove] = useState<GuestRow | null>(null);
   const [removing, setRemoving] = useState(false);
   const [detail, setDetail] = useState<GuestRow | null>(null);
@@ -408,6 +409,27 @@ export function GuestsTab({
     onChange();
   }
 
+  async function syncLeads() {
+    setSyncingLeads(true);
+    const res = await fetch(`/api/events/${event.id}/sync-leads`, {
+      method: "POST",
+    });
+    setSyncingLeads(false);
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      toast.error(d.error ?? "Erro ao sincronizar leads");
+      return;
+    }
+    if (d.created > 0 || d.updated > 0) {
+      toast.success(
+        `Leads sincronizados: ${d.created} novo(s)${d.updated ? `, ${d.updated} atualizado(s)` : ""}`,
+      );
+      onChange();
+    } else {
+      toast.info(`Nenhum lead novo com a tag "${d.tag ?? event.ghlTag ?? ""}"`);
+    }
+  }
+
   async function savePayment(guest: GuestRow, paymentStatus: string) {
     const res = await fetch(`/api/events/${event.id}/guests/${guest.id}`, {
       method: "PATCH",
@@ -526,6 +548,21 @@ export function GuestsTab({
             </Button>
           </div>
           <ImportGhlDialog eventId={event.id} defaultTag={event.ghlTag} onChange={onChange} />
+          {event.ghlTag && (
+            <Button
+              variant="outline"
+              disabled={syncingLeads}
+              onClick={syncLeads}
+              title={`Puxa contatos com a tag "${event.ghlTag}" como convidados aguardando pagamento`}
+            >
+              {syncingLeads ? (
+                <Loader2 className="size-4 animate-spin" />
+              ) : (
+                <RotateCcw className="size-4" />
+              )}
+              Sincronizar leads
+            </Button>
+          )}
           <form onSubmit={addManual} className="flex flex-wrap items-end gap-2">
             <Input
               placeholder="Nome"

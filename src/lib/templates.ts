@@ -17,6 +17,10 @@ export const TEMPLATE_VARIABLES: { key: string; label: string }[] = [
 
 export type TemplateContext = {
   nome?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
   evento?: string | null;
   data?: string | null;
   hora?: string | null;
@@ -28,9 +32,37 @@ export type TemplateContext = {
   link_nps?: string | null;
 };
 
+// Apelidos: aceita tanto as variáveis próprias ({{nome}}) quanto as do estilo
+// GHL ({{contact.first_name}}), já que o editor de mensagens oferece as do GHL,
+// mas o envio por WhatsApp/e-mail é renderizado aqui (o GHL não substitui).
+const KEY_ALIASES: Record<string, string> = {
+  first_name: "first_name",
+  firstname: "first_name",
+  primeiro_nome: "first_name",
+  last_name: "last_name",
+  lastname: "last_name",
+  sobrenome: "last_name",
+  full_name: "nome",
+  fullname: "nome",
+  name: "nome",
+  nome_completo: "nome",
+  email: "email",
+  phone: "phone",
+  telefone: "phone",
+  event_name: "evento",
+  event_date: "data",
+  event_time: "hora",
+  event_location: "local",
+  event_address: "endereco",
+};
+
 export function renderTemplate(tpl: string, ctx: TemplateContext): string {
-  return tpl.replace(/\{\{\s*([a-z_]+)\s*\}\}/gi, (_m, key: string) => {
-    const v = (ctx as Record<string, unknown>)[key.toLowerCase()];
+  return tpl.replace(/\{\{\s*([a-z0-9_.]+)\s*\}\}/gi, (_m, rawKey: string) => {
+    let key = rawKey.toLowerCase();
+    // Remove prefixos comuns do GHL: contact., custom_values., event., etc.
+    key = key.replace(/^(contact|custom_values|event|user|appointment|account)\./, "");
+    key = KEY_ALIASES[key] ?? key;
+    const v = (ctx as Record<string, unknown>)[key];
     return v == null ? "" : String(v);
   });
 }
@@ -38,6 +70,8 @@ export function renderTemplate(tpl: string, ctx: TemplateContext): string {
 // Monta o contexto a partir do evento/convidado/ticket.
 export function buildContext(args: {
   guestName: string;
+  guestEmail?: string | null;
+  guestPhone?: string | null;
   eventName: string;
   eventDate: string;
   startTime?: string | null;
@@ -54,8 +88,15 @@ export function buildContext(args: {
           currency: args.currency || "BRL",
         }).format(args.amountPaid / 100)
       : null;
+  const parts = (args.guestName ?? "").trim().split(/\s+/).filter(Boolean);
+  const firstName = parts[0] ?? null;
+  const lastName = parts.length > 1 ? parts.slice(1).join(" ") : null;
   return {
     nome: args.guestName,
+    first_name: firstName,
+    last_name: lastName,
+    email: args.guestEmail ?? null,
+    phone: args.guestPhone ?? null,
     evento: args.eventName,
     data: args.eventDate,
     hora: args.startTime ?? null,

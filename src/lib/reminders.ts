@@ -75,6 +75,8 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
     for (const g of guests) {
       const ctx = buildContext({
         guestName: g.name,
+        guestEmail: g.email,
+        guestPhone: g.phone,
         eventName: rule.event.name,
         eventDate: rule.event.date.toISOString().slice(0, 10),
         startTime: rule.event.startTime,

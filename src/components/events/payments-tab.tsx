@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Segmented } from "@/components/ui/segmented";
@@ -40,6 +41,11 @@ type Config = {
   hasSignatureKey: boolean;
   autoSendQrOnPaid: boolean;
   sendChannel: string;
+  priceCents: number | null;
+  currency: string;
+  paymentReminderEnabled: boolean;
+  paymentReminderMinutes: number;
+  paymentReminderMessage: string | null;
   active: boolean;
 };
 
@@ -346,6 +352,146 @@ export function PaymentsTab({
   );
 }
 
+const DEFAULT_REMINDER = `Olá, [NOME]!
+
+Notamos que seu registro para o evento [nome do evento] foi iniciado, mas ainda não foi concluído, pois o pagamento da inscrição está pendente.
+
+Para facilitar, segue abaixo o link para finalizar sua inscrição e garantir sua vaga:
+
+[LINK DE PAGAMENTO]
+
+As vagas são limitadas e a confirmação da participação acontece após a conclusão do pagamento.
+
+Caso tenha qualquer dúvida ou encontre alguma dificuldade durante o processo, entre em contato conosco. Será um prazer ajudar.
+
+Equipe OPTA Finance`;
+
+function PricingReminderCard({
+  cfg,
+  saving,
+  patch,
+}: {
+  cfg: Config;
+  saving: boolean;
+  patch: (body: Record<string, unknown>, msg?: string) => void;
+}) {
+  const [price, setPrice] = useState(
+    cfg.priceCents != null ? (cfg.priceCents / 100).toString() : "",
+  );
+  const [minutes, setMinutes] = useState(String(cfg.paymentReminderMinutes ?? 30));
+  const [msg, setMsg] = useState(cfg.paymentReminderMessage ?? "");
+
+  return (
+    <Card className="h-full lg:col-span-2">
+      <CardContent className="space-y-5 p-5">
+        <div className="flex items-center gap-2">
+          <DollarSign className="size-4 text-muted-foreground" />
+          <p className="font-medium">Cobrança & lembrete de pagamento</p>
+        </div>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="price">Preço da inscrição ({cfg.currency})</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="price"
+                type="number"
+                min={0}
+                step="0.01"
+                value={price}
+                onChange={(e) => setPrice(e.target.value)}
+                placeholder="30.00"
+              />
+              <Button
+                onClick={() =>
+                  patch(
+                    { priceCents: price === "" ? null : Math.round(Number(price) * 100) },
+                    "Preço salvo",
+                  )
+                }
+                disabled={saving}
+              >
+                Salvar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Usado no link inteligente do Square e para conferir o valor pago.
+            </p>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="rem-min">Lembrete após (min)</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                id="rem-min"
+                type="number"
+                min={1}
+                value={minutes}
+                onChange={(e) => setMinutes(e.target.value)}
+              />
+              <Button
+                onClick={() =>
+                  patch({ paymentReminderMinutes: Number(minutes) || 30 }, "Salvo")
+                }
+                disabled={saving}
+                variant="outline"
+              >
+                Salvar
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Envia o lembrete se o pagamento não constar após esse tempo.
+            </p>
+          </div>
+
+          <div className="flex items-end justify-between gap-3">
+            <div>
+              <p className="text-sm font-medium">Lembrete ligado</p>
+              <p className="text-xs text-muted-foreground">WhatsApp (Stevo).</p>
+            </div>
+            <Button
+              variant={cfg.paymentReminderEnabled ? "default" : "outline"}
+              size="sm"
+              onClick={() =>
+                patch(
+                  { paymentReminderEnabled: !cfg.paymentReminderEnabled },
+                  cfg.paymentReminderEnabled ? "Desligado" : "Ligado",
+                )
+              }
+            >
+              {cfg.paymentReminderEnabled ? "Ligado" : "Desligado"}
+            </Button>
+          </div>
+        </div>
+
+        <div className="space-y-1.5">
+          <Label htmlFor="rem-msg">Mensagem do lembrete</Label>
+          <Textarea
+            id="rem-msg"
+            rows={10}
+            value={msg}
+            onChange={(e) => setMsg(e.target.value)}
+            placeholder={DEFAULT_REMINDER}
+            className="font-mono text-xs"
+          />
+          <p className="text-xs text-muted-foreground">
+            Variáveis: <code>[NOME]</code>, <code>[nome do evento]</code>,{" "}
+            <code>[LINK DE PAGAMENTO]</code> (link inteligente do Square). Em branco
+            usa o texto padrão.
+          </p>
+          <Button
+            onClick={() => patch({ paymentReminderMessage: msg || null }, "Mensagem salva")}
+            disabled={saving}
+            size="sm"
+          >
+            Salvar mensagem
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 function ConfigView({
   cfg,
   saving,
@@ -423,6 +569,8 @@ function ConfigView({
           </div>
         </CardContent>
       </Card>
+
+      <PricingReminderCard cfg={cfg} saving={saving} patch={patch} />
 
       <Card className="h-full">
         <CardContent className="space-y-4 p-5">

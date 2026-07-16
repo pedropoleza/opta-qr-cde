@@ -55,6 +55,11 @@ export async function GET(
     sendChannel: integ.sendChannel,
     sendMsgOnRegistration: integ.sendMsgOnRegistration,
     registrationChannel: integ.registrationChannel,
+    priceCents: integ.priceCents,
+    currency: integ.currency,
+    paymentReminderEnabled: integ.paymentReminderEnabled,
+    paymentReminderMinutes: integ.paymentReminderMinutes,
+    paymentReminderMessage: integ.paymentReminderMessage,
     active: integ.active,
     fieldMap: integ.fieldMap ?? null,
   });
@@ -89,6 +94,20 @@ export async function PATCH(
   )
     data.registrationChannel = body.registrationChannel;
   if (body.active !== undefined) data.active = Boolean(body.active);
+  if (body.priceCents !== undefined)
+    data.priceCents = body.priceCents === null || body.priceCents === ""
+      ? null
+      : Math.max(0, Math.round(Number(body.priceCents)));
+  if (body.currency !== undefined && String(body.currency).trim())
+    data.currency = String(body.currency).trim().toUpperCase().slice(0, 3);
+  if (body.paymentReminderEnabled !== undefined)
+    data.paymentReminderEnabled = Boolean(body.paymentReminderEnabled);
+  if (body.paymentReminderMinutes !== undefined)
+    data.paymentReminderMinutes = Math.max(1, Math.round(Number(body.paymentReminderMinutes) || 30));
+  if (body.paymentReminderMessage !== undefined)
+    data.paymentReminderMessage = body.paymentReminderMessage
+      ? String(body.paymentReminderMessage)
+      : null;
   if (body.fieldMap !== undefined)
     data.fieldMap = body.fieldMap && typeof body.fieldMap === "object" ? body.fieldMap : null;
 

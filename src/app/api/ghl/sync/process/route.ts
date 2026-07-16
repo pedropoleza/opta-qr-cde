@@ -2,6 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { processSyncJobs } from "@/lib/ghl-worker";
 import { processReminders } from "@/lib/reminders";
 import { syncAllTaggedEvents } from "@/lib/lead-sync";
+import {
+  reconcileSquarePayments,
+  processPaymentReminders,
+} from "@/lib/square-payments";
 import { prisma } from "@/lib/prisma";
 
 export const dynamic = "force-dynamic";
@@ -35,11 +39,21 @@ async function handle(req: NextRequest) {
   const reminders = await processReminders().catch(() => ({ rulesFired: 0, queued: 0 }));
   // Entrada automática de leads por tag (eventos ativos, throttle por evento).
   const leads = await syncAllTaggedEvents().catch(() => ({ events: 0, created: 0, updated: 0 }));
+  // Pagamentos Square: concilia recentes + dispara lembretes de 30 min.
+  const squareRecon = await reconcileSquarePayments().catch(() => ({ checked: 0, paid: 0 }));
+  const payReminders = await processPaymentReminders().catch(() => ({ sent: 0 }));
   const [result, pruned] = await Promise.all([
     processSyncJobs(),
     pruneRateLimits(),
   ]);
-  return NextResponse.json({ ...result, reminders, leads, rateLimitsPruned: pruned });
+  return NextResponse.json({
+    ...result,
+    reminders,
+    leads,
+    squareRecon,
+    payReminders,
+    rateLimitsPruned: pruned,
+  });
 }
 
 export async function GET(req: NextRequest) {

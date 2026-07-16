@@ -176,6 +176,13 @@ model EventIntegration {
   sendChannel       String   @default("ghl") @map("send_channel") // ghl|whatsapp|email
   sendMsgOnRegistration Boolean @default(false) @map("send_msg_on_registration")
   registrationChannel   String  @default("whatsapp") @map("registration_channel") // whatsapp|email
+  // Preço da inscrição (link inteligente do Square + desambiguação por valor).
+  priceCents        Int?     @map("price_cents")
+  currency          String   @default("USD")
+  // Lembrete de pagamento pendente (WhatsApp/Stevo) N minutos após o cadastro.
+  paymentReminderEnabled Boolean @default(true) @map("payment_reminder_enabled")
+  paymentReminderMinutes Int     @default(30) @map("payment_reminder_minutes")
+  paymentReminderMessage String? @map("payment_reminder_message")
   active            Boolean  @default(true)
   createdAt         DateTime @default(now()) @map("created_at") @db.Timestamptz()
   updatedAt         DateTime @updatedAt @map("updated_at") @db.Timestamptz()
@@ -249,6 +256,11 @@ model Guest {
   paidAt          DateTime? @map("paid_at") @db.Timestamptz()
   paymentRef      String?   @map("payment_ref") // id do pagamento no Square
   registrationRef String?   @map("registration_ref") // id do envio do formulário
+  // Link inteligente do Square por convidado (reference_id = id do convidado).
+  paymentLinkUrl  String?   @map("payment_link_url")
+  paymentLinkId   String?   @map("payment_link_id")
+  paymentOrderId  String?   @map("payment_order_id") // order_id do Square (match determinístico)
+  paymentReminderSentAt DateTime? @map("payment_reminder_sent_at") @db.Timestamptz()
   // Pesquisa/NPS pós-evento (#9)
   npsScore        Int?      @map("nps_score")
   npsComment      String?   @map("nps_comment")

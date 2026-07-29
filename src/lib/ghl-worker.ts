@@ -21,6 +21,36 @@ import { emailConfigured, sendEmail } from "@/lib/email";
 // D7: backoff por tentativa (em minutos). Após esgotar, o job vira "failed".
 const BACKOFF_MINUTES = [1, 5, 15, 60, 360];
 
+// Atualiza o registro de mensagem do convidado conforme a ENTREGA real (não o
+// enfileiramento). 'sent' só quando o worker confirma; senão fica 'failed' e o
+// lembrete pode ser reenviado. Marca paymentReminderSentAt só no sucesso.
+async function markMessageLog(
+  payload: unknown,
+  ok: boolean,
+  error?: string,
+): Promise<void> {
+  const id = (payload as { messageLogId?: string })?.messageLogId;
+  if (!id) return;
+  try {
+    const log = await prisma.guestMessage.update({
+      where: { id },
+      data: {
+        status: ok ? "sent" : "failed",
+        sentAt: ok ? new Date() : null,
+        error: ok ? null : (error ?? null),
+      },
+    });
+    if (ok && log.kind === "payment_reminder") {
+      await prisma.guest.update({
+        where: { id: log.guestId },
+        data: { paymentReminderSentAt: new Date() },
+      });
+    }
+  } catch {
+    /* log inexistente — ignora */
+  }
+}
+
 export type ProcessResult = {
   skipped?: boolean;
   reason?: string;
@@ -78,6 +108,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
         where: { id: job.id },
         data: { status: "done", processedAt: new Date(), lastError: null },
       });
+      await markMessageLog(job.payload, true);
       done++;
     } catch (err) {
       const attempts = job.attempts + 1;
@@ -94,6 +125,7 @@ export async function processSyncJobs(limit = 25): Promise<ProcessResult> {
             processedAt: new Date(),
           },
         });
+        await markMessageLog(job.payload, false, message);
         failed++;
       } else {
         const delayMin = BACKOFF_MINUTES[attempts - 1];

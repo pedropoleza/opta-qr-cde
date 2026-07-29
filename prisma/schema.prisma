@@ -275,9 +275,32 @@ model Guest {
   checkInLogs CheckInLog[]
   emailLogs   EmailLog[]
   syncJobs    GhlSyncJob[]
+  messages    GuestMessage[]
 
   @@index([eventId])
   @@map("checkin_guests")
+}
+
+// Registro de mensagens enviadas ao convidado, por tipo (lembrete de pagamento,
+// pré/pós-evento, entrega do QR). Fonte da verdade da entrega: 'sent' só quando
+// o worker confirma o envio. Alimenta o contador por lead e permite reenvio.
+model GuestMessage {
+  id        String    @id @default(uuid()) @db.Uuid
+  guestId   String    @map("guest_id") @db.Uuid
+  eventId   String    @map("event_id") @db.Uuid
+  kind      String // payment_reminder|pre_event|post_event|qr_delivery
+  channel   String // whatsapp|email|ghl
+  status    String    @default("queued") // queued|sent|failed
+  provider  String?
+  error     String?
+  createdAt DateTime  @default(now()) @map("created_at") @db.Timestamptz()
+  sentAt    DateTime? @map("sent_at") @db.Timestamptz()
+
+  guest Guest @relation(fields: [guestId], references: [id], onDelete: Cascade)
+
+  @@index([guestId, kind])
+  @@index([eventId, kind])
+  @@map("checkin_guest_messages")
 }
 
 model Ticket {

@@ -5,6 +5,7 @@ import { syncAllTaggedEvents } from "@/lib/lead-sync";
 import {
   reconcileSquarePayments,
   processPaymentReminders,
+  deactivateStaleEvents,
 } from "@/lib/square-payments";
 import { prisma } from "@/lib/prisma";
 
@@ -35,6 +36,9 @@ async function handle(req: NextRequest) {
   if (!authorized(req)) {
     return NextResponse.json({ error: "Não autorizado" }, { status: 401 });
   }
+  // Desativa eventos encerrados há +7 dias (antes de tudo, p/ não casar/enviar
+  // no evento errado nesta rodada).
+  const deactivated = await deactivateStaleEvents().catch(() => ({ deactivated: 0 }));
   // Lembretes antes da fila: pode enfileirar novos jobs para esta rodada.
   const reminders = await processReminders().catch(() => ({ rulesFired: 0, queued: 0 }));
   // Entrada automática de leads por tag (eventos ativos, throttle por evento).
@@ -48,6 +52,7 @@ async function handle(req: NextRequest) {
   ]);
   return NextResponse.json({
     ...result,
+    deactivated,
     reminders,
     leads,
     squareRecon,

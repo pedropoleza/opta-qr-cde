@@ -115,7 +115,9 @@ export async function matchGuestForPayment(
     const candidates = await prisma.guest.findMany({
       where: {
         email: { equals: p.email, mode: "insensitive" },
-        event: { organizationId, status: { in: ["active", "draft", "completed"] } },
+        // Só eventos ATIVOS/rascunho — evita casar pagamento no evento errado
+        // (encerrados são desativados após 7 dias).
+        event: { organizationId, status: { in: ["active", "draft"] } },
       },
       include: { event: { include: { integration: true } } },
       orderBy: { createdAt: "desc" },
@@ -266,18 +268,28 @@ export async function reconcileSquarePayments(): Promise<{
   return { checked: payments.length, paid };
 }
 
+// Máximo de lembretes de pagamento por convidado e cooldown entre tentativas
+// (evita spam quando o envio falha repetidamente).
+const MAX_PAYMENT_REMINDERS = 3;
+const REMINDER_COOLDOWN_MS = 6 * 3600 * 1000;
+
 // Lembrete de pagamento pendente (WhatsApp/Stevo) N min após o cadastro.
+// A "entrega" é rastreada no GuestMessage: só conta como enviado quando o worker
+// confirma. Se o envio falhar, tenta de novo (respeitando teto + cooldown) — foi
+// o que corrigiu os leads que ficavam sem receber o lembrete.
 export async function processPaymentReminders(): Promise<{ sent: number }> {
   const now = Date.now();
   const guests = await prisma.guest.findMany({
     where: {
       paymentStatus: { in: ["pending", "none"] },
-      paymentReminderSentAt: null,
       phone: { not: null },
       status: { notIn: ["canceled"] },
       event: { status: "active" },
     },
-    include: { event: { include: { integration: true } } },
+    include: {
+      event: { include: { integration: true } },
+      messages: { where: { kind: "payment_reminder" }, orderBy: { createdAt: "desc" } },
+    },
     orderBy: { createdAt: "asc" },
     take: 200,
   });
@@ -289,6 +301,14 @@ export async function processPaymentReminders(): Promise<{ sent: number }> {
     const minutes = integ.paymentReminderMinutes ?? 30;
     if (g.createdAt.getTime() > now - minutes * 60_000) continue; // ainda não venceu
     if (!g.phone) continue;
+
+    // Dedupe/entrega via registro: pula se já há um na fila ou entregue; respeita
+    // teto de tentativas e cooldown quando a última falhou.
+    const prior = g.messages;
+    if (prior.some((m) => m.status === "queued" || m.status === "sent")) continue;
+    if (prior.length >= MAX_PAYMENT_REMINDERS) continue;
+    const last = prior[0];
+    if (last && last.createdAt.getTime() > now - REMINDER_COOLDOWN_MS) continue;
 
     const link =
       (await ensureGuestPaymentLink(g.id).catch(() => null)) ??
@@ -302,17 +322,22 @@ export async function processPaymentReminders(): Promise<{ sent: number }> {
 
     try {
       await prisma.$transaction(async (tx) => {
+        const log = await tx.guestMessage.create({
+          data: {
+            guestId: g.id,
+            eventId: g.eventId,
+            kind: "payment_reminder",
+            channel: "whatsapp",
+            status: "queued",
+          },
+        });
         await tx.ghlSyncJob.create({
           data: {
             eventId: g.eventId,
             guestId: g.id,
             action: "send_whatsapp_text",
-            payload: { to: normalizePhone(g.phone!), text },
+            payload: { to: normalizePhone(g.phone!), text, messageLogId: log.id },
           },
-        });
-        await tx.guest.update({
-          where: { id: g.id },
-          data: { paymentReminderSentAt: new Date() },
         });
       });
       sent++;
@@ -321,4 +346,16 @@ export async function processPaymentReminders(): Promise<{ sent: number }> {
     }
   }
   return { sent };
+}
+
+// Desativa eventos cuja data já passou há mais de 7 dias (status → completed).
+// Evita que eventos antigos continuem casando pagamentos/mensagens (evento
+// incorreto) e mantém o painel limpo.
+export async function deactivateStaleEvents(): Promise<{ deactivated: number }> {
+  const cutoff = new Date(Date.now() - 7 * 86400 * 1000);
+  const res = await prisma.event.updateMany({
+    where: { status: "active", date: { lt: cutoff } },
+    data: { status: "completed" },
+  });
+  return { deactivated: res.count };
 }

@@ -102,6 +102,7 @@ export type GuestRow = {
   checkedInAt: string | null;
   emailStatus: string | null;
   emailSentAt: string | null;
+  reminderCounts?: Record<string, number>;
 };
 
 export type LogRow = {

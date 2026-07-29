@@ -179,6 +179,41 @@ function GroupSection({
   );
 }
 
+const REMINDER_KINDS: { key: string; label: string }[] = [
+  { key: "payment_reminder", label: "Pagamento" },
+  { key: "pre_event", label: "Antes do evento" },
+  { key: "post_event", label: "Pós-evento" },
+];
+
+// Contador de mensagens efetivamente ENTREGUES ao lead, por tipo.
+function ReminderCounters({ counts }: { counts?: Record<string, number> }) {
+  const c = counts ?? {};
+  const total = REMINDER_KINDS.reduce((s, k) => s + (c[k.key] ?? 0), 0);
+  return (
+    <div className="space-y-1.5">
+      <label className="text-xs text-muted-foreground">Mensagens enviadas</label>
+      <div className="flex flex-wrap gap-2">
+        {REMINDER_KINDS.map((k) => (
+          <div
+            key={k.key}
+            className="flex items-center gap-1.5 rounded-md border px-2.5 py-1.5"
+          >
+            <span className="text-xs text-muted-foreground">{k.label}</span>
+            <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-muted px-1.5 text-xs font-semibold tabular-nums">
+              {c[k.key] ?? 0}
+            </span>
+          </div>
+        ))}
+      </div>
+      {total === 0 && (
+        <p className="text-xs text-muted-foreground">
+          Nenhuma mensagem entregue ainda.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function GuestsTab({
   event,
   guests,
@@ -857,6 +892,8 @@ export function GuestsTab({
                     <strong>Pagamento realizado</strong> quando o Square confirmar.
                   </p>
                 </div>
+
+                <ReminderCounters counts={detail.reminderCounts} />
 
                 {sessions.length > 0 && (
                   <div className="space-y-1.5">

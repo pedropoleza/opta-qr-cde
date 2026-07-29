@@ -224,6 +224,7 @@ export async function enqueueMessage(
   guest: { id: string; eventId: string; email: string | null; phone: string | null },
   channel: string,
   msg: { subject?: string; body: string; html: string },
+  messageLogId?: string,
 ): Promise<{ queued: boolean; via: string }> {
   if (channel === "whatsapp" && guest.phone) {
     await tx.ghlSyncJob.create({
@@ -231,7 +232,7 @@ export async function enqueueMessage(
         eventId: guest.eventId,
         guestId: guest.id,
         action: "send_whatsapp_text",
-        payload: { to: normalizePhone(guest.phone), text: msg.body },
+        payload: { to: normalizePhone(guest.phone), text: msg.body, messageLogId },
       },
     });
     return { queued: true, via: "whatsapp" };
@@ -242,7 +243,12 @@ export async function enqueueMessage(
         eventId: guest.eventId,
         guestId: guest.id,
         action: "send_email",
-        payload: { to: guest.email, subject: msg.subject ?? "Confirmação", html: msg.html },
+        payload: {
+          to: guest.email,
+          subject: msg.subject ?? "Confirmação",
+          html: msg.html,
+          messageLogId,
+        },
       },
     });
     return { queued: true, via: "email" };

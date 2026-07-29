@@ -19,7 +19,22 @@ export async function GET(
     orderBy: { createdAt: "asc" },
     include: { ticket: { select: { id: true, token: true, signature: true, checkedInAt: true } } },
   });
-  return NextResponse.json({ guests });
+
+  // Contador de mensagens entregues por lead e por tipo (pagamento, pré/pós).
+  const counts = await prisma.guestMessage.groupBy({
+    by: ["guestId", "kind"],
+    where: { eventId: id, status: "sent" },
+    _count: { _all: true },
+  });
+  const byGuest: Record<string, Record<string, number>> = {};
+  for (const c of counts) {
+    (byGuest[c.guestId] ??= {})[c.kind] = c._count._all;
+  }
+  const withCounts = guests.map((g) => ({
+    ...g,
+    reminderCounts: byGuest[g.id] ?? {},
+  }));
+  return NextResponse.json({ guests: withCounts });
 }
 
 // Adição de convidados: importação CSV (lote) e adição manual (Etapa 2).

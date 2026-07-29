@@ -65,6 +65,9 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
     rulesFired++;
     if (!bodyTpl) continue;
 
+    // Tipo do lembrete p/ o registro por lead: antes vs. depois do evento.
+    const kind = rule.offsetHours < 0 ? "pre_event" : "post_event";
+
     const where = audienceFilter(rule.event.id, rule.audience);
     const guests = await prisma.guest.findMany({
       where,
@@ -89,6 +92,15 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
       const body = renderTemplate(bodyTpl, ctx);
 
       await prisma.$transaction(async (tx) => {
+        const log = await tx.guestMessage.create({
+          data: {
+            guestId: g.id,
+            eventId: rule.event.id,
+            kind,
+            channel: rule.channel,
+            status: "queued",
+          },
+        });
         if (rule.channel === "ghl") {
           if (g.ghlContactId) {
             await tx.ghlSyncJob.create({
@@ -97,20 +109,36 @@ export async function processReminders(): Promise<{ rulesFired: number; queued: 
                 guestId: g.id,
                 ghlContactId: g.ghlContactId,
                 action: "add_tag",
-                payload: { tag: `lembrete-${rule.event.slug}` },
+                payload: { tag: `lembrete-${rule.event.slug}`, messageLogId: log.id },
               },
             });
             queued++;
+          } else {
+            await tx.guestMessage.update({
+              where: { id: log.id },
+              data: { status: "failed", error: "sem contato GHL" },
+            });
           }
         } else {
-          const r = await enqueueMessage(tx, g, rule.channel, {
-            subject: subjectTpl
-              ? renderTemplate(subjectTpl, ctx)
-              : `Lembrete — ${rule.event.name}`,
-            body,
-            html: textToHtml(body),
-          });
+          const r = await enqueueMessage(
+            tx,
+            g,
+            rule.channel,
+            {
+              subject: subjectTpl
+                ? renderTemplate(subjectTpl, ctx)
+                : `Lembrete — ${rule.event.name}`,
+              body,
+              html: textToHtml(body),
+            },
+            log.id,
+          );
           if (r.queued) queued++;
+          else
+            await tx.guestMessage.update({
+              where: { id: log.id },
+              data: { status: "failed", error: `sem canal (${rule.channel})` },
+            });
         }
       });
     }

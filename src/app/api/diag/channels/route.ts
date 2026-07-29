@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { cleanEnv } from "@/lib/ghl";
+import { getStevoConfig } from "@/lib/stevo";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +12,16 @@ function mask(v: string): { set: boolean; len: number; last4: string } {
 }
 
 export async function GET() {
-  const stevoUrl = cleanEnv(process.env.STEVO_API_URL);
-  const stevoKey = cleanEnv(process.env.STEVO_API_KEY);
+  // Config EFETIVA (banco → env → fallback fixo), que é a que o envio usa.
+  const stevo = await getStevoConfig().catch(() => ({ base: "", apikey: "" }));
+  const stevoEnvUrl = cleanEnv(process.env.STEVO_API_URL);
+  const stevoEnvKey = cleanEnv(process.env.STEVO_API_KEY);
   return NextResponse.json({
     stevo: {
-      url: stevoUrl || null, // a URL não é segredo — ajuda a conferir a instância
-      key: mask(stevoKey),
-      configured: Boolean(stevoUrl && stevoKey),
+      url: stevo.base || null, // a URL não é segredo — ajuda a conferir a instância
+      key: mask(stevo.apikey),
+      configured: Boolean(stevo.base && stevo.apikey),
+      env_only: { url: stevoEnvUrl || null, key: mask(stevoEnvKey) },
     },
     square: {
       token: mask(cleanEnv(process.env.SQUARE_ACCESS_TOKEN)),

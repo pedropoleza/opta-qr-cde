@@ -5,9 +5,50 @@
 //   STEVO_API_KEY  apikey da instância
 
 import { cleanEnv } from "@/lib/ghl";
+import { prisma } from "@/lib/prisma";
 
+// Fallback fixo (última instância) — chave/URL da instância Stevo do WhatsApp
+// da Opta Finance (número 15089040317). Ordem de resolução da config:
+//   1) banco: tabela `checkin_app_settings` (chaves `stevo_api_url` /
+//      `stevo_api_key`) — troque por aqui, sem redeploy nem Vercel;
+//   2) env var da Vercel (`STEVO_API_URL` / `STEVO_API_KEY`);
+//   3) estes valores fixos, pra o canal nunca ficar "não configurado".
+const STEVO_FALLBACK_URL = "https://smv2-7.stevo.chat";
+const STEVO_FALLBACK_KEY = "17810363201088QsCxJsIDj7LS88W";
+
+// Lê um override do banco. Blindado por try/catch: se a tabela não existir
+// ou o banco falhar, devolve "" e o chamador cai no env/fallback.
+async function readStevoSetting(key: string): Promise<string> {
+  try {
+    const rows = await prisma.$queryRaw<Array<{ value: string | null }>>`
+      SELECT value FROM checkin_app_settings WHERE key = ${key} LIMIT 1
+    `;
+    return cleanEnv(rows?.[0]?.value ?? undefined);
+  } catch {
+    return "";
+  }
+}
+
+// Resolve a config efetiva (banco → env → fallback fixo).
+export async function getStevoConfig(): Promise<{ base: string; apikey: string }> {
+  const [dbUrl, dbKey] = await Promise.all([
+    readStevoSetting("stevo_api_url"),
+    readStevoSetting("stevo_api_key"),
+  ]);
+  const base = (
+    dbUrl || cleanEnv(process.env.STEVO_API_URL) || STEVO_FALLBACK_URL
+  ).replace(/\/$/, "");
+  const apikey = dbKey || cleanEnv(process.env.STEVO_API_KEY) || STEVO_FALLBACK_KEY;
+  return { base, apikey };
+}
+
+// Guard síncrono usado por rotas/worker. Como há um fallback fixo no código, o
+// canal Stevo está sempre disponível; o override do banco é aplicado no envio.
 export function stevoConfigured(): boolean {
-  return Boolean(cleanEnv(process.env.STEVO_API_URL) && cleanEnv(process.env.STEVO_API_KEY));
+  return Boolean(
+    (STEVO_FALLBACK_URL && STEVO_FALLBACK_KEY) ||
+      (cleanEnv(process.env.STEVO_API_URL) && cleanEnv(process.env.STEVO_API_KEY)),
+  );
 }
 
 // Mantém só dígitos (o número precisa de código do país, ex.: 5538...).
@@ -31,8 +72,7 @@ export async function stevoSendText({
   to: string;
   text: string;
 }): Promise<void> {
-  const base = cleanEnv(process.env.STEVO_API_URL).replace(/\/$/, "");
-  const apikey = cleanEnv(process.env.STEVO_API_KEY);
+  const { base, apikey } = await getStevoConfig();
   if (!base || !apikey) throw new StevoError("Stevo não configurado");
 
   const res = await fetch(`${base}/send/text`, {
@@ -60,8 +100,7 @@ export async function stevoSendDocument({
   filename: string;
   caption?: string;
 }): Promise<void> {
-  const base = cleanEnv(process.env.STEVO_API_URL).replace(/\/$/, "");
-  const apikey = cleanEnv(process.env.STEVO_API_KEY);
+  const { base, apikey } = await getStevoConfig();
   if (!base || !apikey) throw new StevoError("Stevo não configurado");
 
   const res = await fetch(`${base}/send/media`, {

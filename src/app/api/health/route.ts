@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
+import { getStevoConfig } from "@/lib/stevo";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +33,11 @@ export async function GET() {
   };
 
   const ghlConnections = await prisma.ghlConnection.count().catch(() => 0);
+  // Config efetiva do Stevo (banco → env → fallback fixo), não só a env var.
+  const stevoCfg = await getStevoConfig().catch(() => ({ base: "", apikey: "" }));
   const channels = {
     email_resend: optional.RESEND_API_KEY && optional.EMAIL_FROM,
-    whatsapp_stevo: optional.STEVO_API_URL && optional.STEVO_API_KEY,
+    whatsapp_stevo: Boolean(stevoCfg.base && stevoCfg.apikey),
     ghl_connected:
       ghlConnections > 0 || (optional.GHL_LOCATION_ID && optional.GHL_LOCATION_TOKEN),
     ghl_oauth: optional.GHL_CLIENT_ID && optional.GHL_CLIENT_SECRET,

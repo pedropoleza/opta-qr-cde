@@ -145,6 +145,20 @@ export type SquarePaymentSummary = {
   createdAt: string | null;
 };
 
+function mapPayment(p: Record<string, unknown>): SquarePaymentSummary {
+  const money = (p.amount_money ?? {}) as Record<string, unknown>;
+  return {
+    id: String(p.id ?? ""),
+    status: String(p.status ?? ""),
+    amount: money.amount != null ? Number(money.amount) : null,
+    currency: (money.currency as string | undefined) ?? null,
+    email: (p.buyer_email_address as string | undefined)?.toLowerCase() ?? null,
+    orderId: (p.order_id as string | undefined) ?? null,
+    referenceId: (p.reference_id as string | undefined) ?? null,
+    createdAt: (p.created_at as string | undefined) ?? null,
+  };
+}
+
 // Lista pagamentos recentes (para conciliação). beginTime em ISO-8601.
 export async function listRecentPayments(
   beginTimeIso: string,
@@ -159,19 +173,53 @@ export async function listRecentPayments(
   const data = await squareRequest<{
     payments?: Array<Record<string, unknown>>;
   }>(`/v2/payments?${params.toString()}`, { method: "GET" });
-  return (data.payments ?? []).map((p) => {
-    const money = (p.amount_money ?? {}) as Record<string, unknown>;
-    return {
-      id: String(p.id ?? ""),
-      status: String(p.status ?? ""),
-      amount: money.amount != null ? Number(money.amount) : null,
-      currency: (money.currency as string | undefined) ?? null,
-      email: (p.buyer_email_address as string | undefined)?.toLowerCase() ?? null,
-      orderId: (p.order_id as string | undefined) ?? null,
-      referenceId: (p.reference_id as string | undefined) ?? null,
-      createdAt: (p.created_at as string | undefined) ?? null,
-    };
-  });
+  return (data.payments ?? []).map(mapPayment);
+}
+
+// Lista TODOS os pagamentos desde beginTime, paginando pelo cursor do Square e
+// em ordem ASCENDENTE (mais antigo primeiro) — ideal para avançar um cursor
+// durável de conciliação sem perder nada. `maxPages` é uma trava de segurança.
+// Diferente de listRecentPayments, NÃO engole erro: propaga SquareError para o
+// chamador registrar/observar (token/subscription quebrada não pode ser mudo).
+export async function listPaymentsSince(
+  beginTimeIso: string,
+  maxPages = 20,
+): Promise<SquarePaymentSummary[]> {
+  const out: SquarePaymentSummary[] = [];
+  let cursor: string | null = null;
+  for (let page = 0; page < maxPages; page++) {
+    const params = new URLSearchParams({
+      begin_time: beginTimeIso,
+      sort_order: "ASC",
+      location_id: squareLocationId(),
+      limit: "100",
+    });
+    if (cursor) params.set("cursor", cursor);
+    const data: { payments?: Array<Record<string, unknown>>; cursor?: string } =
+      await squareRequest(`/v2/payments?${params.toString()}`, { method: "GET" });
+    for (const p of data.payments ?? []) out.push(mapPayment(p));
+    if (!data.cursor) break;
+    cursor = data.cursor;
+  }
+  return out;
+}
+
+// Lê o reference_id de um pedido (order). O link inteligente grava
+// reference_id = id do convidado no pedido; mas o pagamento em si costuma vir
+// SEM reference_id (e às vezes com um order_id diferente do template do link).
+// Buscar o pedido resolve o convidado de forma determinística, independe do
+// e-mail que o comprador usou no checkout. Best-effort: retorna null se falhar.
+export async function getOrderReferenceId(orderId: string): Promise<string | null> {
+  try {
+    const data = await squareRequest<{ order?: { reference_id?: string } }>(
+      `/v2/orders/${encodeURIComponent(orderId)}`,
+      { method: "GET" },
+    );
+    const ref = data.order?.reference_id;
+    return ref && ref.trim() ? ref.trim() : null;
+  } catch {
+    return null;
+  }
 }
 
 // Cria/garante a subscription de webhook apontando para a nossa URL. Retorna a

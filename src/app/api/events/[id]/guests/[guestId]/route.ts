@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError, findOrgEvent } from "@/lib/api";
+import { settlePaidGuest } from "@/lib/square-payments";
 
 // Atualiza dados do convidado (hoje: categoria/tier — #5).
 export async function PATCH(
@@ -17,6 +18,12 @@ export async function PATCH(
   if (!guest) return jsonError(404, "Convidado não encontrado");
 
   const body = await req.json().catch(() => ({}));
+
+  // "Marcar pago" na mão deve SETTLAR de verdade (emitir ticket + disparar o QR),
+  // igual ao caminho automático do webhook/conciliação — não só trocar o status.
+  const wantsPaid =
+    "paymentStatus" in body && String(body.paymentStatus) === "paid";
+
   const data: {
     tier?: string | null;
     sessionId?: string | null;
@@ -24,16 +31,15 @@ export async function PATCH(
     vip?: boolean;
     language?: string;
     paymentStatus?: string;
-    paidAt?: Date | null;
   } = {};
   if ("language" in body) {
     data.language = String(body.language || "pt_BR");
   }
-  if ("paymentStatus" in body) {
+  // Transições que NÃO são "paid" continuam sendo simples troca de status.
+  if ("paymentStatus" in body && !wantsPaid) {
     const ps = String(body.paymentStatus);
-    if (["none", "pending", "paid", "refunded", "failed"].includes(ps)) {
+    if (["none", "pending", "refunded", "failed"].includes(ps)) {
       data.paymentStatus = ps;
-      if (ps === "paid") data.paidAt = new Date();
     }
   }
   if ("tier" in body) {
@@ -51,10 +57,24 @@ export async function PATCH(
     data.vip = Boolean(body.vip);
   }
 
-  const updated = await prisma.guest.update({
-    where: { id: guestId },
-    data,
-  });
+  const updated = Object.keys(data).length
+    ? await prisma.guest.update({ where: { id: guestId }, data })
+    : guest;
+
+  // Settla o pagamento manual (idempotente: se já estava pago, é no-op).
+  let settled: Awaited<ReturnType<typeof settlePaidGuest>> | undefined;
+  if (wantsPaid && guest.paymentStatus !== "paid") {
+    const integ = await prisma.eventIntegration.findUnique({
+      where: { eventId: id },
+      select: { priceCents: true, currency: true },
+    });
+    settled = await settlePaidGuest(guestId, {
+      amount: integ?.priceCents ?? null,
+      currency: integ?.currency ?? null,
+      paymentRef: "manual",
+    });
+  }
+
   return NextResponse.json({
     ok: true,
     name: updated.name,
@@ -62,7 +82,14 @@ export async function PATCH(
     sessionId: updated.sessionId,
     vip: updated.vip,
     language: updated.language,
-    paymentStatus: updated.paymentStatus,
+    paymentStatus: wantsPaid ? "paid" : updated.paymentStatus,
+    settled: settled
+      ? {
+          queued: settled.queued ?? false,
+          via: settled.via ?? null,
+          alreadyPaid: settled.alreadyPaid ?? false,
+        }
+      : undefined,
   });
 }
 

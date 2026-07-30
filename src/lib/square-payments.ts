@@ -7,9 +7,12 @@ import { renderTemplate, buildContext, textToHtml } from "@/lib/templates";
 import {
   squareConfigured,
   createPaymentLink,
-  listRecentPayments,
+  listPaymentsSince,
+  getOrderReferenceId,
   type SquarePaymentSummary,
 } from "@/lib/square-api";
+import { getAppSetting, setAppSetting } from "@/lib/app-settings";
+import { logWebhook } from "@/lib/webhook-log";
 
 export const PAID_STATUSES = ["COMPLETED", "APPROVED", "CAPTURED"];
 
@@ -132,6 +135,20 @@ export async function matchGuestForPayment(
       return byAmount ?? pool[0];
     }
   }
+  // Último recurso determinístico: o pagamento pode não trazer reference_id e ter
+  // um order_id diferente do template do link. Buscamos o pedido no Square para
+  // ler o reference_id (= id do convidado). Resolve mesmo quando o comprador usou
+  // um e-mail diferente do cadastro (caso da Cristina: gmail no cadastro, icloud
+  // no pagamento).
+  if (p.orderId && !p.referenceId) {
+    const ref = await getOrderReferenceId(p.orderId);
+    if (ref) {
+      const g = await prisma.guest.findFirst({
+        where: { id: ref, event: { organizationId } },
+      });
+      if (g) return g;
+    }
+  }
   return null;
 }
 
@@ -224,36 +241,154 @@ export async function settlePaidGuest(
   return { ok: true, queued: result.queued, via: result.via };
 }
 
-// Concilia pagamentos recentes do Square (rede de segurança do webhook).
+// Cursor durável da conciliação: guardamos o created_at do pagamento mais
+// recente já varrido e, a cada rodada, buscamos tudo DESDE esse instante. Sem a
+// janela fixa de 3h, nenhum pagamento "expira" sem ser conciliado.
+const RECON_CURSOR_KEY = "square_recon_cursor";
+// Primeira rodada (sem cursor): varre os últimos 30 dias para recuperar
+// pagamentos órfãos de quando o webhook estava quebrado.
+const RECON_INITIAL_BACKFILL_MS = 30 * 86400 * 1000;
+// Pequena sobreposição ao avançar o cursor, para não perder o pagamento da
+// fronteira entre uma rodada e a próxima.
+const RECON_OVERLAP_MS = 60 * 1000;
+
+// Parkeia um pagamento pago que não casou com nenhum convidado, para re-tentar
+// nas próximas rodadas (o convidado pode ser criado depois). Melhor-esforço:
+// se a tabela ainda não existir, não derruba a conciliação.
+async function parkUnmatchedPayment(p: SquarePaymentSummary): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      INSERT INTO checkin_unmatched_payments
+        (payment_id, email, amount, currency, order_id, reference_id, paid_at, first_seen_at, last_tried_at)
+      VALUES (${p.id}, ${p.email}, ${p.amount}, ${p.currency}, ${p.orderId},
+              ${p.referenceId}, ${p.createdAt ? new Date(p.createdAt) : null}, now(), now())
+      ON CONFLICT (payment_id) DO UPDATE SET last_tried_at = now()
+    `;
+  } catch {
+    /* tabela pode não existir ainda — melhor-esforço */
+  }
+}
+
+async function touchUnmatched(paymentId: string): Promise<void> {
+  try {
+    await prisma.$executeRaw`
+      UPDATE checkin_unmatched_payments SET last_tried_at = now() WHERE payment_id = ${paymentId}
+    `;
+  } catch {
+    /* melhor-esforço */
+  }
+}
+
+// Re-tenta casar os pagamentos parkeados; ao casar, settla (ticket + QR) e
+// marca como resolvido. Retorna quantos foram settlados nesta rodada.
+async function retryUnmatchedPayments(organizationId: string): Promise<number> {
+  type Row = {
+    payment_id: string;
+    email: string | null;
+    amount: number | null;
+    currency: string | null;
+    order_id: string | null;
+    reference_id: string | null;
+  };
+  let rows: Row[] = [];
+  try {
+    rows = await prisma.$queryRaw<Row[]>`
+      SELECT payment_id, email, amount, currency, order_id, reference_id
+      FROM checkin_unmatched_payments
+      WHERE resolved_at IS NULL
+      ORDER BY first_seen_at ASC
+      LIMIT 100
+    `;
+  } catch {
+    return 0;
+  }
+
+  let settled = 0;
+  for (const r of rows) {
+    const guest = await matchGuestForPayment(organizationId, {
+      referenceId: r.reference_id,
+      orderId: r.order_id,
+      email: r.email,
+      amount: r.amount,
+    });
+    if (!guest) {
+      await touchUnmatched(r.payment_id);
+      continue;
+    }
+    if (guest.paymentStatus !== "paid") {
+      try {
+        await settlePaidGuest(guest.id, {
+          amount: r.amount,
+          currency: r.currency,
+          paymentRef: r.payment_id,
+        });
+        settled++;
+      } catch {
+        await touchUnmatched(r.payment_id);
+        continue;
+      }
+    }
+    try {
+      await prisma.$executeRaw`
+        UPDATE checkin_unmatched_payments
+        SET resolved_at = now(), guest_id = ${guest.id}, last_tried_at = now()
+        WHERE payment_id = ${r.payment_id}
+      `;
+    } catch {
+      /* melhor-esforço */
+    }
+  }
+  return settled;
+}
+
+// Rede de segurança do webhook: PUXA os pagamentos da API do Square (não depende
+// de webhook, assinatura nem URL) e concilia. Durável (cursor, sem janela de 3h)
+// e observável (erro da API e não-conciliados vão para o log/fila, em vez de
+// sumirem em silêncio).
 export async function reconcileSquarePayments(): Promise<{
   checked: number;
   paid: number;
+  unmatched: number;
+  retried: number;
+  error?: string;
 }> {
-  if (!squareConfigured()) return { checked: 0, paid: 0 };
+  if (!squareConfigured()) return { checked: 0, paid: 0, unmatched: 0, retried: 0 };
   const organizationId = await defaultOrgId();
-  if (!organizationId) return { checked: 0, paid: 0 };
+  if (!organizationId) return { checked: 0, paid: 0, unmatched: 0, retried: 0 };
 
-  const since = new Date(Date.now() - 3 * 3600 * 1000).toISOString();
-  let payments: SquarePaymentSummary[] = [];
+  const cursorIso = await getAppSetting(RECON_CURSOR_KEY);
+  const beginIso =
+    cursorIso ?? new Date(Date.now() - RECON_INITIAL_BACKFILL_MS).toISOString();
+
+  let payments: SquarePaymentSummary[];
   try {
-    payments = await listRecentPayments(since, 100);
-  } catch {
-    return { checked: 0, paid: 0 };
+    payments = await listPaymentsSince(beginIso);
+  } catch (err) {
+    // NÃO engole: token/subscription quebrado precisa ficar visível na hora.
+    const detail = err instanceof Error ? err.message.slice(0, 180) : "erro";
+    await logWebhook("square-recon", null, "api_error", { detail });
+    return { checked: 0, paid: 0, unmatched: 0, retried: 0, error: detail };
   }
 
   let paid = 0;
+  let unmatched = 0;
+  let newestMs = cursorIso ? Date.parse(cursorIso) : 0;
+
   for (const p of payments) {
+    const tMs = p.createdAt ? Date.parse(p.createdAt) : NaN;
+    if (Number.isFinite(tMs) && tMs > newestMs) newestMs = tMs;
     if (!PAID_STATUSES.includes(p.status)) continue;
-    // Idempotência do reconciliador (namespace próprio, não colide com webhook).
-    try {
-      await prisma.webhookEvent.create({
-        data: { provider: "square", externalId: `recon:${p.id}` },
-      });
-    } catch {
-      continue; // já conciliado
-    }
+
     const guest = await matchGuestForPayment(organizationId, p);
-    if (!guest || guest.paymentStatus === "paid") continue;
+    if (!guest) {
+      await parkUnmatchedPayment(p);
+      await logWebhook("square-recon", null, "no_match", {
+        detail: `pay=${p.id} email=${p.email ?? "-"} amount=${p.amount ?? "-"} order=${p.orderId ?? "-"}`,
+      });
+      unmatched++;
+      continue;
+    }
+    if (guest.paymentStatus === "paid") continue;
     try {
       await settlePaidGuest(guest.id, {
         amount: p.amount,
@@ -262,10 +397,25 @@ export async function reconcileSquarePayments(): Promise<{
       });
       paid++;
     } catch {
-      /* próxima rodada tenta */
+      // Falhou o settle: parkeia para re-tentar (cursor avança, mas nada some).
+      await parkUnmatchedPayment(p);
+      unmatched++;
     }
   }
-  return { checked: payments.length, paid };
+
+  // Avança o cursor (com sobreposição) só após a varredura terminar OK.
+  if (newestMs > 0) {
+    await setAppSetting(
+      RECON_CURSOR_KEY,
+      new Date(newestMs - RECON_OVERLAP_MS).toISOString(),
+    );
+  }
+
+  // Re-tenta os pagamentos parkeados de rodadas anteriores (convidado pode ter
+  // sido criado depois). Nada é descartado em silêncio.
+  const retried = await retryUnmatchedPayments(organizationId);
+
+  return { checked: payments.length, paid, unmatched, retried };
 }
 
 // Máximo de lembretes de pagamento por convidado e cooldown entre tentativas

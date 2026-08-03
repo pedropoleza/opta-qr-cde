@@ -135,11 +135,9 @@ export async function matchGuestForPayment(
       return byAmount ?? pool[0];
     }
   }
-  // Último recurso determinístico: o pagamento pode não trazer reference_id e ter
-  // um order_id diferente do template do link. Buscamos o pedido no Square para
-  // ler o reference_id (= id do convidado). Resolve mesmo quando o comprador usou
-  // um e-mail diferente do cadastro (caso da Cristina: gmail no cadastro, icloud
-  // no pagamento).
+  // Recurso determinístico: o pagamento pode não trazer reference_id e ter um
+  // order_id diferente do template do link. Buscamos o pedido no Square para ler
+  // o reference_id (= id do convidado). Resolve mesmo com e-mail divergente.
   if (p.orderId && !p.referenceId) {
     const ref = await getOrderReferenceId(p.orderId);
     if (ref) {
@@ -147,6 +145,34 @@ export async function matchGuestForPayment(
         where: { id: ref, event: { organizationId } },
       });
       if (g) return g;
+    }
+  }
+  // Fallback fuzzy: mesma "handle" (parte antes do @) em domínios diferentes —
+  // pega quem paga com e-mail pessoal diferente do cadastro (ex.: mesmo usuário
+  // em gmail vs icloud, caso da Cristina). Escopo ESTREITO para não casar a
+  // pessoa errada: eventos ativos, handle com >=4 chars, e só quando NÃO é
+  // ambíguo (valor igual único, ou um único candidato).
+  if (p.email) {
+    const handle = p.email.split("@")[0]?.trim().toLowerCase() ?? "";
+    if (handle.length >= 4) {
+      const candidates = await prisma.guest.findMany({
+        where: {
+          email: { startsWith: `${handle}@`, mode: "insensitive" },
+          event: { organizationId, status: { in: ["active", "draft"] } },
+        },
+        include: { event: { include: { integration: true } } },
+        orderBy: { createdAt: "desc" },
+      });
+      const pending = candidates.filter((g) => g.paymentStatus !== "paid");
+      const pool = pending.length ? pending : candidates;
+      if (p.amount != null) {
+        const byAmount = pool.filter(
+          (g) => g.event.integration?.priceCents === p.amount,
+        );
+        if (byAmount.length === 1) return byAmount[0];
+      }
+      if (pool.length === 1) return pool[0];
+      // Ambíguo → não adivinha; segue para a fila de não-conciliados.
     }
   }
   return null;
@@ -339,6 +365,70 @@ async function retryUnmatchedPayments(organizationId: string): Promise<number> {
     }
   }
   return settled;
+}
+
+export type UnmatchedPayment = {
+  payment_id: string;
+  email: string | null;
+  amount: number | null;
+  currency: string | null;
+  order_id: string | null;
+  first_seen_at: Date;
+};
+
+// Lista os pagamentos pagos que ainda não casaram com nenhum convidado, para
+// vínculo manual no painel. Best-effort: [] se a tabela não existir.
+export async function listUnmatchedPayments(): Promise<UnmatchedPayment[]> {
+  try {
+    return await prisma.$queryRaw<UnmatchedPayment[]>`
+      SELECT payment_id, email, amount, currency, order_id, first_seen_at
+      FROM checkin_unmatched_payments
+      WHERE resolved_at IS NULL
+      ORDER BY first_seen_at DESC
+      LIMIT 100
+    `;
+  } catch {
+    return [];
+  }
+}
+
+// Vincula manualmente um pagamento órfão a um convidado: settla (ticket + QR
+// com o valor real do pagamento) e marca o órfão como resolvido.
+export async function linkUnmatchedPayment(
+  paymentId: string,
+  guestId: string,
+): Promise<{ ok: boolean; error?: string; queued?: boolean; via?: string }> {
+  let row: { amount: number | null; currency: string | null } | undefined;
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{ amount: number | null; currency: string | null }>
+    >`
+      SELECT amount, currency FROM checkin_unmatched_payments
+      WHERE payment_id = ${paymentId} AND resolved_at IS NULL LIMIT 1
+    `;
+    row = rows?.[0];
+  } catch {
+    return { ok: false, error: "fila indisponível" };
+  }
+  if (!row) return { ok: false, error: "pagamento não encontrado na fila" };
+
+  const settled = await settlePaidGuest(guestId, {
+    amount: row.amount,
+    currency: row.currency,
+    paymentRef: paymentId,
+  });
+  if (!settled.ok) return { ok: false, error: "convidado não encontrado" };
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE checkin_unmatched_payments
+      SET resolved_at = now(), guest_id = ${guestId}, last_tried_at = now()
+      WHERE payment_id = ${paymentId}
+    `;
+  } catch {
+    /* melhor-esforço: o settle já ocorreu */
+  }
+  return { ok: true, queued: settled.queued, via: settled.via };
 }
 
 // Rede de segurança do webhook: PUXA os pagamentos da API do Square (não depende

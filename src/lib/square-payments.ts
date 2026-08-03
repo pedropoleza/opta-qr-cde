@@ -379,6 +379,18 @@ export async function reconcileSquarePayments(): Promise<{
     if (Number.isFinite(tMs) && tMs > newestMs) newestMs = tMs;
     if (!PAID_STATUSES.includes(p.status)) continue;
 
+    // Idempotência: cada pagamento é processado uma única vez (namespace próprio
+    // `recon:`, não colide com o webhook). Evita re-log e chamadas repetidas à
+    // API quando o cursor re-inclui a fronteira; re-tentativas de match ficam a
+    // cargo da fila de não-conciliados (retryUnmatchedPayments).
+    try {
+      await prisma.webhookEvent.create({
+        data: { provider: "square", externalId: `recon:${p.id}` },
+      });
+    } catch {
+      continue; // já processado numa rodada anterior
+    }
+
     const guest = await matchGuestForPayment(organizationId, p);
     if (!guest) {
       await parkUnmatchedPayment(p);

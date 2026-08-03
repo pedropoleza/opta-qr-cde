@@ -113,6 +113,129 @@ function CopyField({ label, value }: { label: string; value: string }) {
   );
 }
 
+type UnmatchedRow = {
+  payment_id: string;
+  email: string | null;
+  amount: number | null;
+  currency: string | null;
+  order_id: string | null;
+  first_seen_at: string;
+};
+
+// Painel de pagamentos que caíram no gateway mas não casaram com nenhum
+// convidado (e-mail divergente, link genérico, etc.). Só aparece quando há
+// órfãos. Vincular à pessoa certa settla e envia o ingresso na hora.
+function UnmatchedPanel({
+  guests,
+  currency,
+  onLinked,
+}: {
+  guests: GuestRow[];
+  currency: string;
+  onLinked: () => void;
+}) {
+  const [rows, setRows] = useState<UnmatchedRow[] | null>(null);
+  const [pick, setPick] = useState<Record<string, string>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+
+  async function load() {
+    const res = await fetch("/api/square/unmatched");
+    setRows(res.ok ? ((await res.json()).payments ?? []) : []);
+  }
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    load();
+  }, []);
+
+  const options = guests.filter(
+    (g) => g.status !== "canceled" && g.paymentStatus !== "paid",
+  );
+
+  async function link(paymentId: string) {
+    const guestId = pick[paymentId];
+    if (!guestId) return toast.error("Escolha a pessoa");
+    setBusy(paymentId);
+    const res = await fetch("/api/square/unmatched", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ paymentId, guestId }),
+    });
+    setBusy(null);
+    if (!res.ok) return toast.error("Erro ao vincular");
+    toast.success("Pagamento vinculado — ingresso a caminho");
+    load();
+    onLinked();
+  }
+
+  if (!rows || rows.length === 0) return null;
+
+  return (
+    <Card className="border-amber-300/60">
+      <CardContent className="p-0">
+        <div className="flex items-start gap-3 border-b p-4">
+          <span className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-amber-500/15 text-amber-600">
+            <AlertTriangle className="size-5" />
+          </span>
+          <div>
+            <p className="text-sm font-medium">
+              Pagamentos não conciliados ({rows.length})
+            </p>
+            <p className="text-xs text-muted-foreground">
+              Pagos no Square, mas sem cadastro batendo (e-mail diferente, link
+              genérico). Vincule à pessoa certa — o ingresso é enviado na hora.
+            </p>
+          </div>
+        </div>
+        <ul className="divide-y">
+          {rows.map((r) => (
+            <li key={r.payment_id} className="flex flex-wrap items-center gap-3 p-4">
+              <span className="min-w-0 flex-1">
+                <span className="block truncate font-medium tabular-nums">
+                  {r.amount != null ? money(r.amount, r.currency ?? currency) : "—"}
+                  {r.email ? ` · ${r.email}` : ""}
+                </span>
+                <span className="block truncate text-xs text-muted-foreground">
+                  {new Date(r.first_seen_at).toLocaleString("pt-BR")} · {r.payment_id.slice(0, 10)}…
+                </span>
+              </span>
+              <Select
+                value={pick[r.payment_id] ?? ""}
+                onValueChange={(v) =>
+                  setPick((p) => ({ ...p, [r.payment_id]: v }))
+                }
+              >
+                <SelectTrigger className="h-9 w-56 text-sm">
+                  <SelectValue placeholder="Escolher pessoa…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {options.map((g) => (
+                    <SelectItem key={g.id} value={g.id}>
+                      {g.name}
+                      {g.email ? ` — ${g.email}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                size="sm"
+                disabled={busy === r.payment_id}
+                onClick={() => link(r.payment_id)}
+              >
+                {busy === r.payment_id ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Link2 className="size-4" />
+                )}
+                Vincular
+              </Button>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
 export function PaymentsTab({
   eventId,
   guests,
@@ -136,6 +259,7 @@ export function PaymentsTab({
     if (res.ok) setCfg(await res.json());
   }
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     load();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [eventId]);
@@ -300,6 +424,9 @@ export function PaymentsTab({
               )}
             </CardContent>
           </Card>
+
+          {/* Pagamentos não conciliados (órfãos do gateway) */}
+          <UnmatchedPanel guests={guests} currency={currency} onLinked={onChange} />
 
           {/* Pagamentos confirmados */}
           {stats.paid.length > 0 && (

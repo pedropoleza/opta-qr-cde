@@ -85,7 +85,7 @@ export function sparkLogoUrl(): string {
 // URL absoluta da logo da Opta para os PDFs. `onLight` escolhe a variante
 // escura (fundo claro); por padrão usa a branca (cabeçalhos escuros/coloridos).
 export function optaLogoUrl(onLight = false): string {
-  return `${APP_BASE_URL}/opta-finance-logo${onLight ? "" : "-white"}.png`;
+  return `${APP_BASE_URL}/opta-finance-logo-v2${onLight ? "" : "-white"}.png`;
 }
 
 // Fonte única de verdade do VIP: o sinalizador VIP do convidado OU a categoria

@@ -67,8 +67,8 @@ const assetUrl = (path: string) => `${APP_BASE}${path}`;
 // Marca padrão do produto (white-label): Opta Finance + logo deles.
 const DEFAULT_BRAND_NAME = "Opta Finance";
 // Duas variantes: branca para fundos escuros/coloridos, escura para fundos claros.
-const LOGO_WHITE = assetUrl("/opta-finance-logo-white.png");
-const LOGO_DARK = assetUrl("/opta-finance-logo.png");
+const LOGO_WHITE = assetUrl("/opta-finance-logo-v2-white.png");
+const LOGO_DARK = assetUrl("/opta-finance-logo-v2.png");
 // Selo discreto "feito com Spark" no rodapé.
 const SPARK_LOGO_URL = assetUrl("/spark-logo.png");
 

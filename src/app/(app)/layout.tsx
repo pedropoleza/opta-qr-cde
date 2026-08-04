@@ -26,13 +26,13 @@ export default async function AppLayout({
             {/* Logo da Opta — variante por tema (escura no claro, branca no escuro) */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/opta-finance-logo.png"
+              src="/opta-finance-logo-v2.png"
               alt={orgName || "Opta Finance"}
               className="h-6 w-auto object-contain dark:hidden"
             />
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/opta-finance-logo-white.png"
+              src="/opta-finance-logo-v2-white.png"
               alt={orgName || "Opta Finance"}
               className="hidden h-6 w-auto object-contain dark:block"
             />

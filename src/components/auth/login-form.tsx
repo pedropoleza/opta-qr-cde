@@ -48,13 +48,13 @@ export function LoginForm() {
       <div className="flex flex-col items-center gap-2 text-center">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/opta-finance-logo.png"
+          src="/opta-finance-logo-v2.png"
           alt="Opta Finance"
           className="h-10 w-auto object-contain dark:hidden"
         />
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
-          src="/opta-finance-logo-white.png"
+          src="/opta-finance-logo-v2-white.png"
           alt="Opta Finance"
           className="hidden h-10 w-auto object-contain dark:block"
         />

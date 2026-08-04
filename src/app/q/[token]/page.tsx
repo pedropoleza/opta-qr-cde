@@ -113,7 +113,7 @@ export default async function GuestQrPage({
   const logoUrl =
     config.logoUrl ||
     org?.logoUrl ||
-    (darkText ? "/opta-finance-logo.png" : "/opta-finance-logo-white.png");
+    (darkText ? "/opta-finance-logo-v2.png" : "/opta-finance-logo-v2-white.png");
   const mainText = darkText ? "text-neutral-900" : "text-white";
   const mutedText = darkText ? "text-neutral-700" : "text-neutral-300";
   // Textura do corpo (F2), exceto no VIP (que tem arte própria).

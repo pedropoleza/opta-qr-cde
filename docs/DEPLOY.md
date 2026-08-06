@@ -35,9 +35,44 @@ npx vercel --prod --token=$VERCEL_TOKEN        # deploy de produção
 | `TICKET_TOKEN_SECRET` | 32 bytes aleatórios — **não mudar depois**, invalida QRs já emitidos |
 | `APP_BASE_URL` | domínio público da Vercel |
 | `EMAIL_PROVIDER` / `EMAIL_PROVIDER_KEY` / `EMAIL_FROM` | Etapa 3 (Resend) |
+| `ADMIN_EMBED_SECRET` | segredo da trava do painel (`openssl rand -hex 32`) — ver abaixo |
+| `PUBLIC_REDIRECT_URL` | destino para acesso externo / fallback do `/pay` (nunca o painel) |
+| `SQUARE_GENERAL_CHECKOUT_URL` | checkout geral do Square (fallback do `/pay`) |
+| `CRM_FRAME_ANCESTORS` | domínios do CRM que podem embutir o app (CSP) |
 
 > A senha do banco (Supabase → Project Settings → Database) não é acessível por
 > aqui — é a única peça que precisa vir do 👤 Time para montar a `DATABASE_URL`.
+
+## Trava do painel (acesso só pelo CRM)
+
+O painel do organizador (dashboard + APIs de criação de eventos/gestão) fica
+**aberto** enquanto `ADMIN_EMBED_SECRET` não estiver definido — mesmo
+comportamento de antes. Para **ligar a trava** (bloquear acesso externo direto
+na URL) sem se trancar para fora:
+
+1. Defina `ADMIN_EMBED_SECRET` (ex.: `openssl rand -hex 32`) e
+   `PUBLIC_REDIRECT_URL` nas envs da Vercel e faça redeploy.
+2. No GHL, ajuste o **link do menu/iframe** que abre o app para incluir o
+   segredo: `https://eventos.optafinance.com/?k=<ADMIN_EMBED_SECRET>`. No
+   primeiro acesso o app grava um cookie de sessão de embed e remove o `?k` da
+   URL; as navegações seguintes usam o cookie.
+3. Confira: abrir a URL base **sem** o `?k` (fora do CRM) deve redirecionar para
+   `PUBLIC_REDIRECT_URL`, e `POST /api/events` sem o cookie deve responder 403.
+
+> O cookie de embed é `SameSite=None; Secure` (obrigatório para ser enviado
+> dentro do iframe de outro domínio). Se o navegador do usuário bloquear cookies
+> de terceiros, o embed pode não persistir — nesse caso, mantenha o `?k` no link
+> do menu como fallback.
+
+## Link de pagamento (`/pay`)
+
+O redirect de submit do formulário aponta para
+`…/pay?email={{contact.email}}&agenda=<evento>`. Quando o `/pay` não consegue
+montar o checkout personalizado (evento não bate pela agenda, sem preço no
+evento, ou Square não configurado), ele agora redireciona para
+`SQUARE_GENERAL_CHECKOUT_URL` (ou `PUBLIC_REDIRECT_URL`) — **nunca** para o
+painel. O motivo de cada falha fica registrado em `WebhookLog` (fonte `pay`,
+status `fail`) para diagnóstico.
 
 ## Migrations em produção
 

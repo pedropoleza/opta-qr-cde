@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getCurrentMembership, jsonError } from "@/lib/api";
+import { isEmbedded } from "@/lib/embed-guard";
 import { audit } from "@/lib/audit";
 
 export const dynamic = "force-dynamic";
@@ -42,6 +43,7 @@ export async function GET() {
 
 // Atualiza nome e branding da organização (somente owner).
 export async function PATCH(req: NextRequest) {
+  if (!(await isEmbedded())) return jsonError(403, "Acesso restrito ao painel.");
   const m = await getCurrentMembership();
   if (m.role !== "owner") return jsonError(403, "Apenas o owner pode alterar.");
   const body = await req.json().catch(() => ({}));

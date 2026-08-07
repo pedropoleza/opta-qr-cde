@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { prisma } from "@/lib/prisma";
 import { getCurrentOrgId, jsonError } from "@/lib/api";
+import { isEmbedded } from "@/lib/embed-guard";
 import { slugify } from "@/lib/slug";
 
 export async function GET() {
@@ -18,6 +19,9 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
+  // Criação de evento/projeto só de dentro do CRM (embed). Fora dele → 403.
+  if (!(await isEmbedded())) return jsonError(403, "Acesso restrito ao painel.");
+
   const organizationId = await getCurrentOrgId();
 
   const body = await req.json();

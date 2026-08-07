@@ -1,11 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
-import {
-  appBaseUrl,
-  pickEventForAgenda,
-  pickEventForTags,
-} from "@/lib/integration";
+import { pickEventForAgenda, pickEventForTags } from "@/lib/integration";
 import { ensureGuestPaymentLink, defaultOrgId } from "@/lib/square-payments";
+import { publicRedirectUrl } from "@/lib/embed";
 import { logWebhook } from "@/lib/webhook-log";
 import { enforceRateLimit } from "@/lib/rate-limit";
 
@@ -29,7 +26,7 @@ export async function GET(req: NextRequest) {
   const tag = url.searchParams.get("tag")?.trim() || null;
 
   const organizationId = await defaultOrgId();
-  if (!organizationId) return fail(req, "org");
+  if (!organizationId) return fail("org");
 
   const events = await prisma.event.findMany({
     where: { organizationId },
@@ -39,10 +36,7 @@ export async function GET(req: NextRequest) {
     (agenda && pickEventForAgenda(events, agenda)) ||
     (tag ? pickEventForTags(events, [tag]) : null);
   if (!event) {
-    await logWebhook("pay", null, "no_match", {
-      detail: `agenda="${agenda ?? ""}" tag="${tag ?? ""}"`,
-    });
-    return fail(req, "event");
+    return fail("event", `agenda="${agenda ?? ""}" tag="${tag ?? ""}"`);
   }
 
   // Acha/cria o convidado (dedupe por e-mail/telefone).
@@ -68,22 +62,29 @@ export async function GET(req: NextRequest) {
       },
     });
   }
-  if (!guest) return fail(req, "guest");
+  if (!guest) return fail("guest", `email="${email ?? ""}"`);
 
   const link = await ensureGuestPaymentLink(guest.id).catch(() => null);
   if (!link) {
-    // Sem preço/Square configurado: cai no fallback geral, se houver.
-    const fallback = process.env.SQUARE_GENERAL_CHECKOUT_URL?.trim();
-    if (fallback) return NextResponse.redirect(fallback, 302);
-    await logWebhook("pay", null, "off", { detail: `guest=${guest.id} sem link` });
-    return fail(req, "link");
+    // Sem preço no evento ou Square não configurado: sem link inteligente.
+    // fail() cai no checkout geral do Square (SQUARE_GENERAL_CHECKOUT_URL) —
+    // o comprador ainda consegue pagar — e nunca no painel.
+    return fail("link", `guest=${guest.id}`);
   }
 
   await logWebhook("pay", null, "queued", { detail: `guest=${guest.id} → checkout` });
   return NextResponse.redirect(link, 302);
 }
 
-function fail(req: NextRequest, reason: string) {
-  // Em caso de falha, leva o usuário à home em vez de mostrar erro cru.
-  return NextResponse.redirect(`${appBaseUrl()}/?pay_error=${reason}`, 302);
+// Falha ao montar o checkout: registra o motivo (para diagnóstico) e manda o
+// comprador para o checkout geral do Square, se houver, senão para o destino
+// público. NUNCA redireciona para o painel do organizador — era isso que
+// "quebrava" o link do site (caía no dashboard interno).
+async function fail(reason: string, detail?: string) {
+  await logWebhook("pay", null, "fail", {
+    detail: `reason=${reason}${detail ? ` ${detail}` : ""}`,
+  }).catch(() => {});
+  const dest =
+    process.env.SQUARE_GENERAL_CHECKOUT_URL?.trim() || publicRedirectUrl();
+  return NextResponse.redirect(dest, 302);
 }

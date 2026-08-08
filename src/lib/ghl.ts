@@ -501,6 +501,44 @@ export async function ghlFindContactByEmail(
   }
 }
 
+// Cria (ou casa por e-mail/telefone) um contato na location. Idempotente pelo
+// upsert do GHL: se já existir alguém com o mesmo e-mail/telefone, devolve o
+// contato existente sem duplicar. Usado para trazer ao Spark quem pagou mas não
+// estava na subaccount — sem contato lá, o e-mail do ingresso não teria por onde
+// sair (o workflow do GHL dispara a partir do contato). Best-effort: null se a
+// API falhar ou não houver identificador.
+export async function ghlUpsertContact(
+  organizationId: string,
+  input: { email?: string | null; phone?: string | null; name?: string | null },
+): Promise<{ id: string } | null> {
+  const { locationId, token } = await authOrThrow(organizationId);
+  const email = input.email?.trim().toLowerCase() || undefined;
+  const phone = input.phone?.trim() || undefined;
+  if (!email && !phone) return null; // upsert precisa de ao menos um identificador
+
+  const full = (input.name ?? "").trim();
+  const parts = full.split(/\s+/).filter(Boolean);
+  const body: Record<string, unknown> = { locationId };
+  if (email) body.email = email;
+  if (phone) body.phone = phone;
+  if (parts.length) {
+    body.firstName = parts[0];
+    if (parts.length > 1) body.lastName = parts.slice(1).join(" ");
+    body.name = full;
+  }
+
+  try {
+    const data = await ghlRequest<{ contact?: { id?: string } }>(
+      token,
+      `/contacts/upsert`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return data.contact?.id ? { id: data.contact.id } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function ghlListContacts(
   organizationId: string,
   opts: { query?: string; limit?: number; startAfter?: string; startAfterId?: string },

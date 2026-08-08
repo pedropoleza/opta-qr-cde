@@ -13,7 +13,12 @@ import {
 } from "@/lib/square-api";
 import { getAppSetting, setAppSetting } from "@/lib/app-settings";
 import { logWebhook } from "@/lib/webhook-log";
-import { ghlConfigured, ghlFindContactByEmail } from "@/lib/ghl";
+import {
+  ghlConfigured,
+  ghlFindContactByEmail,
+  ghlUpsertContact,
+  ghlAddTags,
+} from "@/lib/ghl";
 
 export const PAID_STATUSES = ["COMPLETED", "APPROVED", "CAPTURED"];
 
@@ -466,7 +471,7 @@ export async function createGuestForUnmatchedPayment(
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true, organizationId: true },
+    select: { id: true, organizationId: true, slug: true },
   });
   if (!event) return { ok: false, error: "evento não encontrado" };
 
@@ -475,14 +480,27 @@ export async function createGuestForUnmatchedPayment(
     info.name?.trim() || (email ? email.split("@")[0] : "") || "Convidado";
   const phone = info.phone?.trim() || null;
 
-  // Religa ao contato que já existe no Spark (por e-mail) quando o Spark está
-  // conectado — assim a entrega do QR sai pelo workflow do GHL, como nos leads
-  // normais. Sem contato/conexão, o convidado fica sem ghlContactId e a entrega
-  // cai no fallback (e-mail direto).
+  // Garante um contato no Spark para a entrega do QR sair pelo workflow do GHL
+  // (como nos leads normais). Ordem:
+  //  1) casa por e-mail com quem já está na subaccount;
+  //  2) se NÃO estiver, cria o contato (upsert) — é o que traz quem pagou por
+  //     fora e nunca esteve na conta da Opta;
+  //  3) marca a tag de convidado do evento, para o contato constar como
+  //     registrado no evento (controle no GHL), igual ao fluxo de inscrição.
+  // Best-effort: sem Spark/identificador, o convidado fica sem ghlContactId e a
+  // entrega cai no fallback de e-mail direto.
   let ghlContactId: string | null = null;
   if (email && (await ghlConfigured(event.organizationId))) {
-    const contact = await ghlFindContactByEmail(event.organizationId, email);
-    ghlContactId = contact?.id ?? null;
+    const existing = await ghlFindContactByEmail(event.organizationId, email);
+    ghlContactId =
+      existing?.id ??
+      (await ghlUpsertContact(event.organizationId, { email, phone, name }))?.id ??
+      null;
+    if (ghlContactId) {
+      await ghlAddTags(event.organizationId, ghlContactId, [
+        `convidado-${event.slug}`,
+      ]).catch(() => {});
+    }
   }
 
   const guest = await prisma.guest.create({

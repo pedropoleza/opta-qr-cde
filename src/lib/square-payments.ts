@@ -431,6 +431,84 @@ export async function linkUnmatchedPayment(
   return { ok: true, queued: settled.queued, via: settled.via };
 }
 
+// Cria um convidado a partir de um pagamento órfão e o inscreve no evento
+// indicado, settlando na sequência (ticket + QR com o valor real do pagamento) e
+// resolvendo o órfão. É o caminho para quem PAGOU mas nunca foi cadastrado no
+// evento (link genérico/checkout avulso): sem convidado prévio, não há a quem
+// "Vincular". O nome cai para o handle do e-mail quando não informado.
+export async function createGuestForUnmatchedPayment(
+  paymentId: string,
+  eventId: string,
+  info: { name?: string | null; email?: string | null; phone?: string | null },
+): Promise<{
+  ok: boolean;
+  error?: string;
+  guestId?: string;
+  queued?: boolean;
+  via?: string;
+}> {
+  let row:
+    | { amount: number | null; currency: string | null; email: string | null }
+    | undefined;
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{ amount: number | null; currency: string | null; email: string | null }>
+    >`
+      SELECT amount, currency, email FROM checkin_unmatched_payments
+      WHERE payment_id = ${paymentId} AND resolved_at IS NULL LIMIT 1
+    `;
+    row = rows?.[0];
+  } catch {
+    return { ok: false, error: "fila indisponível" };
+  }
+  if (!row) return { ok: false, error: "pagamento não encontrado na fila" };
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true },
+  });
+  if (!event) return { ok: false, error: "evento não encontrado" };
+
+  const email = (info.email ?? row.email)?.trim().toLowerCase() || null;
+  const name =
+    info.name?.trim() || (email ? email.split("@")[0] : "") || "Convidado";
+  const phone = info.phone?.trim() || null;
+
+  const guest = await prisma.guest.create({
+    data: {
+      eventId: event.id,
+      name,
+      email,
+      phone,
+      source: "manual",
+      status: "pending_qr",
+    },
+  });
+
+  const settled = await settlePaidGuest(guest.id, {
+    amount: row.amount,
+    currency: row.currency,
+    paymentRef: paymentId,
+  });
+  if (!settled.ok) return { ok: false, error: "falha ao conciliar o pagamento" };
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE checkin_unmatched_payments
+      SET resolved_at = now(), guest_id = ${guest.id}, last_tried_at = now()
+      WHERE payment_id = ${paymentId}
+    `;
+  } catch {
+    /* melhor-esforço: o settle já ocorreu */
+  }
+  return {
+    ok: true,
+    guestId: guest.id,
+    queued: settled.queued,
+    via: settled.via,
+  };
+}
+
 // Rede de segurança do webhook: PUXA os pagamentos da API do Square (não depende
 // de webhook, assinatura nem URL) e concilia. Durável (cursor, sem janela de 3h)
 // e observável (erro da API e não-conciliados vão para o log/fila, em vez de

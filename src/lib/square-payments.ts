@@ -15,7 +15,7 @@ import { getAppSetting, setAppSetting } from "@/lib/app-settings";
 import { logWebhook } from "@/lib/webhook-log";
 import {
   ghlConfigured,
-  ghlFindContactByEmail,
+  ghlFindContact,
   ghlUpsertContact,
   ghlAddTags,
 } from "@/lib/ghl";
@@ -476,26 +476,37 @@ export async function createGuestForUnmatchedPayment(
   if (!event) return { ok: false, error: "evento não encontrado" };
 
   const email = (info.email ?? row.email)?.trim().toLowerCase() || null;
-  const name =
-    info.name?.trim() || (email ? email.split("@")[0] : "") || "Convidado";
+  const operatorName = info.name?.trim() || "";
+  let name =
+    operatorName || (email ? email.split("@")[0] : "") || "Convidado";
   const phone = info.phone?.trim() || null;
 
   // Garante um contato no Spark para a entrega do QR sair pelo workflow do GHL
   // (como nos leads normais). Ordem:
-  //  1) casa por e-mail com quem já está na subaccount;
-  //  2) se NÃO estiver, cria o contato (upsert) — é o que traz quem pagou por
-  //     fora e nunca esteve na conta da Opta;
+  //  1) VINCULA a quem já está no CRM, casando por e-mail OU telefone — não
+  //     duplica e NÃO sobrescreve o nome real do contato existente;
+  //  2) se NÃO existir, cria o contato (upsert idempotente) — é o que traz quem
+  //     pagou por fora e nunca esteve na conta da Opta;
   //  3) marca a tag de convidado do evento, para o contato constar como
   //     registrado no evento (controle no GHL), igual ao fluxo de inscrição.
   // Best-effort: sem Spark/identificador, o convidado fica sem ghlContactId e a
   // entrega cai no fallback de e-mail direto.
   let ghlContactId: string | null = null;
-  if (email && (await ghlConfigured(event.organizationId))) {
-    const existing = await ghlFindContactByEmail(event.organizationId, email);
-    ghlContactId =
-      existing?.id ??
-      (await ghlUpsertContact(event.organizationId, { email, phone, name }))?.id ??
-      null;
+  if ((email || phone) && (await ghlConfigured(event.organizationId))) {
+    const existing = await ghlFindContact(event.organizationId, { email, phone });
+    if (existing) {
+      ghlContactId = existing.id;
+      // Vínculo: usa o nome real do CRM no ingresso quando o operador não
+      // digitou um nome (evita o "handle" do e-mail no lugar do nome verdadeiro).
+      if (!operatorName && existing.name && existing.name !== "Sem nome") {
+        name = existing.name;
+      }
+    } else {
+      // Novo no CRM: cria com o nome (aí sim faz sentido gravar firstName/last).
+      ghlContactId =
+        (await ghlUpsertContact(event.organizationId, { email, phone, name }))
+          ?.id ?? null;
+    }
     if (ghlContactId) {
       await ghlAddTags(event.organizationId, ghlContactId, [
         `convidado-${event.slug}`,

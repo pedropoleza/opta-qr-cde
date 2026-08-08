@@ -478,6 +478,29 @@ export async function ghlSearchContactsByTag(
   return (data.contacts ?? []).map(mapContact);
 }
 
+// Busca UM contato pelo e-mail (match exato, case-insensitive). Usado para
+// religar um pagamento órfão ao contato que já existe no Spark, de modo que a
+// entrega do QR siga pelo workflow do GHL (como nos leads normais). Best-effort:
+// null se não achar ou se a API falhar — o chamador decide o fallback.
+export async function ghlFindContactByEmail(
+  organizationId: string,
+  email: string,
+): Promise<GhlContact | null> {
+  const target = email.trim().toLowerCase();
+  if (!target) return null;
+  try {
+    const { contacts } = await ghlListContacts(organizationId, {
+      query: target,
+      limit: 20,
+    });
+    return (
+      contacts.find((c) => (c.email ?? "").toLowerCase() === target) ?? null
+    );
+  } catch {
+    return null;
+  }
+}
+
 export async function ghlListContacts(
   organizationId: string,
   opts: { query?: string; limit?: number; startAfter?: string; startAfterId?: string },

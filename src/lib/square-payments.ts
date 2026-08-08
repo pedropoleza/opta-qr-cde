@@ -13,6 +13,7 @@ import {
 } from "@/lib/square-api";
 import { getAppSetting, setAppSetting } from "@/lib/app-settings";
 import { logWebhook } from "@/lib/webhook-log";
+import { ghlConfigured, ghlFindContactByEmail } from "@/lib/ghl";
 
 export const PAID_STATUSES = ["COMPLETED", "APPROVED", "CAPTURED"];
 
@@ -465,7 +466,7 @@ export async function createGuestForUnmatchedPayment(
 
   const event = await prisma.event.findUnique({
     where: { id: eventId },
-    select: { id: true },
+    select: { id: true, organizationId: true },
   });
   if (!event) return { ok: false, error: "evento não encontrado" };
 
@@ -474,13 +475,24 @@ export async function createGuestForUnmatchedPayment(
     info.name?.trim() || (email ? email.split("@")[0] : "") || "Convidado";
   const phone = info.phone?.trim() || null;
 
+  // Religa ao contato que já existe no Spark (por e-mail) quando o Spark está
+  // conectado — assim a entrega do QR sai pelo workflow do GHL, como nos leads
+  // normais. Sem contato/conexão, o convidado fica sem ghlContactId e a entrega
+  // cai no fallback (e-mail direto).
+  let ghlContactId: string | null = null;
+  if (email && (await ghlConfigured(event.organizationId))) {
+    const contact = await ghlFindContactByEmail(event.organizationId, email);
+    ghlContactId = contact?.id ?? null;
+  }
+
   const guest = await prisma.guest.create({
     data: {
       eventId: event.id,
       name,
       email,
       phone,
-      source: "manual",
+      ghlContactId,
+      source: ghlContactId ? "ghl" : "manual",
       status: "pending_qr",
     },
   });

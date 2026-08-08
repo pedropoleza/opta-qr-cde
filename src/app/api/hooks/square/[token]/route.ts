@@ -4,6 +4,7 @@ import { decryptSecret } from "@/lib/crypto";
 import { verifySquareSignatureAny, parseSquarePayment } from "@/lib/square";
 import { squareWebhookUrl } from "@/lib/integration";
 import { ensureTicket } from "@/lib/checkin";
+import { createGuestFromCrmContact } from "@/lib/square-payments";
 import { enqueueQrDelivery } from "@/lib/delivery";
 import { renderTemplate, buildContext, textToHtml } from "@/lib/templates";
 import { enforceRateLimit } from "@/lib/rate-limit";
@@ -119,6 +120,26 @@ export async function POST(
     guest = await prisma.guest.findFirst({
       where: { eventId: event.id, email: { equals: payment.email, mode: "insensitive" } },
     });
+  }
+  // AUTO-MATCH: sem convidado, mas o pagador já é contato no CRM (casa por
+  // e-mail) → cria e inscreve no evento automaticamente. O evento é conhecido
+  // (token), então é determinístico. Só para pagamento aprovado e não-estorno.
+  if (
+    !guest &&
+    payment.email &&
+    !payment.isRefund &&
+    PAID_STATUSES.includes(payment.status)
+  ) {
+    guest = await createGuestFromCrmContact(
+      { id: event.id, organizationId: event.organizationId, slug: event.slug },
+      { email: payment.email },
+    );
+    if (guest) {
+      await logWebhook("square", token, "crm_autolink", {
+        eventType: payment.type,
+        detail: `guest=${guest.id} email=${payment.email}`,
+      });
+    }
   }
   if (!guest) {
     await logWebhook("square", token, "no_match", {

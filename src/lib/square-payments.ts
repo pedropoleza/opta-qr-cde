@@ -337,12 +337,26 @@ async function retryUnmatchedPayments(organizationId: string): Promise<number> {
 
   let settled = 0;
   for (const r of rows) {
-    const guest = await matchGuestForPayment(organizationId, {
+    let guest = await matchGuestForPayment(organizationId, {
       referenceId: r.reference_id,
       orderId: r.order_id,
       email: r.email,
       amount: r.amount,
     });
+    // Fallback automático: sem convidado, mas o pagador já é contato no CRM →
+    // cria e inscreve no evento inferido. É o que dissolve a fila dos órfãos
+    // que nunca foram convidados, sem clique manual.
+    if (!guest) {
+      try {
+        guest = await resolveOrphanViaCrm(organizationId, {
+          email: r.email,
+          phone: null,
+          amount: r.amount,
+        });
+      } catch {
+        guest = null;
+      }
+    }
     if (!guest) {
       await touchUnmatched(r.payment_id);
       continue;
@@ -550,6 +564,116 @@ export async function createGuestForUnmatchedPayment(
   };
 }
 
+type CrmEvent = { id: string; organizationId: string; slug: string };
+
+// Cria o convidado no evento a partir de um contato JÁ existente no CRM,
+// aproveitando nome/telefone/ghlContactId reais. Marca a tag de convidado do
+// evento (registrado no evento — controle no GHL). NÃO settla: quem chama
+// decide (webhook/reconcile). Reutilizado pelos dois caminhos automáticos.
+async function createEventGuestFromContact(
+  event: CrmEvent,
+  contact: { id: string; name: string; email: string | null; phone: string | null },
+  fallback: { email?: string | null; phone?: string | null },
+) {
+  const name =
+    contact.name && contact.name !== "Sem nome"
+      ? contact.name
+      : (fallback.email?.split("@")[0] ?? "Convidado");
+  const guest = await prisma.guest.create({
+    data: {
+      eventId: event.id,
+      name,
+      email: (contact.email ?? fallback.email ?? null)?.toLowerCase() || null,
+      phone: contact.phone ?? fallback.phone ?? null,
+      ghlContactId: contact.id,
+      source: "ghl",
+      status: "pending_qr",
+    },
+  });
+  await ghlAddTags(event.organizationId, contact.id, [
+    `convidado-${event.slug}`,
+  ]).catch(() => {});
+  return guest;
+}
+
+// AUTO-MATCH (evento conhecido — webhook do Square por evento). Quando o
+// pagamento não bate com nenhum convidado, mas o pagador JÁ é contato no CRM
+// (casa por e-mail/telefone), cria o convidado no evento automaticamente. Só
+// atua sobre contatos conhecidos (não inventa gente do nada). Retorna o
+// convidado criado ou null.
+export async function createGuestFromCrmContact(
+  event: CrmEvent,
+  info: { email?: string | null; phone?: string | null },
+) {
+  const email = info.email?.trim().toLowerCase() || null;
+  const phone = info.phone?.trim() || null;
+  if (!email && !phone) return null;
+  if (!(await ghlConfigured(event.organizationId))) return null;
+
+  const contact = await ghlFindContact(event.organizationId, { email, phone });
+  if (!contact) return null;
+  return createEventGuestFromContact(event, contact, { email, phone });
+}
+
+// AUTO-MATCH (evento inferido — conciliação global). O pagamento órfão não sabe
+// o evento; inferimos com segurança entre os eventos ATIVOS com cobrança ligada:
+//  1) evento único ativo com cobrança → é ele;
+//  2) evento cuja tag (ghlTag ou convidado-<slug>) o contato carrega no CRM;
+//  3) evento cujo preço bate com o valor pago, se único.
+// Ambíguo → retorna null (segue parkeado, sem adivinhar). Só cria para quem já
+// é contato no CRM (casa por e-mail/telefone).
+async function resolveOrphanViaCrm(
+  organizationId: string,
+  p: { email: string | null; phone: string | null; amount: number | null },
+) {
+  if (!p.email && !p.phone) return null;
+  if (!(await ghlConfigured(organizationId))) return null;
+
+  const contact = await ghlFindContact(organizationId, {
+    email: p.email,
+    phone: p.phone,
+  });
+  if (!contact) return null;
+
+  const events = await prisma.event.findMany({
+    where: {
+      organizationId,
+      status: "active",
+      integration: { is: { active: true } },
+    },
+    include: { integration: true },
+  });
+  if (events.length === 0) return null;
+
+  let target: (typeof events)[number] | null =
+    events.length === 1 ? events[0] : null;
+
+  if (!target) {
+    const tags = (contact.tags ?? []).map((t) => t.toLowerCase());
+    target =
+      events.find(
+        (e) =>
+          (e.ghlTag && tags.includes(e.ghlTag.toLowerCase())) ||
+          tags.includes(`convidado-${e.slug}`.toLowerCase()),
+      ) ?? null;
+  }
+
+  if (!target && p.amount != null) {
+    const byPrice = events.filter(
+      (e) => e.integration?.priceCents === p.amount,
+    );
+    if (byPrice.length === 1) target = byPrice[0];
+  }
+
+  if (!target) return null; // ambíguo → não adivinha
+
+  return createEventGuestFromContact(
+    { id: target.id, organizationId, slug: target.slug },
+    contact,
+    { email: p.email, phone: p.phone },
+  );
+}
+
 // Rede de segurança do webhook: PUXA os pagamentos da API do Square (não depende
 // de webhook, assinatura nem URL) e concilia. Durável (cursor, sem janela de 3h)
 // e observável (erro da API e não-conciliados vão para o log/fila, em vez de
@@ -600,7 +724,26 @@ export async function reconcileSquarePayments(): Promise<{
       continue; // já processado numa rodada anterior
     }
 
-    const guest = await matchGuestForPayment(organizationId, p);
+    let guest = await matchGuestForPayment(organizationId, p);
+    // Sem convidado, mas o pagador já é contato no CRM: cria e inscreve
+    // automaticamente no evento inferido (auto-match). Só age em contatos
+    // conhecidos e eventos não-ambíguos; senão, cai no parkeamento abaixo.
+    if (!guest) {
+      try {
+        guest = await resolveOrphanViaCrm(organizationId, {
+          email: p.email,
+          phone: null,
+          amount: p.amount,
+        });
+        if (guest) {
+          await logWebhook("square-recon", null, "crm_autolink", {
+            detail: `pay=${p.id} guest=${guest.id} email=${p.email ?? "-"}`,
+          });
+        }
+      } catch {
+        guest = null;
+      }
+    }
     if (!guest) {
       await parkUnmatchedPayment(p);
       await logWebhook("square-recon", null, "no_match", {

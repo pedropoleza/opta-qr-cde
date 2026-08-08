@@ -154,6 +154,7 @@ function UnmatchedPanel({
   const [rows, setRows] = useState<UnmatchedRow[] | null>(null);
   const [pick, setPick] = useState<Record<string, string>>({});
   const [names, setNames] = useState<Record<string, string>>({});
+  const [phones, setPhones] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
@@ -195,10 +196,11 @@ function UnmatchedPanel({
   function create(r: UnmatchedRow) {
     const name = (names[r.payment_id] ?? nameFromEmail(r.email)).trim();
     if (!name) return toast.error("Informe o nome do contato");
+    const phone = (phones[r.payment_id] ?? "").trim();
     post(
       r.payment_id,
-      { eventId, name, email: r.email },
-      "Contato criado e inscrito — ingresso a caminho",
+      { eventId, name, email: r.email, phone: phone || undefined },
+      "Contato pronto e inscrito — ingresso a caminho",
     );
   }
 
@@ -216,9 +218,9 @@ function UnmatchedPanel({
               Pagamentos não conciliados ({rows.length})
             </p>
             <p className="text-xs text-muted-foreground">
-              Pagos no Square, mas sem cadastro batendo. Crie o contato (inscreve
-              neste evento) ou vincule a quem já está na lista — o ingresso é
-              enviado na hora.
+              Pagos no Square, mas sem cadastro batendo. Vincula ao contato que
+              já existe no CRM (por e-mail/telefone) ou cria se não existir,
+              inscreve neste evento e envia o ingresso na hora.
             </p>
           </div>
         </div>
@@ -237,7 +239,7 @@ function UnmatchedPanel({
                   </span>
                 </div>
 
-                {/* Criar contato e inscrever no evento (caminho principal) */}
+                {/* Vincular ao CRM (por e-mail/telefone) ou criar, e inscrever */}
                 <div className="flex flex-wrap items-center gap-2">
                   <Input
                     value={names[r.payment_id] ?? nameFromEmail(r.email)}
@@ -246,6 +248,14 @@ function UnmatchedPanel({
                     }
                     placeholder="Nome do contato"
                     className="h-9 w-56 text-sm"
+                  />
+                  <Input
+                    value={phones[r.payment_id] ?? ""}
+                    onChange={(e) =>
+                      setPhones((p) => ({ ...p, [r.payment_id]: e.target.value }))
+                    }
+                    placeholder="Telefone (opcional, ajuda a casar no CRM)"
+                    className="h-9 w-64 text-sm"
                   />
                   <Button
                     size="sm"
@@ -257,13 +267,13 @@ function UnmatchedPanel({
                     ) : (
                       <Check className="size-4" />
                     )}
-                    Criar contato e enviar
+                    Vincular/criar e enviar
                   </Button>
                 </div>
 
-                {/* Ou vincular a um convidado já existente na lista */}
+                {/* Ou vincular a um convidado já existente na LISTA do evento */}
                 <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-xs text-muted-foreground">ou vincular a existente:</span>
+                  <span className="text-xs text-muted-foreground">ou vincular a convidado da lista:</span>
                   <Select
                     value={pick[r.payment_id] ?? ""}
                     onValueChange={(v) =>

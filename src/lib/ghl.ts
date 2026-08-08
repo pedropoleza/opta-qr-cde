@@ -482,23 +482,55 @@ export async function ghlSearchContactsByTag(
 // religar um pagamento órfão ao contato que já existe no Spark, de modo que a
 // entrega do QR siga pelo workflow do GHL (como nos leads normais). Best-effort:
 // null se não achar ou se a API falhar — o chamador decide o fallback.
-export async function ghlFindContactByEmail(
+// Casa telefones por dígitos, tolerando DDI/zeros à frente (ex.: "+55 11 9…"
+// vs "11 9…"): compara o maior sufixo comum, com pelo menos 8 dígitos.
+function phoneDigitsMatch(a: string | null | undefined, bDigits: string): boolean {
+  const ad = (a ?? "").replace(/\D/g, "");
+  if (!ad || !bDigits) return false;
+  if (ad === bDigits) return true;
+  const min = Math.min(ad.length, bDigits.length);
+  if (min < 8) return false;
+  return ad.slice(-min) === bDigits.slice(-min);
+}
+
+// Busca UM contato existente na location por e-mail e/ou telefone (match
+// exato). Serve para VINCULAR um pagamento órfão a quem já está no CRM, sem
+// duplicar: tenta e-mail primeiro (determinístico) e depois telefone (por
+// dígitos, tolerando DDI). Best-effort: null se não achar ou a API falhar.
+export async function ghlFindContact(
   organizationId: string,
-  email: string,
+  by: { email?: string | null; phone?: string | null },
 ): Promise<GhlContact | null> {
-  const target = email.trim().toLowerCase();
-  if (!target) return null;
-  try {
-    const { contacts } = await ghlListContacts(organizationId, {
-      query: target,
-      limit: 20,
-    });
-    return (
-      contacts.find((c) => (c.email ?? "").toLowerCase() === target) ?? null
-    );
-  } catch {
-    return null;
+  const email = by.email?.trim().toLowerCase() || "";
+  const phoneDigits = (by.phone ?? "").replace(/\D/g, "");
+
+  if (email) {
+    try {
+      const { contacts } = await ghlListContacts(organizationId, {
+        query: email,
+        limit: 20,
+      });
+      const hit = contacts.find((c) => (c.email ?? "").toLowerCase() === email);
+      if (hit) return hit;
+    } catch {
+      /* cai na busca por telefone */
+    }
   }
+
+  if (phoneDigits.length >= 8) {
+    try {
+      const { contacts } = await ghlListContacts(organizationId, {
+        query: phoneDigits,
+        limit: 20,
+      });
+      const hit = contacts.find((c) => phoneDigitsMatch(c.phone, phoneDigits));
+      if (hit) return hit;
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  return null;
 }
 
 // Cria (ou casa por e-mail/telefone) um contato na location. Idempotente pelo

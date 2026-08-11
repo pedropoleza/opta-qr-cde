@@ -702,21 +702,25 @@ function ConfigView({
           </div>
           <p className="text-sm text-muted-foreground">
             Abre o checkout do Square numa modal no seu site, sem redirecionar. O
-            valor é o <strong>preço deste evento</strong> (definido acima) — o link
-            já é específico deste evento, não precisa editar nada por evento.
+            valor é o <strong>preço deste evento</strong> (vindo do Square) — o link
+            já é específico deste evento, não precisa configurar nada por evento.
           </p>
-          <CopyField label="Link de pagamento deste evento" value={cfg.checkoutUrl} />
+          <CopyField
+            label="Com o plugin WordPress (mais simples) — cole na página do evento"
+            value={`[opta_pagar evento="${cfg.checkoutUrl.split("e=")[1] ?? ""}"]`}
+          />
           <CopyBlock
-            label="Botão para o site (cole onde fica o formulário)"
+            label="Sem plugin — botão HTML (cole onde fica o formulário)"
             value={`<button data-opta-checkout="${cfg.checkoutUrl}">Pagar inscrição</button>`}
           />
+          <CopyField label="Ou só o link de pagamento deste evento" value={cfg.checkoutUrl} />
           <p className="text-xs text-muted-foreground">
-            Cole <strong>uma vez</strong> o script da modal (em{" "}
+            Com o <strong>plugin Opta Pagamentos</strong> (instalado uma vez), por
+            evento é só a linha do shortcode acima. Sem plugin, cole uma vez o
+            script da modal (em{" "}
             <code className="rounded bg-muted px-1">docs/WORDPRESS-CHECKOUT.md</code>)
-            no site. Ele liga automaticamente qualquer botão com{" "}
-            <code className="rounded bg-muted px-1">data-opta-checkout</code> e usa o
-            e-mail preenchido no formulário. Para novos eventos, é só copiar o botão
-            acima — cada evento tem o seu link.
+            e use o botão HTML. Nos dois casos o e-mail vem do formulário e cada
+            evento tem o seu link.
           </p>
         </CardContent>
       </Card>

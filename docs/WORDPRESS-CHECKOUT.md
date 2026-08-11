@@ -9,6 +9,12 @@ O código do site é **genérico**: você cola **uma vez**. Cada evento é
 identificado pelo próprio link (`/checkout?e=<id do evento>`), que o painel
 gera pronto — **nada é chumbado por evento**.
 
+> **Jeito mais simples (recomendado): plugin de WordPress.** Em
+> `wordpress-plugin/opta-pagamentos/` tem um plugin. Instala uma vez e, por
+> evento, o operador cola só uma linha: `[opta_pagar evento="ID_DO_EVENTO"]`
+> (o painel mostra pronta, em *Evento → Pagamentos*). Quem prefere sem plugin
+> segue as seções abaixo (script + botão HTML).
+
 ## O Square é a fonte da verdade (nome + preço)
 
 Você **cria o item no Square** (Catálogo → Item, com nome e preço) e no painel

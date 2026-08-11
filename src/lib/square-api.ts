@@ -29,8 +29,20 @@ export function squareLocationId(): string {
   return cleanEnv(process.env.SQUARE_LOCATION_ID);
 }
 
+// ID público do app no Square (Developer Dashboard). Usado pelo Web Payments
+// SDK no navegador para renderizar os campos de cartão/wallet. É público por
+// design (não é segredo) — o segredo é o SQUARE_ACCESS_TOKEN (server-side).
+export function squareApplicationId(): string {
+  return cleanEnv(process.env.SQUARE_APPLICATION_ID);
+}
+
 export function squareConfigured(): boolean {
   return Boolean(squareToken() && squareLocationId());
+}
+
+// Pronto para cobrança embutida (Web Payments SDK)? Precisa também do App ID.
+export function squareCheckoutConfigured(): boolean {
+  return Boolean(squareConfigured() && squareApplicationId());
 }
 
 export class SquareError extends Error {
@@ -132,6 +144,47 @@ export async function createPaymentLink(opts: {
     url: pl.url,
     longUrl: pl.long_url ?? null,
   };
+}
+
+export type CreatedPayment = {
+  id: string;
+  status: string; // APPROVED | COMPLETED | PENDING | FAILED | CANCELED
+  receiptUrl: string | null;
+};
+
+// Cobra o token (source_id) gerado pelo Web Payments SDK no navegador — cartão,
+// Google Pay, Apple Pay ou Cash App Pay. O valor vem SEMPRE do servidor (nunca
+// do cliente). reference_id = id do convidado, para o pagamento chegar
+// identificado e reaproveitar a conciliação existente.
+export async function createPayment(opts: {
+  sourceId: string;
+  amountCents: number;
+  currency: string;
+  idempotencyKey: string;
+  referenceId?: string | null;
+  buyerEmail?: string | null;
+  verificationToken?: string | null; // SCA/3DS (verifyBuyer do SDK), quando houver
+  note?: string | null;
+}): Promise<CreatedPayment> {
+  const body: Record<string, unknown> = {
+    idempotency_key: opts.idempotencyKey.slice(0, 45),
+    source_id: opts.sourceId,
+    amount_money: { amount: opts.amountCents, currency: opts.currency },
+    location_id: squareLocationId(),
+    autocomplete: true,
+  };
+  if (opts.referenceId) body.reference_id = opts.referenceId;
+  if (opts.buyerEmail && /.+@.+\..+/.test(opts.buyerEmail))
+    body.buyer_email_address = opts.buyerEmail;
+  if (opts.verificationToken) body.verification_token = opts.verificationToken;
+  if (opts.note) body.note = opts.note.slice(0, 500);
+
+  const data = await squareRequest<{
+    payment?: { id?: string; status?: string; receipt_url?: string };
+  }>("/v2/payments", { method: "POST", body: JSON.stringify(body) });
+  const p = data.payment ?? {};
+  if (!p.id) throw new SquareError("Resposta sem pagamento", 502);
+  return { id: p.id, status: p.status ?? "UNKNOWN", receiptUrl: p.receipt_url ?? null };
 }
 
 export type SquarePaymentSummary = {
@@ -247,4 +300,54 @@ export async function createWebhookSubscription(
     throw new SquareError("Subscription criada sem signature key", 502);
   }
   return { id: s.id, signatureKey: s.signature_key };
+}
+
+export type CatalogEventItem = {
+  itemId: string; // id do ITEM no catálogo do Square (chave de vínculo)
+  variationId: string | null; // variação usada para o preço
+  name: string;
+  priceCents: number | null;
+  currency: string;
+};
+
+// Lista os itens do CATÁLOGO do Square (produtos com nome + preço). É a fonte
+// da verdade do sincronizador: cada item vira/atualiza um evento no painel.
+// Usa a primeira variação com preço fixo do item.
+export async function listCatalogItems(): Promise<CatalogEventItem[]> {
+  const out: CatalogEventItem[] = [];
+  let cursor: string | undefined;
+  let pages = 0;
+  do {
+    const params = new URLSearchParams({ types: "ITEM" });
+    if (cursor) params.set("cursor", cursor);
+    const data = await squareRequest<{
+      objects?: Array<Record<string, unknown>>;
+      cursor?: string;
+    }>(`/v2/catalog/list?${params.toString()}`, { method: "GET" });
+
+    for (const obj of data.objects ?? []) {
+      if (obj.is_deleted) continue;
+      const itemData = (obj.item_data ?? {}) as Record<string, unknown>;
+      const name = String(itemData.name ?? "").trim();
+      if (!name) continue;
+      const variations = (itemData.variations ?? []) as Array<Record<string, unknown>>;
+      // Primeira variação com preço fixo.
+      let variationId: string | null = null;
+      let priceCents: number | null = null;
+      let currency = "USD";
+      for (const v of variations) {
+        const vd = (v.item_variation_data ?? {}) as Record<string, unknown>;
+        const money = (vd.price_money ?? {}) as Record<string, unknown>;
+        if (money.amount != null) {
+          variationId = String(v.id ?? "") || null;
+          priceCents = Number(money.amount);
+          currency = (money.currency as string | undefined) ?? "USD";
+          break;
+        }
+      }
+      out.push({ itemId: String(obj.id ?? ""), variationId, name, priceCents, currency });
+    }
+    cursor = data.cursor;
+  } while (cursor && ++pages < 20);
+  return out;
 }

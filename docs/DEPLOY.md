@@ -38,6 +38,7 @@ npx vercel --prod --token=$VERCEL_TOKEN        # deploy de produção
 | `ADMIN_EMBED_SECRET` | segredo da trava do painel (`openssl rand -hex 32`) — ver abaixo |
 | `PUBLIC_REDIRECT_URL` | destino para acesso externo / fallback do `/pay` (nunca o painel) |
 | `SQUARE_GENERAL_CHECKOUT_URL` | checkout geral do Square (fallback do `/pay`) |
+| `SQUARE_APPLICATION_ID` | id público do app Square — necessário para a modal `/checkout` (ver `docs/WORDPRESS-CHECKOUT.md`) |
 | `CRM_FRAME_ANCESTORS` | domínios do CRM que podem embutir o app (CSP) |
 
 > A senha do banco (Supabase → Project Settings → Database) não é acessível por

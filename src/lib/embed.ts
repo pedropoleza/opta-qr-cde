@@ -79,12 +79,14 @@ const PUBLIC_PREFIXES = [
   "/api/checkin/",
   "/api/qr/", // PNG do QR por token
   "/api/ticket/", // PDF/certificado/badge públicos por token
+  "/api/checkout/", // config + cobrança da modal de pagamento (público)
   "/api/ghl/oauth/", // ida/volta do OAuth do GHL (redirect do marketplace)
   "/api/ghl/sync/", // cron do Vercel (protegido por CRON_SECRET no handler)
 ];
 
 const PUBLIC_EXACT = new Set<string>([
   "/pay", // redirect inteligente de pagamento (checkout Square)
+  "/checkout", // modal de pagamento embutida (Web Payments SDK)
   "/api/square/webhook",
   "/api/health",
 ]);

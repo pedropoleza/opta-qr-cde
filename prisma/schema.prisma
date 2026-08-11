@@ -179,6 +179,9 @@ model EventIntegration {
   // Preço da inscrição (link inteligente do Square + desambiguação por valor).
   priceCents        Int?     @map("price_cents")
   currency          String   @default("USD")
+  // Vínculo com o catálogo do Square (fonte da verdade: nome + preço vêm de lá).
+  squareItemId      String?  @unique @map("square_item_id")
+  squareVariationId String?  @map("square_variation_id")
   // Lembrete de pagamento pendente (WhatsApp/Stevo) N minutos após o cadastro.
   paymentReminderEnabled Boolean @default(true) @map("payment_reminder_enabled")
   paymentReminderMinutes Int     @default(30) @map("payment_reminder_minutes")

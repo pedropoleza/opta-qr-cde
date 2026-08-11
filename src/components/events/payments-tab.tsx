@@ -6,6 +6,7 @@ import {
   Copy,
   CreditCard,
   Link2,
+  Globe,
   Loader2,
   DollarSign,
   Clock,
@@ -37,6 +38,7 @@ import {
 type Config = {
   registrationUrl: string;
   squareUrl: string;
+  checkoutUrl: string;
   leadUrl: string | null;
   hasSignatureKey: boolean;
   autoSendQrOnPaid: boolean;
@@ -109,6 +111,34 @@ function CopyField({ label, value }: { label: string; value: string }) {
           {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
         </Button>
       </div>
+    </div>
+  );
+}
+
+function CopyBlock({ label, value }: { label: string; value: string }) {
+  const [copied, setCopied] = useState(false);
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between">
+        <Label>{label}</Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => {
+            navigator.clipboard.writeText(value);
+            setCopied(true);
+            toast.success("Código copiado");
+            setTimeout(() => setCopied(false), 1500);
+          }}
+        >
+          {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
+          Copiar
+        </Button>
+      </div>
+      <pre className="max-h-40 overflow-auto rounded-lg border bg-muted/40 p-3 text-xs leading-relaxed">
+        <code>{value}</code>
+      </pre>
     </div>
   );
 }
@@ -736,6 +766,37 @@ function ConfigView({
               </p>
             </div>
           )}
+        </CardContent>
+      </Card>
+
+      <Card className="lg:col-span-2">
+        <CardContent className="space-y-4 p-5">
+          <div className="flex items-center gap-2">
+            <Globe className="size-4 text-muted-foreground" />
+            <p className="font-medium">Pagamento no site (modal)</p>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Abre o checkout do Square numa modal no seu site, sem redirecionar. O
+            valor é o <strong>preço deste evento</strong> (vindo do Square) — o link
+            já é específico deste evento, não precisa configurar nada por evento.
+          </p>
+          <CopyField
+            label="Com o plugin WordPress (mais simples) — cole na página do evento"
+            value={`[opta_pagar evento="${cfg.checkoutUrl.split("e=")[1] ?? ""}"]`}
+          />
+          <CopyBlock
+            label="Sem plugin — botão HTML (cole onde fica o formulário)"
+            value={`<button data-opta-checkout="${cfg.checkoutUrl}">Pagar inscrição</button>`}
+          />
+          <CopyField label="Ou só o link de pagamento deste evento" value={cfg.checkoutUrl} />
+          <p className="text-xs text-muted-foreground">
+            Com o <strong>plugin Opta Pagamentos</strong> (instalado uma vez), por
+            evento é só a linha do shortcode acima. Sem plugin, cole uma vez o
+            script da modal (em{" "}
+            <code className="rounded bg-muted px-1">docs/WORDPRESS-CHECKOUT.md</code>)
+            e use o botão HTML. Nos dois casos o e-mail vem do formulário e cada
+            evento tem o seu link.
+          </p>
         </CardContent>
       </Card>
 

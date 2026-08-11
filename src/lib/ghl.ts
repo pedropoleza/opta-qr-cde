@@ -478,6 +478,99 @@ export async function ghlSearchContactsByTag(
   return (data.contacts ?? []).map(mapContact);
 }
 
+// Busca UM contato pelo e-mail (match exato, case-insensitive). Usado para
+// religar um pagamento órfão ao contato que já existe no Spark, de modo que a
+// entrega do QR siga pelo workflow do GHL (como nos leads normais). Best-effort:
+// null se não achar ou se a API falhar — o chamador decide o fallback.
+// Casa telefones por dígitos, tolerando DDI/zeros à frente (ex.: "+55 11 9…"
+// vs "11 9…"): compara o maior sufixo comum, com pelo menos 8 dígitos.
+function phoneDigitsMatch(a: string | null | undefined, bDigits: string): boolean {
+  const ad = (a ?? "").replace(/\D/g, "");
+  if (!ad || !bDigits) return false;
+  if (ad === bDigits) return true;
+  const min = Math.min(ad.length, bDigits.length);
+  if (min < 8) return false;
+  return ad.slice(-min) === bDigits.slice(-min);
+}
+
+// Busca UM contato existente na location por e-mail e/ou telefone (match
+// exato). Serve para VINCULAR um pagamento órfão a quem já está no CRM, sem
+// duplicar: tenta e-mail primeiro (determinístico) e depois telefone (por
+// dígitos, tolerando DDI). Best-effort: null se não achar ou a API falhar.
+export async function ghlFindContact(
+  organizationId: string,
+  by: { email?: string | null; phone?: string | null },
+): Promise<GhlContact | null> {
+  const email = by.email?.trim().toLowerCase() || "";
+  const phoneDigits = (by.phone ?? "").replace(/\D/g, "");
+
+  if (email) {
+    try {
+      const { contacts } = await ghlListContacts(organizationId, {
+        query: email,
+        limit: 20,
+      });
+      const hit = contacts.find((c) => (c.email ?? "").toLowerCase() === email);
+      if (hit) return hit;
+    } catch {
+      /* cai na busca por telefone */
+    }
+  }
+
+  if (phoneDigits.length >= 8) {
+    try {
+      const { contacts } = await ghlListContacts(organizationId, {
+        query: phoneDigits,
+        limit: 20,
+      });
+      const hit = contacts.find((c) => phoneDigitsMatch(c.phone, phoneDigits));
+      if (hit) return hit;
+    } catch {
+      /* best-effort */
+    }
+  }
+
+  return null;
+}
+
+// Cria (ou casa por e-mail/telefone) um contato na location. Idempotente pelo
+// upsert do GHL: se já existir alguém com o mesmo e-mail/telefone, devolve o
+// contato existente sem duplicar. Usado para trazer ao Spark quem pagou mas não
+// estava na subaccount — sem contato lá, o e-mail do ingresso não teria por onde
+// sair (o workflow do GHL dispara a partir do contato). Best-effort: null se a
+// API falhar ou não houver identificador.
+export async function ghlUpsertContact(
+  organizationId: string,
+  input: { email?: string | null; phone?: string | null; name?: string | null },
+): Promise<{ id: string } | null> {
+  const { locationId, token } = await authOrThrow(organizationId);
+  const email = input.email?.trim().toLowerCase() || undefined;
+  const phone = input.phone?.trim() || undefined;
+  if (!email && !phone) return null; // upsert precisa de ao menos um identificador
+
+  const full = (input.name ?? "").trim();
+  const parts = full.split(/\s+/).filter(Boolean);
+  const body: Record<string, unknown> = { locationId };
+  if (email) body.email = email;
+  if (phone) body.phone = phone;
+  if (parts.length) {
+    body.firstName = parts[0];
+    if (parts.length > 1) body.lastName = parts.slice(1).join(" ");
+    body.name = full;
+  }
+
+  try {
+    const data = await ghlRequest<{ contact?: { id?: string } }>(
+      token,
+      `/contacts/upsert`,
+      { method: "POST", body: JSON.stringify(body) },
+    );
+    return data.contact?.id ? { id: data.contact.id } : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function ghlListContacts(
   organizationId: string,
   opts: { query?: string; limit?: number; startAfter?: string; startAfterId?: string },

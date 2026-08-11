@@ -13,6 +13,12 @@ import {
 } from "@/lib/square-api";
 import { getAppSetting, setAppSetting } from "@/lib/app-settings";
 import { logWebhook } from "@/lib/webhook-log";
+import {
+  ghlConfigured,
+  ghlFindContact,
+  ghlUpsertContact,
+  ghlAddTags,
+} from "@/lib/ghl";
 
 export const PAID_STATUSES = ["COMPLETED", "APPROVED", "CAPTURED"];
 
@@ -331,12 +337,26 @@ async function retryUnmatchedPayments(organizationId: string): Promise<number> {
 
   let settled = 0;
   for (const r of rows) {
-    const guest = await matchGuestForPayment(organizationId, {
+    let guest = await matchGuestForPayment(organizationId, {
       referenceId: r.reference_id,
       orderId: r.order_id,
       email: r.email,
       amount: r.amount,
     });
+    // Fallback automático: sem convidado, mas o pagador já é contato no CRM →
+    // cria e inscreve no evento inferido. É o que dissolve a fila dos órfãos
+    // que nunca foram convidados, sem clique manual.
+    if (!guest) {
+      try {
+        guest = await resolveOrphanViaCrm(organizationId, {
+          email: r.email,
+          phone: null,
+          amount: r.amount,
+        });
+      } catch {
+        guest = null;
+      }
+    }
     if (!guest) {
       await touchUnmatched(r.payment_id);
       continue;
@@ -431,6 +451,229 @@ export async function linkUnmatchedPayment(
   return { ok: true, queued: settled.queued, via: settled.via };
 }
 
+// Cria um convidado a partir de um pagamento órfão e o inscreve no evento
+// indicado, settlando na sequência (ticket + QR com o valor real do pagamento) e
+// resolvendo o órfão. É o caminho para quem PAGOU mas nunca foi cadastrado no
+// evento (link genérico/checkout avulso): sem convidado prévio, não há a quem
+// "Vincular". O nome cai para o handle do e-mail quando não informado.
+export async function createGuestForUnmatchedPayment(
+  paymentId: string,
+  eventId: string,
+  info: { name?: string | null; email?: string | null; phone?: string | null },
+): Promise<{
+  ok: boolean;
+  error?: string;
+  guestId?: string;
+  queued?: boolean;
+  via?: string;
+}> {
+  let row:
+    | { amount: number | null; currency: string | null; email: string | null }
+    | undefined;
+  try {
+    const rows = await prisma.$queryRaw<
+      Array<{ amount: number | null; currency: string | null; email: string | null }>
+    >`
+      SELECT amount, currency, email FROM checkin_unmatched_payments
+      WHERE payment_id = ${paymentId} AND resolved_at IS NULL LIMIT 1
+    `;
+    row = rows?.[0];
+  } catch {
+    return { ok: false, error: "fila indisponível" };
+  }
+  if (!row) return { ok: false, error: "pagamento não encontrado na fila" };
+
+  const event = await prisma.event.findUnique({
+    where: { id: eventId },
+    select: { id: true, organizationId: true, slug: true },
+  });
+  if (!event) return { ok: false, error: "evento não encontrado" };
+
+  const email = (info.email ?? row.email)?.trim().toLowerCase() || null;
+  const operatorName = info.name?.trim() || "";
+  let name =
+    operatorName || (email ? email.split("@")[0] : "") || "Convidado";
+  const phone = info.phone?.trim() || null;
+
+  // Garante um contato no Spark para a entrega do QR sair pelo workflow do GHL
+  // (como nos leads normais). Ordem:
+  //  1) VINCULA a quem já está no CRM, casando por e-mail OU telefone — não
+  //     duplica e NÃO sobrescreve o nome real do contato existente;
+  //  2) se NÃO existir, cria o contato (upsert idempotente) — é o que traz quem
+  //     pagou por fora e nunca esteve na conta da Opta;
+  //  3) marca a tag de convidado do evento, para o contato constar como
+  //     registrado no evento (controle no GHL), igual ao fluxo de inscrição.
+  // Best-effort: sem Spark/identificador, o convidado fica sem ghlContactId e a
+  // entrega cai no fallback de e-mail direto.
+  let ghlContactId: string | null = null;
+  if ((email || phone) && (await ghlConfigured(event.organizationId))) {
+    const existing = await ghlFindContact(event.organizationId, { email, phone });
+    if (existing) {
+      ghlContactId = existing.id;
+      // Vínculo: usa o nome real do CRM no ingresso quando o operador não
+      // digitou um nome (evita o "handle" do e-mail no lugar do nome verdadeiro).
+      if (!operatorName && existing.name && existing.name !== "Sem nome") {
+        name = existing.name;
+      }
+    } else {
+      // Novo no CRM: cria com o nome (aí sim faz sentido gravar firstName/last).
+      ghlContactId =
+        (await ghlUpsertContact(event.organizationId, { email, phone, name }))
+          ?.id ?? null;
+    }
+    if (ghlContactId) {
+      await ghlAddTags(event.organizationId, ghlContactId, [
+        `convidado-${event.slug}`,
+      ]).catch(() => {});
+    }
+  }
+
+  const guest = await prisma.guest.create({
+    data: {
+      eventId: event.id,
+      name,
+      email,
+      phone,
+      ghlContactId,
+      source: ghlContactId ? "ghl" : "manual",
+      status: "pending_qr",
+    },
+  });
+
+  const settled = await settlePaidGuest(guest.id, {
+    amount: row.amount,
+    currency: row.currency,
+    paymentRef: paymentId,
+  });
+  if (!settled.ok) return { ok: false, error: "falha ao conciliar o pagamento" };
+
+  try {
+    await prisma.$executeRaw`
+      UPDATE checkin_unmatched_payments
+      SET resolved_at = now(), guest_id = ${guest.id}, last_tried_at = now()
+      WHERE payment_id = ${paymentId}
+    `;
+  } catch {
+    /* melhor-esforço: o settle já ocorreu */
+  }
+  return {
+    ok: true,
+    guestId: guest.id,
+    queued: settled.queued,
+    via: settled.via,
+  };
+}
+
+type CrmEvent = { id: string; organizationId: string; slug: string };
+
+// Cria o convidado no evento a partir de um contato JÁ existente no CRM,
+// aproveitando nome/telefone/ghlContactId reais. Marca a tag de convidado do
+// evento (registrado no evento — controle no GHL). NÃO settla: quem chama
+// decide (webhook/reconcile). Reutilizado pelos dois caminhos automáticos.
+async function createEventGuestFromContact(
+  event: CrmEvent,
+  contact: { id: string; name: string; email: string | null; phone: string | null },
+  fallback: { email?: string | null; phone?: string | null },
+) {
+  const name =
+    contact.name && contact.name !== "Sem nome"
+      ? contact.name
+      : (fallback.email?.split("@")[0] ?? "Convidado");
+  const guest = await prisma.guest.create({
+    data: {
+      eventId: event.id,
+      name,
+      email: (contact.email ?? fallback.email ?? null)?.toLowerCase() || null,
+      phone: contact.phone ?? fallback.phone ?? null,
+      ghlContactId: contact.id,
+      source: "ghl",
+      status: "pending_qr",
+    },
+  });
+  await ghlAddTags(event.organizationId, contact.id, [
+    `convidado-${event.slug}`,
+  ]).catch(() => {});
+  return guest;
+}
+
+// AUTO-MATCH (evento conhecido — webhook do Square por evento). Quando o
+// pagamento não bate com nenhum convidado, mas o pagador JÁ é contato no CRM
+// (casa por e-mail/telefone), cria o convidado no evento automaticamente. Só
+// atua sobre contatos conhecidos (não inventa gente do nada). Retorna o
+// convidado criado ou null.
+export async function createGuestFromCrmContact(
+  event: CrmEvent,
+  info: { email?: string | null; phone?: string | null },
+) {
+  const email = info.email?.trim().toLowerCase() || null;
+  const phone = info.phone?.trim() || null;
+  if (!email && !phone) return null;
+  if (!(await ghlConfigured(event.organizationId))) return null;
+
+  const contact = await ghlFindContact(event.organizationId, { email, phone });
+  if (!contact) return null;
+  return createEventGuestFromContact(event, contact, { email, phone });
+}
+
+// AUTO-MATCH (evento inferido — conciliação global). O pagamento órfão não sabe
+// o evento; inferimos com segurança entre os eventos ATIVOS com cobrança ligada:
+//  1) evento único ativo com cobrança → é ele;
+//  2) evento cuja tag (ghlTag ou convidado-<slug>) o contato carrega no CRM;
+//  3) evento cujo preço bate com o valor pago, se único.
+// Ambíguo → retorna null (segue parkeado, sem adivinhar). Só cria para quem já
+// é contato no CRM (casa por e-mail/telefone).
+async function resolveOrphanViaCrm(
+  organizationId: string,
+  p: { email: string | null; phone: string | null; amount: number | null },
+) {
+  if (!p.email && !p.phone) return null;
+  if (!(await ghlConfigured(organizationId))) return null;
+
+  const contact = await ghlFindContact(organizationId, {
+    email: p.email,
+    phone: p.phone,
+  });
+  if (!contact) return null;
+
+  const events = await prisma.event.findMany({
+    where: {
+      organizationId,
+      status: "active",
+      integration: { is: { active: true } },
+    },
+    include: { integration: true },
+  });
+  if (events.length === 0) return null;
+
+  let target: (typeof events)[number] | null =
+    events.length === 1 ? events[0] : null;
+
+  if (!target) {
+    const tags = (contact.tags ?? []).map((t) => t.toLowerCase());
+    target =
+      events.find(
+        (e) =>
+          (e.ghlTag && tags.includes(e.ghlTag.toLowerCase())) ||
+          tags.includes(`convidado-${e.slug}`.toLowerCase()),
+      ) ?? null;
+  }
+
+  if (!target && p.amount != null) {
+    const byPrice = events.filter(
+      (e) => e.integration?.priceCents === p.amount,
+    );
+    if (byPrice.length === 1) target = byPrice[0];
+  }
+
+  if (!target) return null; // ambíguo → não adivinha
+
+  return createEventGuestFromContact(
+    { id: target.id, organizationId, slug: target.slug },
+    contact,
+    { email: p.email, phone: p.phone },
+  );
+}
+
 // Rede de segurança do webhook: PUXA os pagamentos da API do Square (não depende
 // de webhook, assinatura nem URL) e concilia. Durável (cursor, sem janela de 3h)
 // e observável (erro da API e não-conciliados vão para o log/fila, em vez de
@@ -481,7 +724,26 @@ export async function reconcileSquarePayments(): Promise<{
       continue; // já processado numa rodada anterior
     }
 
-    const guest = await matchGuestForPayment(organizationId, p);
+    let guest = await matchGuestForPayment(organizationId, p);
+    // Sem convidado, mas o pagador já é contato no CRM: cria e inscreve
+    // automaticamente no evento inferido (auto-match). Só age em contatos
+    // conhecidos e eventos não-ambíguos; senão, cai no parkeamento abaixo.
+    if (!guest) {
+      try {
+        guest = await resolveOrphanViaCrm(organizationId, {
+          email: p.email,
+          phone: null,
+          amount: p.amount,
+        });
+        if (guest) {
+          await logWebhook("square-recon", null, "crm_autolink", {
+            detail: `pay=${p.id} guest=${guest.id} email=${p.email ?? "-"}`,
+          });
+        }
+      } catch {
+        guest = null;
+      }
+    }
     if (!guest) {
       await parkUnmatchedPayment(p);
       await logWebhook("square-recon", null, "no_match", {

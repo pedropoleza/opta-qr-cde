@@ -152,20 +152,39 @@ type UnmatchedRow = {
   first_seen_at: string;
 };
 
+// Nome legível a partir do "handle" do e-mail (parte antes do @), como
+// sugestão ao criar o contato do pagamento órfão.
+function nameFromEmail(email: string | null): string {
+  const handle = (email ?? "").split("@")[0]?.trim() ?? "";
+  if (!handle) return "";
+  return handle
+    .replace(/[._-]+/g, " ")
+    .split(" ")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 // Painel de pagamentos que caíram no gateway mas não casaram com nenhum
-// convidado (e-mail divergente, link genérico, etc.). Só aparece quando há
-// órfãos. Vincular à pessoa certa settla e envia o ingresso na hora.
+// convidado (e-mail divergente, link genérico, checkout avulso). Só aparece
+// quando há órfãos. Dois caminhos, ambos settlam e enviam o ingresso na hora:
+//  - Criar contato: quem pagou nunca foi inscrito — cria e inscreve no evento.
+//  - Vincular: casa a um convidado que já existe na lista.
 function UnmatchedPanel({
+  eventId,
   guests,
   currency,
   onLinked,
 }: {
+  eventId: string;
   guests: GuestRow[];
   currency: string;
   onLinked: () => void;
 }) {
   const [rows, setRows] = useState<UnmatchedRow[] | null>(null);
   const [pick, setPick] = useState<Record<string, string>>({});
+  const [names, setNames] = useState<Record<string, string>>({});
+  const [phones, setPhones] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
 
   async function load() {
@@ -181,20 +200,38 @@ function UnmatchedPanel({
     (g) => g.status !== "canceled" && g.paymentStatus !== "paid",
   );
 
-  async function link(paymentId: string) {
-    const guestId = pick[paymentId];
-    if (!guestId) return toast.error("Escolha a pessoa");
+  async function post(paymentId: string, body: Record<string, unknown>, ok: string) {
     setBusy(paymentId);
     const res = await fetch("/api/square/unmatched", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ paymentId, guestId }),
+      body: JSON.stringify({ paymentId, ...body }),
     });
     setBusy(null);
-    if (!res.ok) return toast.error("Erro ao vincular");
-    toast.success("Pagamento vinculado — ingresso a caminho");
+    if (!res.ok) {
+      const msg = await res.json().catch(() => ({}));
+      return toast.error(msg.error ?? "Erro ao processar");
+    }
+    toast.success(ok);
     load();
     onLinked();
+  }
+
+  function link(paymentId: string) {
+    const guestId = pick[paymentId];
+    if (!guestId) return toast.error("Escolha a pessoa");
+    post(paymentId, { guestId }, "Pagamento vinculado — ingresso a caminho");
+  }
+
+  function create(r: UnmatchedRow) {
+    const name = (names[r.payment_id] ?? nameFromEmail(r.email)).trim();
+    if (!name) return toast.error("Informe o nome do contato");
+    const phone = (phones[r.payment_id] ?? "").trim();
+    post(
+      r.payment_id,
+      { eventId, name, email: r.email, phone: phone || undefined },
+      "Contato pronto e inscrito — ingresso a caminho",
+    );
   }
 
   if (!rows || rows.length === 0) return null;
@@ -211,55 +248,93 @@ function UnmatchedPanel({
               Pagamentos não conciliados ({rows.length})
             </p>
             <p className="text-xs text-muted-foreground">
-              Pagos no Square, mas sem cadastro batendo (e-mail diferente, link
-              genérico). Vincule à pessoa certa — o ingresso é enviado na hora.
+              Pagos no Square, mas sem cadastro batendo. Vincula ao contato que
+              já existe no CRM (por e-mail/telefone) ou cria se não existir,
+              inscreve neste evento e envia o ingresso na hora.
             </p>
           </div>
         </div>
         <ul className="divide-y">
-          {rows.map((r) => (
-            <li key={r.payment_id} className="flex flex-wrap items-center gap-3 p-4">
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium tabular-nums">
-                  {r.amount != null ? money(r.amount, r.currency ?? currency) : "—"}
-                  {r.email ? ` · ${r.email}` : ""}
-                </span>
-                <span className="block truncate text-xs text-muted-foreground">
-                  {new Date(r.first_seen_at).toLocaleString("pt-BR")} · {r.payment_id.slice(0, 10)}…
-                </span>
-              </span>
-              <Select
-                value={pick[r.payment_id] ?? ""}
-                onValueChange={(v) =>
-                  setPick((p) => ({ ...p, [r.payment_id]: v }))
-                }
-              >
-                <SelectTrigger className="h-9 w-56 text-sm">
-                  <SelectValue placeholder="Escolher pessoa…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {options.map((g) => (
-                    <SelectItem key={g.id} value={g.id}>
-                      {g.name}
-                      {g.email ? ` — ${g.email}` : ""}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <Button
-                size="sm"
-                disabled={busy === r.payment_id}
-                onClick={() => link(r.payment_id)}
-              >
-                {busy === r.payment_id ? (
-                  <Loader2 className="size-4 animate-spin" />
-                ) : (
-                  <Link2 className="size-4" />
-                )}
-                Vincular
-              </Button>
-            </li>
-          ))}
+          {rows.map((r) => {
+            const running = busy === r.payment_id;
+            return (
+              <li key={r.payment_id} className="space-y-3 p-4">
+                <div className="min-w-0">
+                  <span className="block truncate font-medium tabular-nums">
+                    {r.amount != null ? money(r.amount, r.currency ?? currency) : "—"}
+                    {r.email ? ` · ${r.email}` : ""}
+                  </span>
+                  <span className="block truncate text-xs text-muted-foreground">
+                    {new Date(r.first_seen_at).toLocaleString("pt-BR")} · {r.payment_id.slice(0, 10)}…
+                  </span>
+                </div>
+
+                {/* Vincular ao CRM (por e-mail/telefone) ou criar, e inscrever */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <Input
+                    value={names[r.payment_id] ?? nameFromEmail(r.email)}
+                    onChange={(e) =>
+                      setNames((n) => ({ ...n, [r.payment_id]: e.target.value }))
+                    }
+                    placeholder="Nome do contato"
+                    className="h-9 w-56 text-sm"
+                  />
+                  <Input
+                    value={phones[r.payment_id] ?? ""}
+                    onChange={(e) =>
+                      setPhones((p) => ({ ...p, [r.payment_id]: e.target.value }))
+                    }
+                    placeholder="Telefone (opcional, ajuda a casar no CRM)"
+                    className="h-9 w-64 text-sm"
+                  />
+                  <Button
+                    size="sm"
+                    disabled={running}
+                    onClick={() => create(r)}
+                  >
+                    {running ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : (
+                      <Check className="size-4" />
+                    )}
+                    Vincular/criar e enviar
+                  </Button>
+                </div>
+
+                {/* Ou vincular a um convidado já existente na LISTA do evento */}
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-xs text-muted-foreground">ou vincular a convidado da lista:</span>
+                  <Select
+                    value={pick[r.payment_id] ?? ""}
+                    onValueChange={(v) =>
+                      setPick((p) => ({ ...p, [r.payment_id]: v }))
+                    }
+                  >
+                    <SelectTrigger className="h-9 w-56 text-sm">
+                      <SelectValue placeholder="Escolher pessoa…" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((g) => (
+                        <SelectItem key={g.id} value={g.id}>
+                          {g.name}
+                          {g.email ? ` — ${g.email}` : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={running}
+                    onClick={() => link(r.payment_id)}
+                  >
+                    <Link2 className="size-4" />
+                    Vincular
+                  </Button>
+                </div>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
@@ -456,7 +531,7 @@ export function PaymentsTab({
           </Card>
 
           {/* Pagamentos não conciliados (órfãos do gateway) */}
-          <UnmatchedPanel guests={guests} currency={currency} onLinked={onChange} />
+          <UnmatchedPanel eventId={eventId} guests={guests} currency={currency} onLinked={onChange} />
 
           {/* Pagamentos confirmados */}
           {stats.paid.length > 0 && (

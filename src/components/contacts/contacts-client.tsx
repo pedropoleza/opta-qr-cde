@@ -170,11 +170,6 @@ export function ContactsClient({
           <ErrorState
             title="Não foi possível carregar"
             description={error}
-            action={
-              <Button variant="outline" asChild>
-                <Link href="/connection">Ir para Conexão</Link>
-              </Button>
-            }
           />
         ) : contacts.length === 0 ? (
           <EmptyState

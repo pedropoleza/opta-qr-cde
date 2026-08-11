@@ -1,6 +1,8 @@
 import { getCurrentOrgId } from "@/lib/api";
 import { prisma } from "@/lib/prisma";
 import { CreateEventDialog } from "@/components/events/create-event-dialog";
+import { SyncSquareButton } from "@/components/events/sync-square-button";
+import { squareConfigured } from "@/lib/square-api";
 import { PageHeader } from "@/components/ui/page-header";
 import { EventsTable } from "@/components/events/events-table";
 
@@ -34,7 +36,12 @@ export default async function EventsPage() {
       <PageHeader
         title="Eventos"
         description="Crie e gerencie seus eventos de credenciamento."
-        actions={<CreateEventDialog />}
+        actions={
+          <div className="flex items-center gap-2">
+            {squareConfigured() && <SyncSquareButton />}
+            <CreateEventDialog />
+          </div>
+        }
       />
       <EventsTable events={rows} />
     </div>

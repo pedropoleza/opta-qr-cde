@@ -9,6 +9,19 @@ O código do site é **genérico**: você cola **uma vez**. Cada evento é
 identificado pelo próprio link (`/checkout?e=<id do evento>`), que o painel
 gera pronto — **nada é chumbado por evento**.
 
+## O Square é a fonte da verdade (nome + preço)
+
+Você **cria o item no Square** (Catálogo → Item, com nome e preço) e no painel
+clica em **"Sincronizar do Square"** (topo da tela Eventos). O app lê o catálogo
+e cria/atualiza os eventos com **nome e preço vindos do Square** — você não
+digita preço no painel. Mudou o preço no Square? Sincronize de novo e atualiza.
+
+- Criar um item no Square: **Square Dashboard → Itens/Catálogo → Criar item**,
+  com um preço fixo.
+- Itens sem preço fixo são ignorados na sincronização.
+- Fluxo "só pagamento + ingresso": o evento é criado enxuto (o Square não guarda
+  data/local). Se um dia usar check-in, é só completar a data no painel.
+
 ## 1. Pré-requisitos (uma vez, no Vercel)
 
 Além do que já existe do Square, defina em Production:

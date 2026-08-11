@@ -301,3 +301,53 @@ export async function createWebhookSubscription(
   }
   return { id: s.id, signatureKey: s.signature_key };
 }
+
+export type CatalogEventItem = {
+  itemId: string; // id do ITEM no catálogo do Square (chave de vínculo)
+  variationId: string | null; // variação usada para o preço
+  name: string;
+  priceCents: number | null;
+  currency: string;
+};
+
+// Lista os itens do CATÁLOGO do Square (produtos com nome + preço). É a fonte
+// da verdade do sincronizador: cada item vira/atualiza um evento no painel.
+// Usa a primeira variação com preço fixo do item.
+export async function listCatalogItems(): Promise<CatalogEventItem[]> {
+  const out: CatalogEventItem[] = [];
+  let cursor: string | undefined;
+  let pages = 0;
+  do {
+    const params = new URLSearchParams({ types: "ITEM" });
+    if (cursor) params.set("cursor", cursor);
+    const data = await squareRequest<{
+      objects?: Array<Record<string, unknown>>;
+      cursor?: string;
+    }>(`/v2/catalog/list?${params.toString()}`, { method: "GET" });
+
+    for (const obj of data.objects ?? []) {
+      if (obj.is_deleted) continue;
+      const itemData = (obj.item_data ?? {}) as Record<string, unknown>;
+      const name = String(itemData.name ?? "").trim();
+      if (!name) continue;
+      const variations = (itemData.variations ?? []) as Array<Record<string, unknown>>;
+      // Primeira variação com preço fixo.
+      let variationId: string | null = null;
+      let priceCents: number | null = null;
+      let currency = "USD";
+      for (const v of variations) {
+        const vd = (v.item_variation_data ?? {}) as Record<string, unknown>;
+        const money = (vd.price_money ?? {}) as Record<string, unknown>;
+        if (money.amount != null) {
+          variationId = String(v.id ?? "") || null;
+          priceCents = Number(money.amount);
+          currency = (money.currency as string | undefined) ?? "USD";
+          break;
+        }
+      }
+      out.push({ itemId: String(obj.id ?? ""), variationId, name, priceCents, currency });
+    }
+    cursor = data.cursor;
+  } while (cursor && ++pages < 20);
+  return out;
+}

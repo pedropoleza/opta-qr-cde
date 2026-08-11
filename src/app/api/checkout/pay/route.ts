@@ -28,6 +28,7 @@ export async function POST(req: NextRequest) {
   }
 
   const res = await resolveCheckout({
+    eventId: typeof body.eventId === "string" ? body.eventId : body.e,
     email: body.email,
     phone: body.phone,
     name: body.name,

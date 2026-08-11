@@ -8,6 +8,7 @@ import {
   registrationWebhookUrl,
   squareWebhookUrl,
   leadWebhookUrl,
+  appBaseUrl,
 } from "@/lib/integration";
 
 export const dynamic = "force-dynamic";
@@ -50,6 +51,9 @@ export async function GET(
     registrationUrl: registrationWebhookUrl(integ.registrationToken),
     squareUrl: squareWebhookUrl(integ.paymentToken),
     leadUrl: locId ? leadWebhookUrl(locId) : null,
+    // Link/embed da modal de pagamento no site — específico deste evento (id
+    // estável, não é segredo). O `email` é acrescentado pelo formulário.
+    checkoutUrl: `${appBaseUrl()}/checkout?e=${id}`,
     hasSignatureKey: Boolean(integ.squareSignatureKey),
     autoSendQrOnPaid: integ.autoSendQrOnPaid,
     sendChannel: integ.sendChannel,

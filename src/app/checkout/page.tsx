@@ -19,6 +19,7 @@ export default async function CheckoutPage({
   return (
     <Suspense>
       <CheckoutClient
+        eventId={str(sp.e)}
         email={str(sp.email)}
         agenda={str(sp.agenda)}
         tag={str(sp.tag)}

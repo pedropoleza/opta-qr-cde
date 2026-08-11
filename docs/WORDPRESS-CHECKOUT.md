@@ -3,28 +3,31 @@
 A modal abre a página `/checkout` deste app dentro de um **iframe**, sem
 redirecionar o cliente. O pagamento roda pelo **Square Web Payments SDK**
 (cartão + Google Pay + Apple Pay + Cash App Pay) e o valor vem do **evento**
-(resolvido no servidor pela `agenda`) — o WordPress nunca define o preço.
+(resolvido no servidor) — o WordPress nunca define o preço.
 
-## Pré-requisitos (uma vez)
+O código do site é **genérico**: você cola **uma vez**. Cada evento é
+identificado pelo próprio link (`/checkout?e=<id do evento>`), que o painel
+gera pronto — **nada é chumbado por evento**.
 
-No Vercel (Production), além do que já existe do Square, defina:
+## 1. Pré-requisitos (uma vez, no Vercel)
+
+Além do que já existe do Square, defina em Production:
 
 - `SQUARE_APPLICATION_ID` — id **público** do app (Square Developer Dashboard →
   seu app → *Application ID*; em produção começa com `sq0idp-`).
 - `SQUARE_ACCESS_TOKEN`, `SQUARE_LOCATION_ID` — do **mesmo** app.
 - `SQUARE_ENVIRONMENT` — `production` (ou `sandbox` para testar).
 
-> **Apple Pay** exige verificar o domínio do site no Square (hospedar o arquivo
-> de associação). Sem isso, o botão da Apple simplesmente não aparece — cartão,
-> Google Pay e Cash App Pay funcionam normalmente.
+> **Apple Pay** exige verificar o domínio do site no Square. Sem isso, só o botão
+> da Apple não aparece — cartão, Google Pay e Cash App Pay funcionam normal.
 
-## Snippet para o WordPress
+## 2. O script da modal (colar UMA vez no site)
 
-Cole este bloco no tema/página onde está o formulário (ex.: um bloco *HTML
-personalizado*). Ele cria a modal e uma função `optaCheckout(email, agenda)`.
+Cole este bloco no rodapé do tema (ou num bloco *HTML* global). Ele cria a modal
+e liga **automaticamente** qualquer botão com o atributo `data-opta-checkout`.
 
 ```html
-<!-- Modal de pagamento Opta -->
+<!-- Modal de pagamento Opta — colar uma vez -->
 <div id="opta-modal" style="display:none;position:fixed;inset:0;z-index:99999;
      background:rgba(16,24,40,.6);align-items:center;justify-content:center;">
   <div style="position:relative;width:100%;max-width:430px;height:min(90vh,640px);">
@@ -32,65 +35,83 @@ personalizado*). Ele cria a modal e uma função `optaCheckout(email, agenda)`.
       style="position:absolute;top:-14px;right:-14px;z-index:1;width:34px;height:34px;
       border-radius:50%;border:0;background:#fff;box-shadow:0 2px 8px rgba(0,0,0,.2);
       font-size:18px;cursor:pointer;">×</button>
-    <iframe id="opta-iframe" title="Pagamento"
-      style="width:100%;height:100%;border:0;border-radius:16px;background:#fff;"
-      allow="payment"></iframe>
+    <iframe id="opta-iframe" title="Pagamento" allow="payment"
+      style="width:100%;height:100%;border:0;border-radius:16px;background:#fff;"></iframe>
   </div>
 </div>
 
 <script>
-  // Domínio do app (ajuste se usar outro).
-  var OPTA_BASE = "https://eventos.optafinance.com";
-
-  function optaCheckout(email, agenda) {
-    var url = OPTA_BASE + "/checkout?email=" + encodeURIComponent(email || "") +
-              "&agenda=" + encodeURIComponent(agenda || "");
-    document.getElementById("opta-iframe").src = url;
+(function () {
+  // Abre qualquer botão/link com data-opta-checkout="<link do evento>".
+  // O e-mail é lido do formulário: por padrão o primeiro <input type="email">,
+  // ou o seletor passado em data-opta-email (ex.: data-opta-email="#campo-email").
+  function getEmail(trigger) {
+    var sel = trigger.getAttribute("data-opta-email");
+    var el = sel ? document.querySelector(sel) : document.querySelector('input[type="email"]');
+    return el && el.value ? el.value : "";
+  }
+  function optaOpen(url, trigger) {
+    var email = getEmail(trigger);
+    var full = url + (url.indexOf("?") > -1 ? "&" : "?") +
+               "email=" + encodeURIComponent(email);
+    document.getElementById("opta-iframe").src = full;
     document.getElementById("opta-modal").style.display = "flex";
     document.body.style.overflow = "hidden";
   }
-  function optaCloseCheckout() {
+  window.optaCloseCheckout = function () {
     document.getElementById("opta-modal").style.display = "none";
     document.getElementById("opta-iframe").src = "about:blank";
     document.body.style.overflow = "";
-  }
-  // Quando o pagamento é confirmado, a modal avisa aqui.
+  };
+  document.addEventListener("click", function (e) {
+    var t = e.target.closest("[data-opta-checkout]");
+    if (!t) return;
+    e.preventDefault();
+    optaOpen(t.getAttribute("data-opta-checkout"), t);
+  });
   window.addEventListener("message", function (e) {
-    if (e.origin !== OPTA_BASE) return;
+    if (e.origin !== "https://eventos.optafinance.com") return;
     if (e.data && e.data.type === "opta-checkout" && e.data.status === "paid") {
-      // Ex.: fechar após 2s, ou trocar por sua tela de "obrigado".
-      setTimeout(optaCloseCheckout, 2500);
-      // window.location.href = "/obrigado";
+      setTimeout(window.optaCloseCheckout, 2500);
+      // Opcional: window.location.href = "/obrigado";
     }
   });
+})();
 </script>
 ```
 
-## Ligar ao formulário
+## 3. O botão de cada evento (o painel te dá pronto)
 
-Em vez de o formulário **redirecionar** para o Square, faça o *submit* chamar
-`optaCheckout(email, agenda)` com os dados do próprio form.
-
-**Exemplo genérico** (form com campo de e-mail e um evento fixo):
+No painel: **abra o evento → aba Pagamentos → "Pagamento no site (modal)"** e
+copie o **Botão para o site**. Ele já vem com o link do evento, por exemplo:
 
 ```html
-<script>
-  document.querySelector("#meu-form").addEventListener("submit", function (ev) {
-    ev.preventDefault(); // não redireciona
-    var email = this.querySelector('[name="email"]').value;
-    optaCheckout(email, "Café com Elas"); // agenda = nome do evento
-  });
-</script>
+<button data-opta-checkout="https://eventos.optafinance.com/checkout?e=EVENTO_ID">
+  Pagar inscrição
+</button>
 ```
 
-- **`agenda`** deve bater com o nome do evento no painel (o casamento é
-  tolerante a acento/maiúsculas). Pode passar também `&tag=<ghlTag>`.
-- Se o e-mail vier de um merge field do GHL, use o mesmo valor que hoje vai no
-  `/pay` (ex.: `{{contact.email}}`).
+Cole esse botão na página/formulário daquele evento. Para um evento novo, repita:
+crie o evento, defina o preço, copie o botão dele. **O script da seção 2 nunca
+muda.**
+
+### Ligar a um formulário existente
+
+Se o formulário tem um botão próprio de "enviar", basta acrescentar o atributo
+nele (e o seletor do campo de e-mail, se não for um `type="email"`):
+
+```html
+<button type="submit"
+        data-opta-checkout="https://eventos.optafinance.com/checkout?e=EVENTO_ID"
+        data-opta-email="#email">Inscrever e pagar</button>
+```
 
 ## Observações
 
-- A nossa página `/checkout` **pode** ser embutida em iframe (nós controlamos o
+- **Nada é chumbado por evento:** o único dado específico é o link
+  `/checkout?e=<id>`, que o painel gera. Preço, nome e moeda saem do evento no
+  servidor — o navegador nunca define o valor.
+- A nossa página `/checkout` **pode** ir em iframe (controlamos o
   `frame-ancestors`); o checkout hospedado do Square **não** pode — por isso a
   modal usa o Web Payments SDK, não a página do Square.
 - Se você restringir `CRM_FRAME_ANCESTORS`, inclua **também o domínio do site
@@ -98,4 +119,3 @@ Em vez de o formulário **redirecionar** para o Square, faça o *submit* chamar
 - Ao confirmar o pagamento, o app marca o convidado como **pago** e dispara o
   **ingresso** pelo mesmo fluxo do webhook (e-mail/WhatsApp/GHL conforme o
   evento).
-```

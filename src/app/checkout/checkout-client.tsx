@@ -17,6 +17,7 @@ type Config = {
 };
 
 type Props = {
+  eventId: string;
   email: string;
   agenda: string;
   tag: string;
@@ -44,7 +45,7 @@ function loadSdk(env: Config["environment"]): Promise<any> {
   });
 }
 
-export function CheckoutClient({ email, agenda, tag, name, phone }: Props) {
+export function CheckoutClient({ eventId, email, agenda, tag, name, phone }: Props) {
   const [phase, setPhase] = useState<Phase>("loading");
   const [config, setConfig] = useState<Config | null>(null);
   const [message, setMessage] = useState<string>("");
@@ -59,7 +60,7 @@ export function CheckoutClient({ email, agenda, tag, name, phone }: Props) {
       }).format(config.amountCents / 100)
     : "";
 
-  const query = new URLSearchParams({ email, agenda, tag, name, phone }).toString();
+  const query = new URLSearchParams({ e: eventId, email, agenda, tag, name, phone }).toString();
 
   // Envia o token ao backend, que recobra o valor do evento e cobra no Square.
   const submitToken = useCallback(
@@ -70,7 +71,7 @@ export function CheckoutClient({ email, agenda, tag, name, phone }: Props) {
         const res = await fetch("/api/checkout/pay", {
           method: "POST",
           headers: { "content-type": "application/json" },
-          body: JSON.stringify({ sourceId, verificationToken, email, agenda, tag, name, phone }),
+          body: JSON.stringify({ sourceId, verificationToken, eventId, email, agenda, tag, name, phone }),
         });
         const data = await res.json().catch(() => ({}));
         if (res.ok && data.ok) {
@@ -91,7 +92,7 @@ export function CheckoutClient({ email, agenda, tag, name, phone }: Props) {
         setMessage("Falha de conexão. Tente novamente.");
       }
     },
-    [email, agenda, tag, name, phone],
+    [eventId, email, agenda, tag, name, phone],
   );
 
   useEffect(() => {

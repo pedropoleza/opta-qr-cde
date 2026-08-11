@@ -26,6 +26,7 @@ export async function GET(req: NextRequest) {
 
   const url = new URL(req.url);
   const res = await resolveCheckout({
+    eventId: url.searchParams.get("e"),
     email: url.searchParams.get("email"),
     phone: url.searchParams.get("phone"),
     name: url.searchParams.get("name"),

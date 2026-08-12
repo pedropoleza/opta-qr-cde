@@ -59,7 +59,12 @@ try {
       `[deploy-migrate] P3005 → baseline: marcando ${baseline.length} migrations como aplicadas…`,
     );
     for (const name of baseline) {
-      sh(`npx --no-install prisma migrate resolve --applied ${name}`);
+      try {
+        sh(`npx --no-install prisma migrate resolve --applied ${name}`);
+      } catch {
+        // Benigno: já registrada (ex.: tentativa de deploy anterior parcial).
+        console.log(`[deploy-migrate] resolve ${name}: já aplicada — ignorando.`);
+      }
     }
     console.log("[deploy-migrate] baseline pronto — aplicando a migration nova…");
     console.log(migrateDeploy());
